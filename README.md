@@ -12,4 +12,4 @@ The app will allow people to rate/review songs and albums from artists along wit
 **Homepage:** shows the weeks most popular songs and albums in a scrollable format that you can click on to review <br><br>
 **Extended)Doomscrollable rating page:** similar to how letterboxd did it. It will showcase one song at a time that has spot for you to rate, add to liked songs, etc. by default the scroll feature will go through the top popular songs but can have a genre filter system that will then scroll through the most popular songs in a specific genre.(could maybe in the future have an algorithm to showcase personalized songs that it thinks you might like by counting up all songs a user has reviewed, then will recommend songs off of what genre you’ve rated the highest or most) <br><br>
 
-test!
+
