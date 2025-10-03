@@ -42,7 +42,55 @@ class MyAppState extends ChangeNotifier {
   }
 }
 
-class MyHomePage extends StatelessWidget {
+class MyHomePage extends StatefulWidget {
+  @override
+  State<MyHomePage> createState() => _MyHomePageState();
+}
+
+class _MyHomePageState extends State<MyHomePage> {
+  int selectedIndex = 0;
+
+  final pages = [
+    GeneratorPage(),
+    FavoritesPage(), // switchs to the favorites page class
+  ];
+
+  @override
+  Widget build(BuildContext context) { 
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Scaffold(
+          appBar: AppBar(
+            bottom: PreferredSize(
+              preferredSize: Size.fromHeight(30), //adjust distance of nav bar
+              child: NavigationBar(
+                destinations: const [
+                  NavigationDestination(
+                    icon: Icon(Icons.home),
+                    label: 'Home',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.favorite),
+                    label: 'Favorites',
+                  ),
+                ],
+        
+                selectedIndex: selectedIndex,
+                onDestinationSelected: (index) {
+                  setState(() => selectedIndex = index);
+                },
+        
+              ),
+            ),
+          ),
+          body: pages[selectedIndex],
+        );
+      }
+    );
+  }
+}
+
+class GeneratorPage extends StatelessWidget { // page builder
   @override
   Widget build(BuildContext context) {
     var appState = context.watch<MyAppState>();
@@ -55,35 +103,62 @@ class MyHomePage extends StatelessWidget {
       icon = Icons.favorite_border;
     }
 
-    return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-          Text('Playlistd'),
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text('Playlistd'), // Title above random word pairs
           BigCard(pair: pair),
           SizedBox(height: 10),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               ElevatedButton.icon(
-                  onPressed: () {
-                    appState.toggleFavorite();
-                  },
-                  icon: Icon(icon),
-                  label: Text('Like'),
-                ),
+                onPressed: () {
+                  appState.toggleFavorite();
+                },
+                icon: Icon(icon),
+                label: Text('Like'),
+              ),
+              SizedBox(width: 10),
               ElevatedButton(
-                  onPressed: () {
-                    appState.getNext();
-                  },
-                  child: Text('Next Song'),
-                ),
+                onPressed: () {
+                  appState.getNext();
+                },
+                child: Text('Next'),
+              ),
             ],
           ),
-          ],
-        ),
+        ],
       ),
+    );
+  }
+}
+
+class FavoritesPage extends StatelessWidget { //favorites page 
+  @override
+  Widget build(BuildContext context) {
+    var appState = context.watch<MyAppState>();
+
+    if (appState.favorites.isEmpty) {
+      return Center(
+        child: Text('No favorites yet.'),
+      );
+    }
+
+    return ListView(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(20),
+          child: Text('You have '
+              '${appState.favorites.length} favorites:'),
+        ),
+        for (var pair in appState.favorites)
+          ListTile(
+            leading: Icon(Icons.favorite),
+            title: Text(pair.asLowerCase),
+          ),
+      ],
     );
   }
 }
