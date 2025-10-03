@@ -14,7 +14,7 @@ class MyApp extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (context) => MyAppState(),
       child: MaterialApp(
-        title: 'Namer App',
+        title: 'Playlistd',
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 21, 131, 183)),
         ),
@@ -52,7 +52,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
   final pages = [
     GeneratorPage(),
-    FavoritesPage(), // switchs to the favorites page class
+    FavoritesPage(),
+    RecommendationsPage(), // switchs to the favorites page class
   ];
 
   @override
@@ -72,6 +73,10 @@ class _MyHomePageState extends State<MyHomePage> {
                   NavigationDestination(
                     icon: Icon(Icons.favorite),
                     label: 'Favorites',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.library_music),
+                    label: 'Recommendations',
                   ),
                 ],
         
@@ -158,6 +163,20 @@ class FavoritesPage extends StatelessWidget { //favorites page
             leading: Icon(Icons.favorite),
             title: Text(pair.asLowerCase),
           ),
+      ],
+    );
+  }
+}
+
+class RecommendationsPage extends StatelessWidget { //favorites page 
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(20),
+          child: Text('You have no Recommendations yet'),
+        )
       ],
     );
   }
