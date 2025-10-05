@@ -1,14 +1,17 @@
 import 'package:english_words/english_words.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
-void main() {
-  runApp(MyApp());
+void main() async{
+    //runApp(const MyApp());
+    fetchTopTracks("Access Token Here");
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
+  
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
@@ -53,7 +56,7 @@ class _MyHomePageState extends State<MyHomePage> {
   final pages = [
     GeneratorPage(),
     FavoritesPage(),
-    RecommendationsPage(), // switchs to the favorites page class
+    RecommendationsPage(), // switches to the favorites page class
   ];
 
   @override
@@ -210,3 +213,19 @@ class BigCard extends StatelessWidget {
     );
   }
 }
+
+
+  Future<void> fetchTopTracks(String accessToken) async {
+  final response = await http.get(Uri.parse('https://api.spotify.com/v1/artists/4Z8W4fKeB5YxbusRsdQVPb'), headers: {
+    'Authorization': 'Bearer $accessToken',
+  });
+  if (response.statusCode == 200) {
+        //ff the server returns a 200 OK response, parse the JSON.
+        print(jsonDecode(response.body));
+  } 
+  else 
+      {
+        //if the server did not return a 200 OK response, throw an exception.
+        throw Exception('Failed to load top tracks');
+      }
+  }
