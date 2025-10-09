@@ -1,0 +1,33 @@
+[
+{
+    "userID": "000001",
+    "username": "testuser",
+    "password": "testpassword",
+    "email": "testemail@gmail.com",
+    "profilePicture": "default.jpg",
+    "bio": "test bio",
+    "privacySetting": "public",
+    "avgSongRating": 3,
+    "avgAlbumRating": 4,
+    "avgTotalRating": 3.5,
+    "favoriteGenres": ["Rock", "Indie", "Jazz"],
+    "favoriteAlbums": ["AM", "In Rainbows"],
+    "friendsList": ["000002", "000003"],
+    "friendRequests": ["000004"],
+    "activityFeed": [
+        {"type": "review", "content": "Rated 'AM' 5 stars", "date": "2025-10-08"}
+    ],
+    "reviews": [
+        {"reviewID": "R001", "songID": "S001", "text": "Love the guitar tone!", "date": "2025-10-01"}
+    ],
+    "comments": [
+        {"commentID": "C001", "text": "Great pick!", "targetReview": "R002", "date": "2025-10-05"}
+    ],
+    "genrePreferenceWeights": {"Rock": 0.6, "Pop": 0.2, "Jazz": 0.2},
+    "discoveryHistory": ["S034", "S035", "S036"],
+    "recommendedSongs": ["S040", "S041"],
+    "lastLogin": "2025-10-09T12:34:56"
+}
+
+
+]
