@@ -11,6 +11,10 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+*.swift
+*.cc
+*.h
+*.cmake
 
 # IntelliJ related
 *.iml

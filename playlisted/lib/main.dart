@@ -1,21 +1,34 @@
 import 'package:english_words/english_words.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'spotify.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-void main() async{
-    //runApp(const MyApp());
-    fetchTopTracks("Access Token Here");
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  //load environment variables (.env) so tokenget.SpotifyService can read client id/secret
+  await dotenv.load(fileName: '.env');
+
+  //get our initial token, ? means our token can be null if fetch fails
+  String? initialToken;
+  try {
+    initialToken = await SpotifyService().getAccessToken();
+    print('Initial Spotify token fetched');
+  } catch (e) {
+    initialToken = null;
+    print('Failed to fetch initial token: $e');
+  }
+
+  runApp(MyApp(initialAccessToken: initialToken));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-  
+  final String? initialAccessToken;
+  const MyApp({super.key, this.initialAccessToken});
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (context) => MyAppState(),
+      create: (context) => MyAppState(accessToken: initialAccessToken),
       child: MaterialApp(
         title: 'Playlistd',
         theme: ThemeData(
@@ -28,6 +41,17 @@ class MyApp extends StatelessWidget {
 }
 
 class MyAppState extends ChangeNotifier {
+  //optional access token (fetched at app startup)
+  String? accessToken;
+  //use this to hold fetched tracks when fetchTopTracks returns data
+  late final Future<List<Track>> tracks;
+
+  MyAppState({this.accessToken}){
+     //get top tracks (later would be user specific)
+     tracks = SpotifyService().fetchTopTracks(accessToken);
+     print(tracks);
+  }
+
   var current = WordPair.random();
   void getNext() {
     current = WordPair.random();
@@ -215,17 +239,4 @@ class BigCard extends StatelessWidget {
 }
 
 
-  Future<void> fetchTopTracks(String accessToken) async {
-  final response = await http.get(Uri.parse('https://api.spotify.com/v1/artists/4Z8W4fKeB5YxbusRsdQVPb'), headers: {
-    'Authorization': 'Bearer $accessToken',
-  });
-  if (response.statusCode == 200) {
-        //ff the server returns a 200 OK response, parse the JSON.
-        print(jsonDecode(response.body));
-  } 
-  else 
-      {
-        //if the server did not return a 200 OK response, throw an exception.
-        throw Exception('Failed to load top tracks');
-      }
-  }
+
