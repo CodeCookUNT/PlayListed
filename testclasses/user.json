@@ -1,5 +1,5 @@
 [
-{
+    {
     "userID": "000001",
     "username": "testuser",
     "password": "testpassword",
@@ -17,17 +17,42 @@
     "activityFeed": [
         {"type": "review", "content": "Rated 'AM' 5 stars", "date": "2025-10-08"}
     ],
-    "reviews": [
-        {"reviewID": "R001", "songID": "S001", "text": "Love the guitar tone!", "date": "2025-10-01"}
-    ],
-    "comments": [
-        {"commentID": "C001", "text": "Great pick!", "targetReview": "R002", "date": "2025-10-05"}
+    "songRatings": [
+        {"reviewID": "R001", "songID": "S001","rating": 5, "text": "sick guitar solo", "date": "2025-10-01T14:23:45"},
+        {"reviewID": "R002", "songID": "S002","rating": 1, "text": "garbage song", "date": "2025-10-01T14:30:37"}
     ],
     "genrePreferenceWeights": {"Rock": 0.6, "Pop": 0.2, "Jazz": 0.2},
     "discoveryHistory": ["S034", "S035", "S036"],
     "recommendedSongs": ["S040", "S041"],
     "lastLogin": "2025-10-09T12:34:56"
-}
-
+    },
+    
+    {
+    "userID": "000002",
+    "username": "musiclover",
+    "password": "musicloverpass",
+    "email": "muslover@gmail.com",
+    "profilePicture": "default.jpg",
+    "bio": "music is cool",
+    "privacySetting": "private",
+    "avgSongRating": 3.5,
+    "avgAlbumRating": 3 ,
+    "avgTotalRating": 3.5,
+    "favoriteGenres": ["Rock", "Country", "Mellow"],
+    "favoriteAlbums": ["A New World Record", "Pet Sounds"],
+    "friendsList": ["000001", "000003"],
+    "friendRequests": ["000004"],
+    "activityFeed": [
+        {"type": "review", "content": "Rated 'AM' 5 stars", "date": "2025-10-08"}
+    ],
+    "songRatings": [
+        {"reviewID": "R003", "songID": "S087","rating": 1, "text": "I hate this song, mixing is terrible", "date": "2025-10-01T14:23:45"},
+        {"reviewID": "R004", "songID": "S092","rating": 4, "text": "really cool", "date": "2025-10-01T14:30:37"}
+    ],
+    "genrePreferenceWeights": {"Rock": 0.6, "Pop": 0.2, "Jazz": 0.2},
+    "discoveryHistory": ["S034", "S035", "S036"],
+    "recommendedSongs": ["S040", "S041"],
+    "lastLogin": "2025-10-09T12:34:56"
+    }
 
 ]

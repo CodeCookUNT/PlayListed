@@ -1,0 +1,19 @@
+[
+  {
+    "commentID": "C001",
+    "userID": "000002",
+    "targetReview": "R004",
+    "text": "Totally agree!",
+    "date": "2025-10-12T10:04:29"
+  },
+  {
+    "commentID": "C002",
+    "userID": "000001",
+    "targetReview": "R003",
+    "text": "now thats a hot take",
+    "date": "2025-10-12T10:04:29"
+  }
+  
+
+
+]

@@ -1,0 +1,15 @@
+[
+    {
+    "albumID": "A001",
+    "spotifyID": "4aawyAB9vmqN3uQ7FjRGTy",
+    "avgRating": 4.5,
+    "reviews": ["R050", "R051", "R058"]
+    },
+    {
+    "albumID": "A002",
+    "spotifyID": "2ODvWsOgouMbaA5xf0RkJe",
+    "avgRating": 3.9,
+    "reviews": ["R070", "R071"]
+    }
+
+]
