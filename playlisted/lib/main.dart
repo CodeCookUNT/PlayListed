@@ -31,6 +31,7 @@ class MyAppState extends ChangeNotifier {
     notifyListeners();
   }
   var favorites = <WordPair>[];
+  Color backgroundColor = Colors.white;
 
   void toggleFavorite() {
     if (favorites.contains(current)) {
@@ -38,6 +39,11 @@ class MyAppState extends ChangeNotifier {
     } else {
       favorites.add(current);
     }
+    notifyListeners();
+  }
+
+  void changeBackground(Color color) {
+    backgroundColor = color;
     notifyListeners();
   }
 }
@@ -88,7 +94,22 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
             ),
           ),
-          body: pages[selectedIndex],
+          body: Container(
+          color: context.watch<MyAppState>().backgroundColor,
+          child: pages[selectedIndex],
+          ),
+
+          floatingActionButton: Align(
+          alignment: Alignment.bottomLeft,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: FloatingActionButton(
+            heroTag: 'settingsButton',
+            onPressed: () => _openSettings(context),
+            child: const Icon(Icons.settings),
+            ),
+            ),
+          ),
         );
       }
     );
@@ -209,4 +230,53 @@ class BigCard extends StatelessWidget {
       ),
     );
   }
+}
+void _openSettings(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    builder: (context) {
+      var appState = context.watch<MyAppState>();
+      return Container(
+        padding: const EdgeInsets.all(16),
+        height: 200,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Select Background Color',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 10,
+              children: [
+                _colorCircle(context, Colors.white),
+                _colorCircle(context, Colors.blue.shade100),
+                _colorCircle(context, Colors.green.shade100),
+                _colorCircle(context, Colors.pink.shade100),
+                _colorCircle(context, Colors.grey.shade300),
+              ],
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+Widget _colorCircle(BuildContext context, Color color) {
+  var appState = context.read<MyAppState>();
+  return GestureDetector(
+    onTap: () {
+      appState.changeBackground(color);
+      Navigator.pop(context);
+    },
+    child: CircleAvatar(
+      backgroundColor: color,
+      radius: 22,
+      child: appState.backgroundColor == color
+          ? const Icon(Icons.check, color: Colors.black)
+          : null,
+    ),
+  );
 }
