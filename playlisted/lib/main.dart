@@ -18,13 +18,22 @@ class MyApp extends StatelessWidget {
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 21, 131, 183)),
         ),
-        home: MyHomePage(),
+        home: Consumer<MyAppState>(
+          builder: (context, appState, _) {
+            if (appState.isLoggedIn) {
+              return MyHomePage(); // your existing home page
+            } else {
+              return LoginPage();
+            }
+          },
+        ),
       ),
     );
   }
 }
 
 class MyAppState extends ChangeNotifier {
+  bool isLoggedIn = false;
   var current = WordPair.random();
   void getNext() {
     current = WordPair.random();
@@ -44,6 +53,16 @@ class MyAppState extends ChangeNotifier {
 
   void changeBackground(Color color) {
     backgroundColor = color;
+    notifyListeners();
+  }
+
+  //login in section
+  void login(String username, String password) {
+    isLoggedIn = true;
+    notifyListeners();
+  }
+  void logout() {
+    isLoggedIn = false;
     notifyListeners();
   }
 }
@@ -257,6 +276,13 @@ void _openSettings(BuildContext context) {
                 _colorCircle(context, Colors.grey.shade300),
               ],
             ),
+            ElevatedButton(
+              child: Text('Logout'),
+              onPressed: () {
+                appState.logout();
+                Navigator.of(context).pop();
+              },
+            ),
           ],
         ),
       );
@@ -279,4 +305,47 @@ Widget _colorCircle(BuildContext context, Color color) {
           : null,
     ),
   );
+}
+// login page
+class LoginPage extends StatefulWidget {
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  final usernameController = TextEditingController();
+  final passwordController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    final appState = Provider.of<MyAppState>(context);
+
+    return Scaffold(
+      appBar: AppBar(title: Text('Login')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            TextField(
+              controller: usernameController,
+              decoration: InputDecoration(labelText: 'Username'),
+            ),
+            TextField(
+              controller: passwordController,
+              decoration: InputDecoration(labelText: 'Password'),
+              obscureText: true,
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              child: Text('Login'),
+              onPressed: () {
+                appState.login(usernameController.text, passwordController.text);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
