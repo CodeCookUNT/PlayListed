@@ -18,19 +18,29 @@ class MyApp extends StatelessWidget {
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 21, 131, 183)),
         ),
-        home: MyHomePage(),
+        home: Consumer<MyAppState>(
+          builder: (context, appState, _) {
+            if (appState.isLoggedIn) {
+              return MyHomePage(); // your existing home page
+            } else {
+              return LoginPage();
+            }
+          },
+        ),
       ),
     );
   }
 }
 
 class MyAppState extends ChangeNotifier {
+  bool isLoggedIn = false;
   var current = WordPair.random();
   void getNext() {
     current = WordPair.random();
     notifyListeners();
   }
   var favorites = <WordPair>[];
+  Color backgroundColor = Colors.white;
 
   void toggleFavorite() {
     if (favorites.contains(current)) {
@@ -38,6 +48,21 @@ class MyAppState extends ChangeNotifier {
     } else {
       favorites.add(current);
     }
+    notifyListeners();
+  }
+
+  void changeBackground(Color color) {
+    backgroundColor = color;
+    notifyListeners();
+  }
+
+  //login in section
+  void login(String username, String password) {
+    isLoggedIn = true;
+    notifyListeners();
+  }
+  void logout() {
+    isLoggedIn = false;
     notifyListeners();
   }
 }
@@ -88,7 +113,22 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
             ),
           ),
-          body: pages[selectedIndex],
+          body: Container(
+          color: context.watch<MyAppState>().backgroundColor,
+          child: pages[selectedIndex],
+          ),
+
+          floatingActionButton: Align(
+          alignment: Alignment.bottomLeft,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: FloatingActionButton(
+            heroTag: 'settingsButton',
+            onPressed: () => _openSettings(context),
+            child: const Icon(Icons.settings),
+            ),
+            ),
+          ),
         );
       }
     );
@@ -205,6 +245,105 @@ class BigCard extends StatelessWidget {
           pair.asLowerCase,
           style: style,
           semanticsLabel: "${pair.first} ${pair.second}",
+        ),
+      ),
+    );
+  }
+}
+void _openSettings(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    builder: (context) {
+      var appState = context.watch<MyAppState>();
+      return Container(
+        padding: const EdgeInsets.all(16),
+        height: 200,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Select Background Color',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 10,
+              children: [
+                _colorCircle(context, Colors.white),
+                _colorCircle(context, Colors.blue.shade100),
+                _colorCircle(context, Colors.green.shade100),
+                _colorCircle(context, Colors.pink.shade100),
+                _colorCircle(context, Colors.grey.shade300),
+              ],
+            ),
+            ElevatedButton(
+              child: Text('Logout'),
+              onPressed: () {
+                appState.logout();
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+Widget _colorCircle(BuildContext context, Color color) {
+  var appState = context.read<MyAppState>();
+  return GestureDetector(
+    onTap: () {
+      appState.changeBackground(color);
+      Navigator.pop(context);
+    },
+    child: CircleAvatar(
+      backgroundColor: color,
+      radius: 22,
+      child: appState.backgroundColor == color
+          ? const Icon(Icons.check, color: Colors.black)
+          : null,
+    ),
+  );
+}
+// login page
+class LoginPage extends StatefulWidget {
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  final usernameController = TextEditingController();
+  final passwordController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    final appState = Provider.of<MyAppState>(context);
+
+    return Scaffold(
+      appBar: AppBar(title: Text('Login')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            TextField(
+              controller: usernameController,
+              decoration: InputDecoration(labelText: 'Username'),
+            ),
+            TextField(
+              controller: passwordController,
+              decoration: InputDecoration(labelText: 'Password'),
+              obscureText: true,
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              child: Text('Login'),
+              onPressed: () {
+                appState.login(usernameController.text, passwordController.text);
+              },
+            ),
+          ],
         ),
       ),
     );
