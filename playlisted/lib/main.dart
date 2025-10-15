@@ -62,34 +62,37 @@ class MyAppState extends ChangeNotifier {
 
   MyAppState({this.accessToken, this.tracks}) {
     // Initialize current safely
-    if (tracks != null ) {
-      current = tracks?[0].name;
+    if (tracks != null && tracks!.isNotEmpty) {
+      current = tracks![0];
     } else {
-      current = "Failed to fetch track";; // fallback to a random WordPair
+      current = null;
     }
   }
 
-  dynamic current; //can be String (track name) or WordPair
+  Track? current; // Changed to Track? instead of dynamic
 
   void getNext() {
     if (tracks != null && tracks!.isNotEmpty) {
-      //cycle to next track name
-      int currentIndex = tracks!.indexWhere((track) => track.name == current);
+      //cycle to next track
+      int currentIndex = tracks!.indexWhere((track) => track.name == current?.name);
       int nextIndex = (currentIndex + 1) % tracks!.length;
-      current = tracks![nextIndex].name;
+      current = tracks![nextIndex];
     } else {
-      current = "Failed to fetch track";
+      current = null;
     }
     notifyListeners();
   }
-  var favorites = List<dynamic>.empty(growable: true);
+  
+  var favorites = List<Track>.empty(growable: true);
   Color backgroundColor = Colors.white;
 
   void toggleFavorite() {
-    if (favorites.contains(current)) {
-      favorites.remove(current);
-    } else {
-      favorites.add(current);
+    if (current != null) {
+      if (favorites.any((track) => track.name == current!.name)) {
+        favorites.removeWhere((track) => track.name == current!.name);
+      } else {
+        favorites.add(current!);
+      }
     }
     notifyListeners();
   }
@@ -182,10 +185,10 @@ class GeneratorPage extends StatelessWidget { // page builder
   @override
   Widget build(BuildContext context) {
     var appState = context.watch<MyAppState>();
-    dynamic track = appState.current;
+    Track? track = appState.current;
 
     IconData icon;
-    if (appState.favorites.contains(track)) {
+    if (track != null && appState.favorites.any((t) => t.name == track.name)) {
       icon = Icons.favorite;
     } else {
       icon = Icons.favorite_border;
@@ -196,7 +199,10 @@ class GeneratorPage extends StatelessWidget { // page builder
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text('Playlistd'), // Title above track names
-          BigCard(trackName: track), //pass the track name to BigCard
+          if (track != null)
+            BigCard(track: track)
+          else
+            Text('Failed to fetch track'),
           SizedBox(height: 10),
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -244,7 +250,8 @@ class FavoritesPage extends StatelessWidget { //favorites page
         for (var track in appState.favorites)
           ListTile(
             leading: Icon(Icons.favorite),
-            title: Text(track),
+            title: Text(track.name),
+            subtitle: Text(track.artists),
           ),
       ],
     );
@@ -268,10 +275,10 @@ class RecommendationsPage extends StatelessWidget { //favorites page
 class BigCard extends StatelessWidget {
   const BigCard({
     super.key,
-    required this.trackName,
+    required this.track,
   });
 
-  final dynamic trackName;
+  final Track track;
 
   @override
   Widget build(BuildContext context) {
@@ -279,20 +286,37 @@ class BigCard extends StatelessWidget {
     final style = theme.textTheme.displayMedium!.copyWith(
       color: theme.colorScheme.onPrimary,
     );
+    final artistStyle = theme.textTheme.titleLarge!.copyWith(
+      color: theme.colorScheme.onPrimary.withOpacity(0.8),
+    );
 
     return Card(
       color: theme.colorScheme.primary,
       child: Padding(
         padding: const EdgeInsets.all(20.0),
-        child: Text(
-          trackName,
-          style: style,
-          semanticsLabel: "${trackName}",
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              track.name,
+              style: style,
+              textAlign: TextAlign.center,
+              semanticsLabel: "${track.name}",
+            ),
+            SizedBox(height: 8),
+            Text(
+              track.artists,
+              style: artistStyle,
+              textAlign: TextAlign.center,
+              semanticsLabel: "by ${track.artists}",
+            ),
+          ],
         ),
       ),
     );
   }
 }
+
 void _openSettings(BuildContext context) {
   showModalBottomSheet(
     context: context,
