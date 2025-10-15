@@ -17,6 +17,7 @@ class Track {
     required this.explicit,
     required this.url,
   });
+
 }
 
 //The .env won't be pushed to git you gonna need to make it :}
@@ -55,19 +56,17 @@ class SpotifyService {
     if (response.statusCode == 200) {
       //decode the json response
       final data = jsonDecode(response.body);
-      //extract the list of tracks
-      final items = data['tracks']['items'] as List;
-      //map each track to our Track class
-      return items.map((track) {
+      final tracksJson = data['tracks']['items'] as List;
+      return tracksJson.map((json) {
+        final artists = (json['artists'] as List)
+            .map((artist) => artist['name'])
+            .join(', ');
         return Track(
-          name: track['name'],
-          //join each artists with a ', ' since there could be multiple artists per track
-          artists: (track['artists'] as List)
-              .map((a) => a['name'])
-              .join(', '),
-          durationMs: track['duration_ms'],
-          explicit: track['explicit'],
-          url: track['external_urls']['spotify'],
+          name: json['name'],
+          artists: artists,
+          durationMs: json['duration_ms'],
+          explicit: json['explicit'],
+          url: json['external_urls']['spotify'],
         );
       }).toList();
     }

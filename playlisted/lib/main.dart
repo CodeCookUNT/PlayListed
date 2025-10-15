@@ -19,6 +19,15 @@ Future<void> main() async {
     print('Failed to fetch initial token: $e');
   }
 
+  print("PRINTING TRACKS");
+
+  //get tracks in an album and print the names and artists
+  List<Track> tracks = [];
+  tracks = await SpotifyService().fetchTopTracks(initialToken);
+  for (var track in tracks) {
+    print('Track: ${track.name}, Artists: ${track.artists}');
+  }
+
   runApp(MyApp(initialAccessToken: initialToken));
 }
 
@@ -52,14 +61,19 @@ class MyAppState extends ChangeNotifier {
   bool isLoggedIn = false;
   //optional access token (fetched at app startup)
   String? accessToken;
-  //use this to hold fetched tracks when fetchTopTracks returns data
-  late final Future<List<Track>> tracks;
 
-  MyAppState({this.accessToken}){
-     //get top tracks (later would be user specific)
-     tracks = SpotifyService().fetchTopTracks(accessToken);
-     print(tracks);
+  MyAppState({this.accessToken});
+
+  //use this to hold fetched tracks when fetchTopTracks returns data
+  
+  //load top tracks (later would be user specific)
+  /*
+    Future<void> loadTracks() async {
+    tracks = await SpotifyService().fetchTopTracks(accessToken);
+    print(tracks); // Now prints the actual list of Track objects
+    notifyListeners();
   }
+  */
 
   var current = WordPair.random();
   void getNext() {
