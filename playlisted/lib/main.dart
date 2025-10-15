@@ -19,25 +19,21 @@ Future<void> main() async {
     print('Failed to fetch initial token: $e');
   }
 
-  print("PRINTING TRACKS");
-
   //get tracks in an album and print the names and artists
-  List<Track> tracks = [];
-  tracks = await SpotifyService().fetchTopTracks(initialToken);
-  for (var track in tracks) {
-    print('Track: ${track.name}, Artists: ${track.artists}');
-  }
+  List<Track> intialTracks = [];
+  intialTracks = await SpotifyService().fetchTopTracks(initialToken);
 
-  runApp(MyApp(initialAccessToken: initialToken));
+  runApp(MyApp(initialAccessToken: initialToken, intialAccessTracks: intialTracks));
 }
 
 class MyApp extends StatelessWidget {
   final String? initialAccessToken;
-  const MyApp({super.key, this.initialAccessToken});
+  final List<Track>? intialAccessTracks;
+  const MyApp({super.key, this.initialAccessToken, this.intialAccessTracks});
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (context) => MyAppState(accessToken: initialAccessToken),
+      create: (context) => MyAppState(accessToken: initialAccessToken, tracks: intialAccessTracks), 
       child: MaterialApp(
         title: 'Playlistd',
         theme: ThemeData(
@@ -61,26 +57,32 @@ class MyAppState extends ChangeNotifier {
   bool isLoggedIn = false;
   //optional access token (fetched at app startup)
   String? accessToken;
-
-  MyAppState({this.accessToken});
-
-  //use this to hold fetched tracks when fetchTopTracks returns data
+  List<Track>? tracks = [];
   
-  //load top tracks (later would be user specific)
-  /*
-    Future<void> loadTracks() async {
-    tracks = await SpotifyService().fetchTopTracks(accessToken);
-    print(tracks); // Now prints the actual list of Track objects
-    notifyListeners();
-  }
-  */
 
-  var current = WordPair.random();
+  MyAppState({this.accessToken, this.tracks}) {
+    // Initialize current safely
+    if (tracks != null ) {
+      current = tracks?[0].name;
+    } else {
+      current = "Failed to fetch track";; // fallback to a random WordPair
+    }
+  }
+
+  dynamic current; //can be String (track name) or WordPair
+
   void getNext() {
-    current = WordPair.random();
+    if (tracks != null && tracks!.isNotEmpty) {
+      //cycle to next track name
+      int currentIndex = tracks!.indexWhere((track) => track.name == current);
+      int nextIndex = (currentIndex + 1) % tracks!.length;
+      current = tracks![nextIndex].name;
+    } else {
+      current = "Failed to fetch track";
+    }
     notifyListeners();
   }
-  var favorites = <WordPair>[];
+  var favorites = List<dynamic>.empty(growable: true);
   Color backgroundColor = Colors.white;
 
   void toggleFavorite() {
@@ -180,10 +182,10 @@ class GeneratorPage extends StatelessWidget { // page builder
   @override
   Widget build(BuildContext context) {
     var appState = context.watch<MyAppState>();
-    var pair = appState.current;
+    dynamic track = appState.current;
 
     IconData icon;
-    if (appState.favorites.contains(pair)) {
+    if (appState.favorites.contains(track)) {
       icon = Icons.favorite;
     } else {
       icon = Icons.favorite_border;
@@ -193,8 +195,8 @@ class GeneratorPage extends StatelessWidget { // page builder
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text('Playlistd'), // Title above random word pairs
-          BigCard(pair: pair),
+          Text('Playlistd'), // Title above track names
+          BigCard(trackName: track), //pass the track name to BigCard
           SizedBox(height: 10),
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -239,10 +241,10 @@ class FavoritesPage extends StatelessWidget { //favorites page
           child: Text('You have '
               '${appState.favorites.length} favorites:'),
         ),
-        for (var pair in appState.favorites)
+        for (var track in appState.favorites)
           ListTile(
             leading: Icon(Icons.favorite),
-            title: Text(pair.asLowerCase),
+            title: Text(track),
           ),
       ],
     );
@@ -266,10 +268,10 @@ class RecommendationsPage extends StatelessWidget { //favorites page
 class BigCard extends StatelessWidget {
   const BigCard({
     super.key,
-    required this.pair,
+    required this.trackName,
   });
 
-  final WordPair pair;
+  final dynamic trackName;
 
   @override
   Widget build(BuildContext context) {
@@ -283,9 +285,9 @@ class BigCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Text(
-          pair.asLowerCase,
+          trackName,
           style: style,
-          semanticsLabel: "${pair.first} ${pair.second}",
+          semanticsLabel: "${trackName}",
         ),
       ),
     );
