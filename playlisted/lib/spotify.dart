@@ -20,7 +20,10 @@ class Track {
 
 }
 
-//The .env won't be pushed to git you gonna need to make it :}
+//! The .env won't be pushed to git you gonna need to make it :}
+//! To make the the file first, you need to make the .env(wirte as this) in same space as the pubspecs file. 
+//! Then in the .env file put SPOTIFY_CLIENT_ID=placeholder and SPOTIFY_CLIENT_SECRET=placeholder
+//! Replace the placeholder with actully numbers from the spotify devloper app or the number on I put in discord   
 
 class SpotifyService {
   Future<String> getAccessToken() async {
