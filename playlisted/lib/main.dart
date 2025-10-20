@@ -52,6 +52,34 @@ class MyApp extends StatelessWidget {
   }
 }
 
+class ToggleButtonManager extends StatefulWidget {
+  const ToggleButtonManager({super.key});
+  @override
+  State<ToggleButtonManager> createState() => _ToggleButtonManagerState();
+}
+
+class _ToggleButtonManagerState extends State<ToggleButtonManager> {
+  final List<bool> _formatSelected = <bool>[false];
+
+  @override
+  Widget build(BuildContext context) {
+    var appState = context.watch<MyAppState>();
+    
+    return ToggleButtons(
+      fillColor: Colors.grey.shade500,
+      isSelected: _formatSelected,
+      children: const [Icon(Icons.dark_mode)],
+      onPressed: (int index) {
+        setState(() {
+          //toggle the button state
+          _formatSelected[index] = !_formatSelected[index];
+          appState.toggleDarkMode();
+        });
+      },
+    );
+  }
+}
+
 class MyAppState extends ChangeNotifier {
   bool isLoggedIn = false;
   bool isDarkMode = false;
@@ -356,14 +384,7 @@ void _openSettings(BuildContext context) {
                 Navigator.of(context).pop();
               },
             ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              child: Text('Dark Mode'),
-              onPressed: () {
-                appState.toggleDarkMode();
-                Navigator.of(context).pop();
-              },
-            ),
+            const ToggleButtonManager(),
           ],
         ),
       );
