@@ -28,7 +28,7 @@ Future<void> main() async {
 class MyApp extends StatelessWidget {
   final String? initialAccessToken;
   final List<Track>? intialAccessTracks;
-  const MyApp({super.key, this.initialAccessToken, this.intialAccessTracks});
+  const MyApp({super.key, this.initialAccessToken, this.intialAccessTracks});  
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
@@ -54,6 +54,7 @@ class MyApp extends StatelessWidget {
 
 class MyAppState extends ChangeNotifier {
   bool isLoggedIn = false;
+  bool isDarkMode = false;
   //optional access token (fetched at app startup)
   String? accessToken;
   List<Track>? tracks = [];
@@ -108,6 +109,11 @@ class MyAppState extends ChangeNotifier {
   }
   void logout() {
     isLoggedIn = false;
+    notifyListeners();
+  }
+
+  void toggleDarkMode() {
+    isDarkMode = !isDarkMode;
     notifyListeners();
   }
 }
@@ -257,6 +263,7 @@ class FavoritesPage extends StatelessWidget { //favorites page
   }
 }
 
+
 class RecommendationsPage extends StatelessWidget { //favorites page 
   @override
   Widget build(BuildContext context) {
@@ -346,6 +353,14 @@ void _openSettings(BuildContext context) {
               child: Text('Logout'),
               onPressed: () {
                 appState.logout();
+                Navigator.of(context).pop();
+              },
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              child: Text('Dark Mode'),
+              onPressed: () {
+                appState.toggleDarkMode();
                 Navigator.of(context).pop();
               },
             ),
