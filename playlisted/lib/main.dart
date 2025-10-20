@@ -58,6 +58,8 @@ class ToggleButtonManager extends StatefulWidget {
   State<ToggleButtonManager> createState() => _ToggleButtonManagerState();
 }
 
+// Toggle button for dark mode
+//Other toggle buttons can be added here later
 class _ToggleButtonManagerState extends State<ToggleButtonManager> {
   final List<bool> _formatSelected = <bool>[false];
 
@@ -73,7 +75,7 @@ class _ToggleButtonManagerState extends State<ToggleButtonManager> {
         setState(() {
           //toggle the button state
           _formatSelected[index] = !_formatSelected[index];
-          appState.toggleDarkMode();
+          appState.toggleDarkMode(appState.isDarkMode ? false : true);
         });
       },
     );
@@ -112,6 +114,7 @@ class MyAppState extends ChangeNotifier {
   }
   
   var favorites = List<Track>.empty(growable: true);
+
   Color backgroundColor = Colors.white;
 
   void toggleFavorite() {
@@ -140,8 +143,13 @@ class MyAppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleDarkMode() {
-    isDarkMode = !isDarkMode;
+  void toggleDarkMode(bool enabled) {
+    isDarkMode = enabled;
+    if(isDarkMode){
+      backgroundColor = Colors.grey.shade800;
+    } else {
+      backgroundColor = Colors.white;
+    }
     notifyListeners();
   }
 }
@@ -316,6 +324,8 @@ class BigCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    var appState = context.read<MyAppState>();
+
     final theme = Theme.of(context);
     final style = theme.textTheme.displayMedium!.copyWith(
       color: theme.colorScheme.onPrimary,
