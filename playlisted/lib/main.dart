@@ -32,25 +32,62 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (context) => MyAppState(accessToken: initialAccessToken, tracks: intialAccessTracks), 
-      child: MaterialApp(
+      create: (context) => MyAppState(accessToken: initialAccessToken,tracks: intialAccessTracks),
+      child: Consumer<MyAppState>(
+        builder: (context, appState, _) {
+        return MaterialApp(
         title: 'Playlistd',
+
+        //Theme Data
+
+        //Light theme
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 21, 131, 183)),
-        ),
-        home: Consumer<MyAppState>(
-          builder: (context, appState, _) {
-            if (appState.isLoggedIn) {
-              return MyHomePage(); // your existing home page
-            } else {
-              return LoginPage();
-            }
-          },
-        ),
+          brightness: Brightness.light,
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color.fromARGB(255, 21, 131, 183),
+            brightness: Brightness.light,            
+          ),
+          appBarTheme: const AppBarTheme(
+            backgroundColor: Color(0xFF1583B7),
+            foregroundColor: Colors.white,
+          ),
+          navigationBarTheme: const NavigationBarThemeData(
+            backgroundColor: Colors.white,
+            indicatorColor: Color(0xFF1583B7),
+          ),
+          ),
+
+        //Dark theme
+        darkTheme: ThemeData(
+          brightness: Brightness.dark,
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color.fromARGB(255, 21, 131, 183),
+            brightness: Brightness.dark,
+          ),
+          appBarTheme: const AppBarTheme(
+            backgroundColor: Color(0xFF0A2233),
+            foregroundColor: Colors.white,
+          ),
+          navigationBarTheme: const NavigationBarThemeData(
+            backgroundColor: Color(0xFF0A2233),
+            indicatorColor: Color(0xFF1583B7),
+          ),
+          floatingActionButtonTheme: const FloatingActionButtonThemeData(
+            backgroundColor: Color(0xFF1583B7),
+            foregroundColor: Colors.white,            
+          ),
+          ),
+
+        themeMode: appState.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+
+        home: appState.isLoggedIn ? MyHomePage() : LoginPage(),
+        );
+        },
       ),
     );
   }
 }
+
 
 class ToggleButtonManager extends StatefulWidget {
   const ToggleButtonManager({super.key});
@@ -61,23 +98,20 @@ class ToggleButtonManager extends StatefulWidget {
 // Toggle button for dark mode
 //Other toggle buttons can be added here later
 class _ToggleButtonManagerState extends State<ToggleButtonManager> {
-  final List<bool> _formatSelected = <bool>[false];
 
   @override
   Widget build(BuildContext context) {
     var appState = context.watch<MyAppState>();
-    
-    return ToggleButtons(
-      fillColor: Colors.grey.shade500,
-      isSelected: _formatSelected,
-      children: const [Icon(Icons.dark_mode)],
-      onPressed: (int index) {
-        setState(() {
-          //toggle the button state
-          _formatSelected[index] = !_formatSelected[index];
-          appState.toggleDarkMode(appState.isDarkMode ? false : true);
-        });
+    final isDark = appState.isDarkMode;
+    return CircleAvatar(
+      radius: 22,
+      backgroundColor: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+      child: IconButton(
+      icon: Icon( isDark ? Icons.dark_mode : Icons.light_mode, color: isDark ? Colors.white : Colors.black, ),
+      onPressed: (){
+        appState.toggleDarkMode(!isDark);
       },
+    ),
     );
   }
 }
@@ -324,7 +358,6 @@ class BigCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    var appState = context.read<MyAppState>();
 
     final theme = Theme.of(context);
     final style = theme.textTheme.displayMedium!.copyWith(
