@@ -103,15 +103,18 @@ class _ToggleButtonManagerState extends State<ToggleButtonManager> {
   Widget build(BuildContext context) {
     var appState = context.watch<MyAppState>();
     final isDark = appState.isDarkMode;
-    return CircleAvatar(
-      radius: 22,
-      backgroundColor: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
-      child: IconButton(
-      icon: Icon( isDark ? Icons.dark_mode : Icons.light_mode, color: isDark ? Colors.white : Colors.black, ),
-      onPressed: (){
-        appState.toggleDarkMode(!isDark);
-      },
-    ),
+    return Padding(
+      padding: const EdgeInsets.all(10.0),
+      child: CircleAvatar(
+        radius: 22,
+        backgroundColor: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+        child: IconButton(
+        icon: Icon( isDark ? Icons.dark_mode : Icons.light_mode, color: isDark ? Colors.white : Colors.black, ),
+        onPressed: (){
+          appState.toggleDarkMode(!isDark);
+        },
+      ),
+      ),
     );
   }
 }
@@ -406,20 +409,10 @@ void _openSettings(BuildContext context) {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Select Background Color',
+              '    Settings    ',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            Wrap(
-              spacing: 10,
-              children: [
-                _colorCircle(context, Colors.white),
-                _colorCircle(context, Colors.blue.shade100),
-                _colorCircle(context, Colors.green.shade100),
-                _colorCircle(context, Colors.pink.shade100),
-                _colorCircle(context, Colors.grey.shade300),
-              ],
-            ),
             ElevatedButton(
               child: Text('Logout'),
               onPressed: () {
