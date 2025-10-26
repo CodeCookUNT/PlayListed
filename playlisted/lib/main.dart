@@ -211,46 +211,51 @@ class _MyHomePageState extends State<MyHomePage> {
       builder: (context, constraints) {
         return Scaffold(
           appBar: AppBar(
-            bottom: PreferredSize(
-              preferredSize: Size.fromHeight(30), //adjust distance of nav bar
-              child: NavigationBar(
-                destinations: const [
-                  NavigationDestination(
-                    icon: Icon(Icons.home),
-                    label: 'Home',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.favorite),
-                    label: 'Favorites',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.library_music),
-                    label: 'Recommendations',
-                  ),
-                ],
-        
-                selectedIndex: selectedIndex,
-                onDestinationSelected: (index) {
-                  setState(() => selectedIndex = index);
-                },
-        
-              ),
-            ),
           ),
           body: Container(
-          color: context.watch<MyAppState>().backgroundColor,
-          child: pages[selectedIndex],
+            color: context.watch<MyAppState>().backgroundColor,
+            child: pages[selectedIndex],
           ),
-
-          floatingActionButton: Align(
-          alignment: Alignment.bottomLeft,
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: FloatingActionButton(
-            heroTag: 'settingsButton',
-            onPressed: () => _openSettings(context),
-            child: const Icon(Icons.settings),
+          bottomNavigationBar: Container(
+            decoration: BoxDecoration(
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.5),
+                  blurRadius: 10,
+                  offset: Offset(0, -3),
+                ),
+              ],
             ),
+            child: NavigationBar(
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.home),
+                  label: 'Home',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.favorite),
+                  label: 'Favorites',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.library_music),
+                  label: 'Recommendations',
+                ),
+              ],
+              selectedIndex: selectedIndex,
+              onDestinationSelected: (index) {
+                setState(() => selectedIndex = index);
+              },
+            ),
+          ),
+          floatingActionButton: Align(
+            alignment: Alignment.bottomLeft,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: FloatingActionButton(
+                heroTag: 'settingsButton',
+                onPressed: () => _openSettings(context),
+                child: const Icon(Icons.settings),
+              ),
             ),
           ),
         );
@@ -258,6 +263,7 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 }
+
 
 class GeneratorPage extends StatelessWidget { // page builder
   @override
