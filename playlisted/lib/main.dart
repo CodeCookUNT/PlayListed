@@ -434,22 +434,6 @@ void _openSettings(BuildContext context) {
   );
 }
 
-Widget _colorCircle(BuildContext context, Color color) {
-  var appState = context.read<MyAppState>();
-  return GestureDetector(
-    onTap: () {
-      appState.changeBackground(color);
-      Navigator.pop(context);
-    },
-    child: CircleAvatar(
-      backgroundColor: color,
-      radius: 22,
-      child: appState.backgroundColor == color
-          ? const Icon(Icons.check, color: Colors.black)
-          : null,
-    ),
-  );
-}
 // login page
 class LoginPage extends StatefulWidget {
   @override
@@ -512,8 +496,8 @@ class SignUpPage extends StatefulWidget {
 }
 
 class SignUpPageState extends State<SignUpPage> {
-  final FirstNameController = TextEditingController();
-  final LastNameController = TextEditingController();
+  final firstNameController = TextEditingController();
+  final lastNameController = TextEditingController();
   final usernameController = TextEditingController();
   final passwordController = TextEditingController();
 
@@ -529,11 +513,11 @@ class SignUpPageState extends State<SignUpPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             TextField(
-              controller: FirstNameController,
+              controller: firstNameController,
               decoration: InputDecoration(labelText: 'First Name'),
             ),
             TextField(
-              controller: LastNameController,
+              controller: lastNameController,
               decoration: InputDecoration(labelText: 'Last Name'),
             ),
             TextField(
