@@ -487,6 +487,71 @@ class _LoginPageState extends State<LoginPage> {
                 appState.login(usernameController.text, passwordController.text);
               },
             ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: ElevatedButton(
+                child: Text('Sign up'),
+                onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => SignUpPage()),
+                );
+              },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class SignUpPage extends StatefulWidget {
+  @override
+  State<SignUpPage> createState() => SignUpPageState();
+}
+
+class SignUpPageState extends State<SignUpPage> {
+  final FirstNameController = TextEditingController();
+  final LastNameController = TextEditingController();
+  final usernameController = TextEditingController();
+  final passwordController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    final appState = Provider.of<MyAppState>(context);
+
+    return Scaffold(
+      appBar: AppBar(title: Text('SignUp')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            TextField(
+              controller: FirstNameController,
+              decoration: InputDecoration(labelText: 'First Name'),
+            ),
+            TextField(
+              controller: LastNameController,
+              decoration: InputDecoration(labelText: 'Last Name'),
+            ),
+            TextField(
+              controller: usernameController,
+              decoration: InputDecoration(labelText: 'User Name'),
+            ),
+            TextField(
+              controller: passwordController,
+              decoration: InputDecoration(labelText: 'Password'),
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              child: Text('Finish'),
+              onPressed: () {
+                //just goes back to login page for now
+                Navigator.pop(context);
+              },
+            ),
           ],
         ),
       ),
