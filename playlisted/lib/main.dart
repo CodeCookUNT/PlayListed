@@ -18,11 +18,22 @@ Future<void> main() async {
     print('Failed to fetch initial token: $e');
   }
 
-  //get tracks in an album and print the names and artists
-  List<Track> intialTracks = [];
-  intialTracks = await SpotifyService().fetchTopTracks(initialToken);
-
-  runApp(MyApp(initialAccessToken: initialToken, intialAccessTracks: intialTracks));
+  //get tracks by searching popular genres and years
+  List<Track> initialTracks = [];
+  try {
+    initialTracks = await SpotifyService().fetchTopSongs(initialToken);
+    print('Fetched ${initialTracks.length} songs');
+  } catch (e) {
+    print('Failed to fetch top songs: $e');
+    // Fallback to single album if top songs fetch fails
+    try {
+      initialTracks = await SpotifyService().fetchTopTracks(initialToken);
+    } catch (e2) {
+      print('Fallback also failed: $e2');
+    }
+  }
+  
+  runApp(MyApp(initialAccessToken: initialToken, intialAccessTracks: initialTracks));
 }
 
 class MyApp extends StatelessWidget {
