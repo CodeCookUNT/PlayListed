@@ -333,7 +333,17 @@ class FavoritesPage extends StatelessWidget { //favorites page
         ),
         for (var track in appState.favorites)
           ListTile(
-            leading: Icon(Icons.favorite),
+            leading: track.albumImageUrl != null
+                ? Image.network(
+                    track.albumImageUrl!,
+                    width: 50,
+                    height: 50,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Icon(Icons.favorite);
+                    },
+                  )
+                : Icon(Icons.favorite),
             title: Text(track.name),
             subtitle: Text(track.artists),
           ),
@@ -370,35 +380,62 @@ class BigCard extends StatelessWidget {
 
     final theme = Theme.of(context);
     final style = theme.textTheme.displayMedium!.copyWith(
-      color: theme.colorScheme.onPrimary,
+      color: theme.colorScheme.primary,
     );
     final artistStyle = theme.textTheme.titleLarge!.copyWith(
-      color: theme.colorScheme.onPrimary.withOpacity(0.8),
+      color: theme.colorScheme.primary.withOpacity(0.8),
     );
 
-    return Card(
-      color: theme.colorScheme.primary,
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              track.name,
-              style: style,
-              textAlign: TextAlign.center,
-              semanticsLabel: "${track.name}",
+    // Album artwork
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (track.albumImageUrl != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16.0),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8.0),
+              child: Image.network(
+                track.albumImageUrl!,
+                width: 300,
+                height: 300,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    width: 300,
+                    height: 300,
+                    color: Colors.grey,
+                    child: Icon(Icons.album, size: 100, color: Colors.white),
+                  );
+                },
+              ),
             ),
-            SizedBox(height: 8),
-            Text(
-              track.artists,
-              style: artistStyle,
-              textAlign: TextAlign.center,
-              semanticsLabel: "by ${track.artists}",
+          ),
+        Card(
+          color: theme.colorScheme.primary,
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  track.name,
+                  style: style.copyWith(color: theme.colorScheme.onPrimary),
+                  textAlign: TextAlign.center,
+                  semanticsLabel: "${track.name}",
+                ),
+                SizedBox(height: 8),
+                Text(
+                  track.artists,
+                  style: artistStyle.copyWith(color: theme.colorScheme.onPrimary.withOpacity(0.8)),
+                  textAlign: TextAlign.center,
+                  semanticsLabel: "by ${track.artists}",
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }

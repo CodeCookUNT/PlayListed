@@ -9,6 +9,7 @@ class Track {
   final int durationMs;
   final bool explicit;
   final String url;
+  final String? albumImageUrl;
 
   Track({
     required this.name,
@@ -16,12 +17,13 @@ class Track {
     required this.durationMs,
     required this.explicit,
     required this.url,
+    this.albumImageUrl,
   });
 
 }
 
 //! The .env won't be pushed to git you gonna need to make it :}
-//! To make the the file first, you need to make the .env(wirte as this) in same space as the pubspecs file. 
+//! To make the the file first, you need to make the .env(write as this) in same space as the pubspecs file. 
 //! Then in the .env file put SPOTIFY_CLIENT_ID=placeholder and SPOTIFY_CLIENT_SECRET=placeholder
 //! Replace the placeholder with actully numbers from the spotify devloper app or the number on I put in discord   
 
@@ -60,6 +62,14 @@ class SpotifyService {
       //decode the json response
       final data = jsonDecode(response.body);
       final tracksJson = data['tracks']['items'] as List;
+      
+      // Get the album image URL
+      String? albumImageUrl;
+      if (data['images'] != null && (data['images'] as List).isNotEmpty) {
+        final images = data['images'] as List;
+        albumImageUrl = images.length > 1 ? images[1]['url'] : images[0]['url'];
+      }
+      
       return tracksJson.map((json) {
         final artists = (json['artists'] as List)
             .map((artist) => artist['name'])
@@ -70,6 +80,7 @@ class SpotifyService {
           durationMs: json['duration_ms'],
           explicit: json['explicit'],
           url: json['external_urls']['spotify'],
+          albumImageUrl: albumImageUrl,
         );
       }).toList();
     }
