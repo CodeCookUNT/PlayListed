@@ -163,7 +163,8 @@ class MyAppState extends ChangeNotifier {
   }
 
   Track? current; // Changed to Track? instead of dynamic
-
+  //! in order for the next button and next button to work correctly you need to create a index
+  //! function that both pull from so they dont make 2 seperate indexs
   void getNext() {
     if (tracks != null && tracks!.isNotEmpty) {
       //cycle to next track
@@ -175,6 +176,18 @@ class MyAppState extends ChangeNotifier {
     }
     notifyListeners();
   }
+  void getPrevious() {
+    if (tracks != null && tracks!.isNotEmpty) {
+      //cycle to previous track
+      int currentIndex = tracks!.indexWhere((track) => track.name == current?.name);
+      int nextIndex = (currentIndex - 1) % tracks!.length;
+      current = tracks![nextIndex];
+    } else {
+      current = null;
+    }
+    notifyListeners();
+  }
+
   
   var favorites = List<Track>.empty(growable: true);
 
@@ -322,6 +335,15 @@ class GeneratorPage extends StatelessWidget { // page builder
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: ElevatedButton(
+                  onPressed: () {
+                    appState.getNext();
+                  },
+                  child: Text('Back'),
+                ),
+              ),
               ElevatedButton.icon(
                 onPressed: () {
                   appState.toggleFavorite();
