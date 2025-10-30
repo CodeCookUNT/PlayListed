@@ -25,12 +25,6 @@ Future<void> main() async {
     print('Fetched ${initialTracks.length} songs');
   } catch (e) {
     print('Failed to fetch top songs: $e');
-    // Fallback to single album if top songs fetch fails
-    try {
-      initialTracks = await SpotifyService().fetchTopTracks(initialToken);
-    } catch (e2) {
-      print('Fallback also failed: $e2');
-    }
   }
   
   runApp(MyApp(initialAccessToken: initialToken, intialAccessTracks: initialTracks));
@@ -422,10 +416,10 @@ class BigCard extends StatelessWidget {
   Widget build(BuildContext context) {
 
     final theme = Theme.of(context);
-    final style = theme.textTheme.displayMedium!.copyWith(
+    final style = theme.textTheme.titleLarge!.copyWith(
       color: theme.colorScheme.primary,
     );
-    final artistStyle = theme.textTheme.titleLarge!.copyWith(
+    final artistStyle = theme.textTheme.titleMedium!.copyWith(
       color: theme.colorScheme.primary.withOpacity(0.8),
     );
 

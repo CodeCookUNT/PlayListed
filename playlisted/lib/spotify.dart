@@ -51,44 +51,6 @@ class SpotifyService {
     }
   }
 
-
-  Future<List<Track>> fetchTopTracks(String? accessToken) async {
-    final response = await http.get(
-      Uri.parse('https://api.spotify.com/v1/albums/4aawyAB9vmqN3uQ7FjRGTy'),
-      headers: {'Authorization': 'Bearer $accessToken'},
-    );
-
-    if (response.statusCode == 200) {
-      //decode the json response
-      final data = jsonDecode(response.body);
-      final tracksJson = data['tracks']['items'] as List;
-      
-      // Get the album image URL
-      String? albumImageUrl;
-      if (data['images'] != null && (data['images'] as List).isNotEmpty) {
-        final images = data['images'] as List;
-        albumImageUrl = images.length > 1 ? images[1]['url'] : images[0]['url'];
-      }
-      
-      return tracksJson.map((json) {
-        final artists = (json['artists'] as List)
-            .map((artist) => artist['name'])
-            .join(', ');
-        return Track(
-          name: json['name'],
-          artists: artists,
-          durationMs: json['duration_ms'],
-          explicit: json['explicit'],
-          url: json['external_urls']['spotify'],
-          albumImageUrl: albumImageUrl,
-        );
-      }).toList();
-    }
-    else {
-      throw Exception('Failed to load top tracks');
-    }
-  }
-
   Future<List<Track>> fetchTopSongs(String? accessToken) async {
     List<Track> allTracks = [];
     
