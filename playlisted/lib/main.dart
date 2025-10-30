@@ -125,6 +125,27 @@ class MyAppState extends ChangeNotifier {
   //optional access token (fetched at app startup)
   String? accessToken;
   List<Track>? tracks = [];
+  //map for song ratings
+  final Map<String, int> ratings = {};
+  String keyOf(Track t) => t.name;
+
+  int ratingFor(Track t) => ratings[keyOf(t)] ?? 0;
+
+  void setRating(Track t, int rating) {
+    final r = rating.clamp(0, 5);
+    final k = keyOf(t);
+
+    if (r <= 0) {
+      ratings.remove(k);
+      favorites.removeWhere((x) => keyOf(x) == k);
+    } else {
+      ratings[k] = r;
+      if (!favorites.any((x) => keyOf(x) == k)) {
+        favorites.add(t);
+      }
+    }
+    notifyListeners();
+  }
   
 
   MyAppState({this.accessToken, this.tracks}) {
@@ -283,9 +304,14 @@ class GeneratorPage extends StatelessWidget { // page builder
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text('Playlistd'), // Title above track names
-          if (track != null)
-            BigCard(track: track)
-          else
+          if (track != null)...[
+            BigCard(track: track),
+
+           StarRating(
+              rating: appState.ratingFor(track),
+              onChanged: (r) => appState.setRating(track, r),
+            ),
+          ]else
             Text('Failed to fetch track'),
           SizedBox(height: 10),
           Row(
@@ -346,6 +372,12 @@ class FavoritesPage extends StatelessWidget { //favorites page
                 : Icon(Icons.favorite),
             title: Text(track.name),
             subtitle: Text(track.artists),
+            trailing: StarRating(
+              rating: appState.ratingFor(track),
+              onChanged: (r) => appState.setRating(track, r),
+              size: 20,
+              spacing: 2,
+            ),
           ),
       ],
     );
@@ -576,6 +608,42 @@ class SignUpPageState extends State<SignUpPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class StarRating extends StatelessWidget {
+  const StarRating({
+    super.key,
+    required this.rating,
+    required this.onChanged,
+    this.size = 28,
+    this.spacing = 0,
+  });
+
+  final int rating;
+  final ValueChanged<int> onChanged;
+  final double size;
+  final double spacing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (i) {
+        final filled = i < rating;
+        return Padding(
+          padding: EdgeInsets.only(right: i == 4 ? 0 : spacing),
+          child: IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            iconSize: size,
+            icon: Icon(filled ? Icons.star : Icons.star_border),
+            onPressed: () => onChanged(i + 1),
+            tooltip: 'Rate ${i + 1}',
+          ),
+        );
+      }),
     );
   }
 }
