@@ -9,6 +9,7 @@ class Track {
   final int durationMs;
   final bool explicit;
   final String url;
+  final String? albumImageUrl;
 
   Track({
     required this.name,
@@ -16,6 +17,7 @@ class Track {
     required this.durationMs,
     required this.explicit,
     required this.url,
+    this.albumImageUrl,
   });
 
 }
@@ -124,42 +126,53 @@ class SpotifyService {
     return shuffledTracks;
   }
 
-  // Helper method to search for tracks
-  Future<List<Track>> _searchTracks(String? accessToken, String query, {int limit = 50}) async {
-    final uri = Uri.https(
-      'api.spotify.com',
-      '/v1/search',
-      {
-        'q': query,
-        'type': 'track',
-        'limit': limit.toString(),
-      },
-    );
+// Helper method to search for tracks
+Future<List<Track>> _searchTracks(String? accessToken, String query, {int limit = 50}) async {
+  final uri = Uri.https(
+    'api.spotify.com',
+    '/v1/search',
+    {
+      'q': query,
+      'type': 'track',
+      'limit': limit.toString(),
+    },
+  );
 
-    final response = await http.get(
-      uri,
-      headers: {'Authorization': 'Bearer $accessToken'},
-    );
+  final response = await http.get(
+    uri,
+    headers: {'Authorization': 'Bearer $accessToken'},
+  );
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final tracksJson = data['tracks']['items'] as List;
-      return tracksJson.map((json) {
-        final artists = (json['artists'] as List)
-            .map((artist) => artist['name'])
-            .join(', ');
-        return Track(
-          name: json['name'],
-          artists: artists,
-          durationMs: json['duration_ms'],
-          explicit: json['explicit'],
-          url: json['external_urls']['spotify'],
-        );
-      }).toList();
-    } else {
-      throw Exception('Failed to search tracks: ${response.body}');
-    }
+  if (response.statusCode == 200) {
+    final data = jsonDecode(response.body);
+    final tracksJson = data['tracks']['items'] as List;
+    return tracksJson.map((json) {
+      final artists = (json['artists'] as List)
+          .map((artist) => artist['name'])
+          .join(', ');
+      
+      // Get album image URL from the track's album
+      String? albumImageUrl;
+      if (json['album'] != null && json['album']['images'] != null) {
+        final images = json['album']['images'] as List;
+        if (images.isNotEmpty) {
+          albumImageUrl = images.length > 1 ? images[1]['url'] : images[0]['url'];
+        }
+      }
+      
+      return Track(
+        name: json['name'],
+        artists: artists,
+        durationMs: json['duration_ms'],
+        explicit: json['explicit'],
+        url: json['external_urls']['spotify'],
+        albumImageUrl: albumImageUrl,  // ← Add this
+      );
+    }).toList();
+  } else {
+    throw Exception('Failed to search tracks: ${response.body}');
   }
+}
 
   Future<List<Track>> fetchRecommendations(String? accessToken,
       {String seedArtist = '4dpARuHxo51G3z768sgnrY', 

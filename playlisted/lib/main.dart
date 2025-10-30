@@ -344,7 +344,17 @@ class FavoritesPage extends StatelessWidget { //favorites page
         ),
         for (var track in appState.favorites)
           ListTile(
-            leading: Icon(Icons.favorite),
+            leading: track.albumImageUrl != null
+                ? Image.network(
+                    track.albumImageUrl!,
+                    width: 50,
+                    height: 50,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Icon(Icons.favorite);
+                    },
+                  )
+                : Icon(Icons.favorite),
             title: Text(track.name),
             subtitle: Text(track.artists),
           ),
@@ -381,35 +391,62 @@ class BigCard extends StatelessWidget {
 
     final theme = Theme.of(context);
     final style = theme.textTheme.displayMedium!.copyWith(
-      color: theme.colorScheme.onPrimary,
+      color: theme.colorScheme.primary,
     );
     final artistStyle = theme.textTheme.titleLarge!.copyWith(
-      color: theme.colorScheme.onPrimary.withOpacity(0.8),
+      color: theme.colorScheme.primary.withOpacity(0.8),
     );
 
-    return Card(
-      color: theme.colorScheme.primary,
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              track.name,
-              style: style,
-              textAlign: TextAlign.center,
-              semanticsLabel: "${track.name}",
+    // Album artwork
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (track.albumImageUrl != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16.0),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8.0),
+              child: Image.network(
+                track.albumImageUrl!,
+                width: 300,
+                height: 300,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    width: 300,
+                    height: 300,
+                    color: Colors.grey,
+                    child: Icon(Icons.album, size: 100, color: Colors.white),
+                  );
+                },
+              ),
             ),
-            SizedBox(height: 8),
-            Text(
-              track.artists,
-              style: artistStyle,
-              textAlign: TextAlign.center,
-              semanticsLabel: "by ${track.artists}",
+          ),
+        Card(
+          color: theme.colorScheme.primary,
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  track.name,
+                  style: style.copyWith(color: theme.colorScheme.onPrimary),
+                  textAlign: TextAlign.center,
+                  semanticsLabel: "${track.name}",
+                ),
+                SizedBox(height: 8),
+                Text(
+                  track.artists,
+                  style: artistStyle.copyWith(color: theme.colorScheme.onPrimary.withOpacity(0.8)),
+                  textAlign: TextAlign.center,
+                  semanticsLabel: "by ${track.artists}",
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -445,22 +482,6 @@ void _openSettings(BuildContext context) {
   );
 }
 
-Widget _colorCircle(BuildContext context, Color color) {
-  var appState = context.read<MyAppState>();
-  return GestureDetector(
-    onTap: () {
-      appState.changeBackground(color);
-      Navigator.pop(context);
-    },
-    child: CircleAvatar(
-      backgroundColor: color,
-      radius: 22,
-      child: appState.backgroundColor == color
-          ? const Icon(Icons.check, color: Colors.black)
-          : null,
-    ),
-  );
-}
 // login page
 class LoginPage extends StatefulWidget {
   @override
@@ -496,6 +517,71 @@ class _LoginPageState extends State<LoginPage> {
               child: Text('Login'),
               onPressed: () {
                 appState.login(usernameController.text, passwordController.text);
+              },
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: ElevatedButton(
+                child: Text('Sign up'),
+                onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => SignUpPage()),
+                );
+              },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class SignUpPage extends StatefulWidget {
+  @override
+  State<SignUpPage> createState() => SignUpPageState();
+}
+
+class SignUpPageState extends State<SignUpPage> {
+  final firstNameController = TextEditingController();
+  final lastNameController = TextEditingController();
+  final usernameController = TextEditingController();
+  final passwordController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    final appState = Provider.of<MyAppState>(context);
+
+    return Scaffold(
+      appBar: AppBar(title: Text('SignUp')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            TextField(
+              controller: firstNameController,
+              decoration: InputDecoration(labelText: 'First Name'),
+            ),
+            TextField(
+              controller: lastNameController,
+              decoration: InputDecoration(labelText: 'Last Name'),
+            ),
+            TextField(
+              controller: usernameController,
+              decoration: InputDecoration(labelText: 'User Name'),
+            ),
+            TextField(
+              controller: passwordController,
+              decoration: InputDecoration(labelText: 'Password'),
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              child: Text('Finish'),
+              onPressed: () {
+                //just goes back to login page for now
+                Navigator.pop(context);
               },
             ),
           ],
