@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'spotify.dart';
+import 'recomendations.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 Future<void> main() async {
@@ -127,14 +128,19 @@ class _ToggleButtonManagerState extends State<ToggleButtonManager> {
 class MyAppState extends ChangeNotifier {
   bool isLoggedIn = false;
   bool isDarkMode = false;
+  bool isLiked = false;
   //optional access token (fetched at app startup)
   String? accessToken;
   List<Track>? tracks = [];
+  RecommendService recommendService = RecommendService();
+  List<Track>? likedTracks = [];
   //map for song ratings
   final Map<String, int> ratings = {};
   String keyOf(Track t) => t.name;
 
   int ratingFor(Track t) => ratings[keyOf(t)] ?? 0;
+
+
 
   void setRating(Track t, int rating) {
     final r = rating.clamp(0, 5);
@@ -197,12 +203,22 @@ class MyAppState extends ChangeNotifier {
     if (current != null) {
       if (favorites.any((track) => track.name == current!.name)) {
         favorites.removeWhere((track) => track.name == current!.name);
+        isLiked = false;
       } else {
         favorites.add(current!);
+        isLiked = true;
       }
     }
     notifyListeners();
   }
+
+    void checkLikedStatus(){
+      if(isLiked && current != null){
+        //get the previous track and add to liked songs since clicking next loads the current song
+        int currIndex = tracks!.indexWhere((track) => track.name == current?.name);
+        recommendService.addToLiked(tracks![currIndex-1], likedTracks!);
+      }
+    } 
 
   void changeBackground(Color color) {
     backgroundColor = color;
@@ -355,6 +371,8 @@ class GeneratorPage extends StatelessWidget { // page builder
               ElevatedButton(
                 onPressed: () {
                   appState.getNext();
+                  appState.checkLikedStatus(); //only add the to liked song if the song is liked and the user clicks next
+                  appState.isLiked = false;
                 },
                 child: Text('Next'),
               ),
