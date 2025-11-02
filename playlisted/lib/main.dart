@@ -2,9 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'spotify.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  print('Firebase initialized ✅');
   //load environment variables (.env) so SpotifyService can read client id/secret
   await dotenv.load(fileName: '.env');
 
@@ -481,7 +487,7 @@ class BigCard extends StatelessWidget {
                   track.name,
                   style: style.copyWith(color: theme.colorScheme.onPrimary),
                   textAlign: TextAlign.center,
-                  semanticsLabel: "${track.name}",
+                  semanticsLabel: track.name,
                 ),
                 SizedBox(height: 8),
                 Text(
