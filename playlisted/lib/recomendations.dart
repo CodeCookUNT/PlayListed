@@ -9,6 +9,8 @@ import 'spotify.dart';
 
 class RecommendService {
   int recCount = 0;
+  List<Track> _lastRecs = const [];
+  List<Track> get lastRecs => _lastRecs;
   //final SpotifyService _spotifyService = SpotifyService();
 
   //Future: Function to get liked songs, then find patterns in the user's liked songs
