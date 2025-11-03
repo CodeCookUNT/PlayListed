@@ -4,6 +4,8 @@ import 'spotify.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'login.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -91,10 +93,34 @@ class MyApp extends StatelessWidget {
 
         themeMode: appState.isDarkMode ? ThemeMode.dark : ThemeMode.light,
 
-        home: appState.isLoggedIn ? MyHomePage() : LoginPage(),
+        home: const AuthGate(),
         );
         },
       ),
+    );
+  }
+}
+
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snap.hasData) {
+          // user is signed in
+          return MyHomePage(); // remove const if MyHomePage isn't const
+        }
+        // user is signed out
+        return const LoginPage();
+      },
     );
   }
 }
@@ -131,7 +157,6 @@ class _ToggleButtonManagerState extends State<ToggleButtonManager> {
 }
 
 class MyAppState extends ChangeNotifier {
-  bool isLoggedIn = false;
   bool isDarkMode = false;
   //optional access token (fetched at app startup)
   String? accessToken;
@@ -215,15 +240,6 @@ class MyAppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  //login in section
-  void login(String username, String password) {
-    isLoggedIn = true;
-    notifyListeners();
-  }
-  void logout() {
-    isLoggedIn = false;
-    notifyListeners();
-  }
 
   void toggleDarkMode(bool enabled) {
     isDarkMode = enabled;
@@ -523,8 +539,8 @@ void _openSettings(BuildContext context) {
             const SizedBox(height: 16),
             ElevatedButton(
               child: Text('Logout'),
-              onPressed: () {
-                appState.logout();
+              onPressed: () async {
+                await FirebaseAuth.instance.signOut();
                 Navigator.of(context).pop();
               },
             ),
@@ -536,114 +552,7 @@ void _openSettings(BuildContext context) {
   );
 }
 
-// login page
-class LoginPage extends StatefulWidget {
-  @override
-  State<LoginPage> createState() => _LoginPageState();
-}
 
-class _LoginPageState extends State<LoginPage> {
-  final usernameController = TextEditingController();
-  final passwordController = TextEditingController();
-
-  @override
-  Widget build(BuildContext context) {
-    final appState = Provider.of<MyAppState>(context);
-
-    return Scaffold(
-      appBar: AppBar(title: Text('Login')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextField(
-              controller: usernameController,
-              decoration: InputDecoration(labelText: 'Username'),
-            ),
-            TextField(
-              controller: passwordController,
-              decoration: InputDecoration(labelText: 'Password'),
-              obscureText: true,
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              child: Text('Login'),
-              onPressed: () {
-                appState.login(usernameController.text, passwordController.text);
-              },
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: ElevatedButton(
-                child: Text('Sign up'),
-                onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => SignUpPage()),
-                );
-              },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class SignUpPage extends StatefulWidget {
-  @override
-  State<SignUpPage> createState() => SignUpPageState();
-}
-
-class SignUpPageState extends State<SignUpPage> {
-  final firstNameController = TextEditingController();
-  final lastNameController = TextEditingController();
-  final usernameController = TextEditingController();
-  final passwordController = TextEditingController();
-
-  @override
-  Widget build(BuildContext context) {
-    final appState = Provider.of<MyAppState>(context);
-
-    return Scaffold(
-      appBar: AppBar(title: Text('SignUp')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextField(
-              controller: firstNameController,
-              decoration: InputDecoration(labelText: 'First Name'),
-            ),
-            TextField(
-              controller: lastNameController,
-              decoration: InputDecoration(labelText: 'Last Name'),
-            ),
-            TextField(
-              controller: usernameController,
-              decoration: InputDecoration(labelText: 'User Name'),
-            ),
-            TextField(
-              controller: passwordController,
-              decoration: InputDecoration(labelText: 'Password'),
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              child: Text('Finish'),
-              onPressed: () {
-                //just goes back to login page for now
-                Navigator.pop(context);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class StarRating extends StatelessWidget {
   const StarRating({
