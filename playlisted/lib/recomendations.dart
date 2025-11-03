@@ -8,7 +8,7 @@ import 'spotify.dart';
 //to recommend the next track, we pass in the entire list of top songs and filter based on likes.
 
 class RecommendService {
-
+  List<Track>? likedTracks = [];
   // counter for number of recommendations made, making available tracks list respectively  
   int recCount = 0;
   List<Track> availableTracks = const [];
@@ -51,7 +51,9 @@ class RecommendService {
   //final SpotifyService _spotifyService = SpotifyService();
 
   //Future: Function to get liked songs, then find patterns in the user's liked songs
+  //! Recomendation algorithm goes here!
   void getRec(List<Track> likedSongs) async {
+    print("I have called getRec");
     //filtering and recommendation logic can be added here
   }
   //function to add a track to liked songs and increment recommendation count
@@ -59,6 +61,16 @@ class RecommendService {
     recCount++;
     likedSongs.add(track);
     print('Added to liked songs: ${track.name} by ${track.artists}');
+  }
+
+
+  //helper function to check if recommendation count has reached threshold
+  //called in appstate
+  void checkRecCount() {
+    if (recCount >= 10) {
+      getRec(likedTracks!);
+      recCount = 0; //reset count after getting recommendations
+    }
   }
 
   int getRecCount() {

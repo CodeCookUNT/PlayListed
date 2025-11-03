@@ -133,7 +133,6 @@ class MyAppState extends ChangeNotifier {
   String? accessToken;
   List<Track>? tracks = [];
   RecommendService recommendService = RecommendService();
-  List<Track>? likedTracks = [];
   //map for song ratings
   final Map<String, int> ratings = {};
   String keyOf(Track t) => t.name;
@@ -218,7 +217,7 @@ class MyAppState extends ChangeNotifier {
       if(isLiked && current != null){
         //get the previous track and add to liked songs since clicking next loads the current song
         int currIndex = tracks!.indexWhere((track) => track.name == current?.name);
-        recommendService.addToLiked(tracks![currIndex-1], likedTracks!);
+        recommendService.addToLiked(tracks![currIndex-1], recommendService.likedTracks!);
       }
     } 
 
@@ -374,6 +373,7 @@ class GeneratorPage extends StatelessWidget { // page builder
                 onPressed: () {
                   appState.getNext();
                   appState.checkLikedStatus(); //only add the to liked song if the song is liked and the user clicks next
+                  appState.recommendService.checkRecCount(); //check if we need to get new recommendations
                   appState.isLiked = false;
                 },
                 child: Text('Next'),
