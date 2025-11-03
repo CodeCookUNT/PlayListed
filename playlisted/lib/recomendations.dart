@@ -26,6 +26,28 @@ class RecommendService {
     onUpdate = callback;
   }
 
+  // helper function to pull artist names from a track
+  Set<String> artistNames(Track track) {
+    // establishing variables to hold artist names
+    final names = <String>{};
+    final artists = (track.artists as List?) ?? const[];
+
+    // looping through artists to extract names from maps and/or strings
+    for (final a in artists){
+      // checking if artist is a map with a name key
+      if (a is Map && a['name'] != null) {
+        final s = a['name'].toString().trim().toLowerCase();
+        if (s.isNotEmpty) names.add(s);
+      }
+      // checking if artist is a string
+      else{
+        final s = a.toString().trim().toLowerCase();
+        if (s.isNotEmpty) names.add(s);
+      }
+    }
+    return names; // returning set of artist names
+  }
+
   //final SpotifyService _spotifyService = SpotifyService();
 
   //Future: Function to get liked songs, then find patterns in the user's liked songs
