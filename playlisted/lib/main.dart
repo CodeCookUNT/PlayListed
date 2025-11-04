@@ -245,19 +245,18 @@ class MyAppState extends ChangeNotifier {
   Color backgroundColor = Colors.white;
 
   void toggleFavorite() {
-    if (current != null) {
-      if (favorites.any((track) => track.name == current!.name)) {
-        favorites.removeWhere((track) => track.name == current!.name);
-        isLiked = false;
-      } else {
-        favorites.add(current!);
-        isLiked = true;
-      }
+    if (current == null) return;
+    final isFavNow = !favorites.any((t) => t.name == current!.name);
+    if (isFavNow) {
+      favorites.add(current!);
+      isLiked = true;
+    } else {
+      favorites.removeWhere((t) => t.name == current!.name);
+      isLiked = false;
     }
     notifyListeners();
-    //firebase part
     try {
-      await Favorites.instance.setFavorite(
+        Favorites.instance.setFavorite(
         trackId: keyOf(current!),
         name: current!.name,
         artists: current!.artists,
@@ -268,6 +267,7 @@ class MyAppState extends ChangeNotifier {
       print('Failed to save favorite: $e');
     }
   }
+
 
     void checkLikedStatus(){
       if(isLiked && current != null){
