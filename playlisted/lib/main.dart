@@ -2,9 +2,30 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'spotify.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'login.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
+import 'favorites.dart';
+import 'favoritesPage.dart';
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  //firebase local part for web dev
+  if (kIsWeb) {
+    FirebaseFirestore.instance.settings =
+        const Settings(persistenceEnabled: true, cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED);
+  } else {
+    FirebaseFirestore.instance.settings =
+        const Settings(cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED);
+  }
+  print('Firebase initialized ✅');
   //load environment variables (.env) so SpotifyService can read client id/secret
   await dotenv.load(fileName: '.env');
 
@@ -85,10 +106,34 @@ class MyApp extends StatelessWidget {
 
         themeMode: appState.isDarkMode ? ThemeMode.dark : ThemeMode.light,
 
-        home: appState.isLoggedIn ? MyHomePage() : LoginPage(),
+        home: const AuthGate(),
         );
         },
       ),
+    );
+  }
+}
+
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snap.hasData) {
+          // user is signed in
+          return MyHomePage(); // remove const if MyHomePage isn't const
+        }
+        // user is signed out
+        return const LoginPage();
+      },
     );
   }
 }
@@ -125,7 +170,6 @@ class _ToggleButtonManagerState extends State<ToggleButtonManager> {
 }
 
 class MyAppState extends ChangeNotifier {
-  bool isLoggedIn = false;
   bool isDarkMode = false;
   //optional access token (fetched at app startup)
   String? accessToken;
@@ -193,15 +237,27 @@ class MyAppState extends ChangeNotifier {
 
   Color backgroundColor = Colors.white;
 
-  void toggleFavorite() {
-    if (current != null) {
-      if (favorites.any((track) => track.name == current!.name)) {
-        favorites.removeWhere((track) => track.name == current!.name);
-      } else {
-        favorites.add(current!);
-      }
+  void toggleFavorite() async {
+    if (current == null) return;
+    final isFavNow = !favorites.any((t) => t.name == current!.name);
+    if (isFavNow) {
+      favorites.add(current!);
+    } else {
+      favorites.removeWhere((t) => t.name == current!.name);
     }
     notifyListeners();
+    //firebase part
+    try {
+      await Favorites.instance.setFavorite(
+        trackId: keyOf(current!),
+        name: current!.name,
+        artists: current!.artists,
+        albumImageUrl: current!.albumImageUrl,
+        favorite: isFavNow,
+      );
+    } catch (e) {
+      print('Failed to save favorite: $e');
+    }
   }
 
   void changeBackground(Color color) {
@@ -209,15 +265,6 @@ class MyAppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  //login in section
-  void login(String username, String password) {
-    isLoggedIn = true;
-    notifyListeners();
-  }
-  void logout() {
-    isLoggedIn = false;
-    notifyListeners();
-  }
 
   void toggleDarkMode(bool enabled) {
     isDarkMode = enabled;
@@ -327,7 +374,18 @@ class GeneratorPage extends StatelessWidget { // page builder
 
            StarRating(
               rating: appState.ratingFor(track),
-              onChanged: (r) => appState.setRating(track, r),
+              onChanged: (r) async {
+              // local
+              appState.setRating(track, r);
+              // Reloads Favorites from Firestore
+              await Favorites.instance.setRating(
+                trackId: context.read<MyAppState>().keyOf(track),
+                name: track.name,
+                artists: track.artists,
+                albumImageUrl: track.albumImageUrl,
+                rating: r,
+                );
+              },
             ),
           ]else
             Text('Failed to fetch track'),
@@ -366,50 +424,6 @@ class GeneratorPage extends StatelessWidget { // page builder
   }
 }
 
-class FavoritesPage extends StatelessWidget { //favorites page 
-  @override
-  Widget build(BuildContext context) {
-    var appState = context.watch<MyAppState>();
-
-    if (appState.favorites.isEmpty) {
-      return Center(
-        child: Text('No favorites yet.'),
-      );
-    }
-
-    return ListView(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(20),
-          child: Text('You have '
-              '${appState.favorites.length} favorites:'),
-        ),
-        for (var track in appState.favorites)
-          ListTile(
-            leading: track.albumImageUrl != null
-                ? Image.network(
-                    track.albumImageUrl!,
-                    width: 50,
-                    height: 50,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Icon(Icons.favorite);
-                    },
-                  )
-                : Icon(Icons.favorite),
-            title: Text(track.name),
-            subtitle: Text(track.artists),
-            trailing: StarRating(
-              rating: appState.ratingFor(track),
-              onChanged: (r) => appState.setRating(track, r),
-              size: 20,
-              spacing: 2,
-            ),
-          ),
-      ],
-    );
-  }
-}
 
 
 class RecommendationsPage extends StatelessWidget { //favorites page 
@@ -481,7 +495,7 @@ class BigCard extends StatelessWidget {
                   track.name,
                   style: style.copyWith(color: theme.colorScheme.onPrimary),
                   textAlign: TextAlign.center,
-                  semanticsLabel: "${track.name}",
+                  semanticsLabel: track.name,
                 ),
                 SizedBox(height: 8),
                 Text(
@@ -517,8 +531,8 @@ void _openSettings(BuildContext context) {
             const SizedBox(height: 16),
             ElevatedButton(
               child: Text('Logout'),
-              onPressed: () {
-                appState.logout();
+              onPressed: () async {
+                await FirebaseAuth.instance.signOut();
                 Navigator.of(context).pop();
               },
             ),
@@ -530,114 +544,7 @@ void _openSettings(BuildContext context) {
   );
 }
 
-// login page
-class LoginPage extends StatefulWidget {
-  @override
-  State<LoginPage> createState() => _LoginPageState();
-}
 
-class _LoginPageState extends State<LoginPage> {
-  final usernameController = TextEditingController();
-  final passwordController = TextEditingController();
-
-  @override
-  Widget build(BuildContext context) {
-    final appState = Provider.of<MyAppState>(context);
-
-    return Scaffold(
-      appBar: AppBar(title: Text('Login')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextField(
-              controller: usernameController,
-              decoration: InputDecoration(labelText: 'Username'),
-            ),
-            TextField(
-              controller: passwordController,
-              decoration: InputDecoration(labelText: 'Password'),
-              obscureText: true,
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              child: Text('Login'),
-              onPressed: () {
-                appState.login(usernameController.text, passwordController.text);
-              },
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: ElevatedButton(
-                child: Text('Sign up'),
-                onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => SignUpPage()),
-                );
-              },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class SignUpPage extends StatefulWidget {
-  @override
-  State<SignUpPage> createState() => SignUpPageState();
-}
-
-class SignUpPageState extends State<SignUpPage> {
-  final firstNameController = TextEditingController();
-  final lastNameController = TextEditingController();
-  final usernameController = TextEditingController();
-  final passwordController = TextEditingController();
-
-  @override
-  Widget build(BuildContext context) {
-    final appState = Provider.of<MyAppState>(context);
-
-    return Scaffold(
-      appBar: AppBar(title: Text('SignUp')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextField(
-              controller: firstNameController,
-              decoration: InputDecoration(labelText: 'First Name'),
-            ),
-            TextField(
-              controller: lastNameController,
-              decoration: InputDecoration(labelText: 'Last Name'),
-            ),
-            TextField(
-              controller: usernameController,
-              decoration: InputDecoration(labelText: 'User Name'),
-            ),
-            TextField(
-              controller: passwordController,
-              decoration: InputDecoration(labelText: 'Password'),
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              child: Text('Finish'),
-              onPressed: () {
-                //just goes back to login page for now
-                Navigator.pop(context);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class StarRating extends StatelessWidget {
   const StarRating({
