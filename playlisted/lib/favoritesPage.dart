@@ -58,7 +58,7 @@ class FavoritesPage extends StatelessWidget {
                     ),
                     IconButton(
                       icon: const Icon(Icons.delete_outline),
-                      tooltip: 'Delete from Firestore',
+                      tooltip: 'Delete',
                       onPressed: () async {
                         try {
                           await Favorites.instance.deleteTrack(
