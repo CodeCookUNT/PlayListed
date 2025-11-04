@@ -6,12 +6,25 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'login.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
+import 'favorites.dart';
+import 'favoritesPage.dart';
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  //firebase local part for web dev
+  if (kIsWeb) {
+    FirebaseFirestore.instance.settings =
+        const Settings(persistenceEnabled: true, cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED);
+  } else {
+    FirebaseFirestore.instance.settings =
+        const Settings(cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED);
+  }
   print('Firebase initialized ✅');
   //load environment variables (.env) so SpotifyService can read client id/secret
   await dotenv.load(fileName: '.env');
@@ -224,15 +237,27 @@ class MyAppState extends ChangeNotifier {
 
   Color backgroundColor = Colors.white;
 
-  void toggleFavorite() {
-    if (current != null) {
-      if (favorites.any((track) => track.name == current!.name)) {
-        favorites.removeWhere((track) => track.name == current!.name);
-      } else {
-        favorites.add(current!);
-      }
+  void toggleFavorite() async {
+    if (current == null) return;
+    final isFavNow = !favorites.any((t) => t.name == current!.name);
+    if (isFavNow) {
+      favorites.add(current!);
+    } else {
+      favorites.removeWhere((t) => t.name == current!.name);
     }
     notifyListeners();
+    //firebase part
+    try {
+      await Favorites.instance.setFavorite(
+        trackId: keyOf(current!),
+        name: current!.name,
+        artists: current!.artists,
+        albumImageUrl: current!.albumImageUrl,
+        favorite: isFavNow,
+      );
+    } catch (e) {
+      print('Failed to save favorite: $e');
+    }
   }
 
   void changeBackground(Color color) {
@@ -349,7 +374,18 @@ class GeneratorPage extends StatelessWidget { // page builder
 
            StarRating(
               rating: appState.ratingFor(track),
-              onChanged: (r) => appState.setRating(track, r),
+              onChanged: (r) async {
+              // local
+              appState.setRating(track, r);
+              // Reloads Favorites from Firestore
+              await Favorites.instance.setRating(
+                trackId: context.read<MyAppState>().keyOf(track),
+                name: track.name,
+                artists: track.artists,
+                albumImageUrl: track.albumImageUrl,
+                rating: r,
+                );
+              },
             ),
           ]else
             Text('Failed to fetch track'),
@@ -388,50 +424,6 @@ class GeneratorPage extends StatelessWidget { // page builder
   }
 }
 
-class FavoritesPage extends StatelessWidget { //favorites page 
-  @override
-  Widget build(BuildContext context) {
-    var appState = context.watch<MyAppState>();
-
-    if (appState.favorites.isEmpty) {
-      return Center(
-        child: Text('No favorites yet.'),
-      );
-    }
-
-    return ListView(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(20),
-          child: Text('You have '
-              '${appState.favorites.length} favorites:'),
-        ),
-        for (var track in appState.favorites)
-          ListTile(
-            leading: track.albumImageUrl != null
-                ? Image.network(
-                    track.albumImageUrl!,
-                    width: 50,
-                    height: 50,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Icon(Icons.favorite);
-                    },
-                  )
-                : Icon(Icons.favorite),
-            title: Text(track.name),
-            subtitle: Text(track.artists),
-            trailing: StarRating(
-              rating: appState.ratingFor(track),
-              onChanged: (r) => appState.setRating(track, r),
-              size: 20,
-              spacing: 2,
-            ),
-          ),
-      ],
-    );
-  }
-}
 
 
 class RecommendationsPage extends StatelessWidget { //favorites page 
