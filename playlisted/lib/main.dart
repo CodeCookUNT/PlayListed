@@ -414,7 +414,7 @@ class GeneratorPage extends StatelessWidget { // page builder
                 padding: const EdgeInsets.all(8.0),
                 child: ElevatedButton(
                   onPressed: () {
-                    appState.getNext();
+                    appState.getPrevious();
                   },
                   child: Text('Back'),
                 ),
@@ -470,7 +470,6 @@ class BigCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     final theme = Theme.of(context);
     final style = theme.textTheme.titleLarge!.copyWith(
       color: theme.colorScheme.primary,
@@ -479,31 +478,113 @@ class BigCard extends StatelessWidget {
       color: theme.colorScheme.primary.withOpacity(0.8),
     );
 
-    // Album artwork
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // Vinyl and jacket display
         if (track.albumImageUrl != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 16.0),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8.0),
-              child: Image.network(
-                track.albumImageUrl!,
-                width: 300,
-                height: 300,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    width: 300,
-                    height: 300,
-                    color: Colors.grey,
-                    child: Icon(Icons.album, size: 100, color: Colors.white),
-                  );
-                },
-              ),
+            child: Stack(
+              alignment: Alignment.centerLeft,
+              children: [
+                // Vinyl record 
+                Transform.translate(
+                  offset: Offset(158, 0),
+                  child: Container(
+                    width: 280,
+                    height: 280,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 20,
+                          spreadRadius: 5,
+                        ),
+                      ],
+                    ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Vinyl grooves
+                        for (int i = 1; i <= 6; i++)
+                          Container(
+                            width: 280 - (i * 30.0),
+                            height: 280 - (i * 30.0),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.grey.withOpacity(0.3),
+                                width: 1,
+                              ),
+                            ),
+                          ),
+                        // Center label
+                        Container(
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: theme.colorScheme.primary,
+                          ),
+                          child: Icon(
+                            Icons.album,
+                            color: theme.colorScheme.onPrimary,
+                            size: 40,
+                          ),
+                        ),
+                        // Center hole
+                        Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Album jacket/cover
+                Container(
+                  width: 300,
+                  height: 300,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(4.0),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.5),
+                        blurRadius: 15,
+                        spreadRadius: 2,
+                        offset: Offset(5, 5),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4.0),
+                    child: Image.network(
+                      track.albumImageUrl!,
+                      width: 300,
+                      height: 300,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          width: 300,
+                          height: 300,
+                          color: Colors.grey,
+                          child: Icon(Icons.album, size: 100, color: Colors.white),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
+        // Track info card
         Card(
           color: theme.colorScheme.primary,
           child: Padding(
