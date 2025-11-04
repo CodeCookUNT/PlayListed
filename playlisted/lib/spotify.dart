@@ -10,7 +10,10 @@ class Track {
   final bool explicit;
   final String url;
   final String? albumImageUrl;
-  final String? id;
+  final int? popularity;
+  final String? releaseDate;
+  final String? id;  // ← Add this
+
 
   Track({
     required this.name,
@@ -19,6 +22,8 @@ class Track {
     required this.explicit,
     required this.url,
     this.albumImageUrl,
+    this.popularity,
+    this.releaseDate,
     this.id,
   });
 
@@ -140,7 +145,9 @@ Future<List<Track>> _searchTracks(String? accessToken, String query, {int limit 
         explicit: json['explicit'],
         url: json['external_urls']['spotify'],
         albumImageUrl: albumImageUrl,
-        id: json['id']  // ← Add this
+        popularity: json['popularity'],
+        releaseDate: json['album'] != null ? json['album']['release_date'] : null,
+        id: json['id']
       );
     }).toList();
   } else {

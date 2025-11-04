@@ -1,6 +1,6 @@
 // beginning development of recommendations algorithm, making file
 import 'spotify.dart';
-import 'package:http/http.dart' as http;
+
 
 //when building a recomendation system, we will begin with content-based filtering
 //which uses track attributes to recommend similar tracks
@@ -49,18 +49,27 @@ class RecommendService {
   }
 
   //helper function to get a tracks audio features
-  Future<void> getAudioFeatures(String trackID, String accessToken) async {
+  Future<void> getRecommendationStats(Track track, ) async {
+    print("getRecommendationStats() called for track id: ${track.id}");    
+
+    print("Track Popularity: ${track.popularity}");
+    print("Track Release Date: ${track.releaseDate}");
+    print("Track Duration (ms): ${track.durationMs}");
     
   }
-
-  //final SpotifyService _spotifyService = SpotifyService();
 
   //Future: Function to get liked songs, then find patterns in the user's liked songs
   //! Recomendation algorithm goes here!
   void getRec(List<Track> likedSongs) async {
     Track songs;
     for (songs in likedSongs) {
-      print('Liked song: ${songs.name} by ${songs.artists}');
+      //iterate though liked songs and get audio features
+      if (songs.id != null) {
+        print("Stats for song: ${songs.name} by ${songs.artists}");
+        await getRecommendationStats(songs);
+        await Future.delayed(const Duration(milliseconds: 100)); // small delay for safety
+        print("_________________________________");
+      }
     }
     //filtering and recommendation logic can be added here
   }
@@ -76,6 +85,7 @@ class RecommendService {
   //called in appstate
   void checkRecCount() {
     if (recCount >= 10) {
+      print("_________________________________");
       getRec(likedTracks!);
       recCount = 0; //reset count after getting recommendations
     }
