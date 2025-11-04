@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'spotify.dart';
+import 'recomendations.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -171,14 +172,18 @@ class _ToggleButtonManagerState extends State<ToggleButtonManager> {
 
 class MyAppState extends ChangeNotifier {
   bool isDarkMode = false;
+  bool isLiked = false;
   //optional access token (fetched at app startup)
   String? accessToken;
   List<Track>? tracks = [];
+  RecommendService recommendService = RecommendService();
   //map for song ratings
   final Map<String, int> ratings = {};
   String keyOf(Track t) => t.name;
 
   int ratingFor(Track t) => ratings[keyOf(t)] ?? 0;
+
+
 
   void setRating(Track t, int rating) {
     final r = rating.clamp(0, 5);
@@ -187,10 +192,12 @@ class MyAppState extends ChangeNotifier {
     if (r <= 0) {
       ratings.remove(k);
       favorites.removeWhere((x) => keyOf(x) == k);
+      isLiked = false;
     } else {
       ratings[k] = r;
       if (!favorites.any((x) => keyOf(x) == k)) {
         favorites.add(t);
+        isLiked = true;
       }
     }
     notifyListeners();
@@ -237,13 +244,15 @@ class MyAppState extends ChangeNotifier {
 
   Color backgroundColor = Colors.white;
 
-  void toggleFavorite() async {
-    if (current == null) return;
-    final isFavNow = !favorites.any((t) => t.name == current!.name);
-    if (isFavNow) {
-      favorites.add(current!);
-    } else {
-      favorites.removeWhere((t) => t.name == current!.name);
+  void toggleFavorite() {
+    if (current != null) {
+      if (favorites.any((track) => track.name == current!.name)) {
+        favorites.removeWhere((track) => track.name == current!.name);
+        isLiked = false;
+      } else {
+        favorites.add(current!);
+        isLiked = true;
+      }
     }
     notifyListeners();
     //firebase part
@@ -259,6 +268,14 @@ class MyAppState extends ChangeNotifier {
       print('Failed to save favorite: $e');
     }
   }
+
+    void checkLikedStatus(){
+      if(isLiked && current != null){
+        //get the previous track and add to liked songs since clicking next loads the current song
+        int currIndex = tracks!.indexWhere((track) => track.name == current?.name);
+        recommendService.addToLiked(tracks![currIndex-1], recommendService.likedTracks!);
+      }
+    } 
 
   void changeBackground(Color color) {
     backgroundColor = color;
@@ -413,6 +430,9 @@ class GeneratorPage extends StatelessWidget { // page builder
               ElevatedButton(
                 onPressed: () {
                   appState.getNext();
+                  appState.checkLikedStatus(); //only add the to liked song if the song is liked and the user clicks next
+                  appState.recommendService.checkRecCount(); //check if we need to get new recommendations
+                  appState.isLiked = false;
                 },
                 child: Text('Next'),
               ),
