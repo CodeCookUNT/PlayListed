@@ -48,13 +48,13 @@ class RecommendService {
     return names; // returning set of artist names
   }
 
-  //helper function to get a tracks audio features
-  Future<void> getRecommendationStats(Track track, ) async {
-    print("getRecommendationStats() called for track id: ${track.id}");    
+  //helper function to get a tracks stats
+  Future<void> getRecommendationStats(Track track) async {
 
+    print("Stats for song: ${track.name} by ${track.artists}");
     print("Track Popularity: ${track.popularity}");
     print("Track Release Date: ${track.releaseDate}");
-    print("Track Duration (ms): ${track.durationMs}");
+    print("Track Duration: ${track.durationMs / 1000} seconds");
     
   }
 
@@ -65,7 +65,6 @@ class RecommendService {
     for (songs in likedSongs) {
       //iterate though liked songs and get audio features
       if (songs.id != null) {
-        print("Stats for song: ${songs.name} by ${songs.artists}");
         await getRecommendationStats(songs);
         await Future.delayed(const Duration(milliseconds: 100)); // small delay for safety
         print("_________________________________");
@@ -89,10 +88,6 @@ class RecommendService {
       getRec(likedTracks!);
       recCount = 0; //reset count after getting recommendations
     }
-  }
-
-  int getRecCount() {
-    return recCount;
   }
 
 }
