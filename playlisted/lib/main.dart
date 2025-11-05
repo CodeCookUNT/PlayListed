@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'spotify.dart';
-import 'recomendations.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -11,6 +10,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'favorites.dart';
 import 'favoritesPage.dart';
+import 'recommendations.dart';
+import 'recommendationsPage.dart';
 
 
 Future<void> main() async {
@@ -172,7 +173,6 @@ class _ToggleButtonManagerState extends State<ToggleButtonManager> {
 
 class MyAppState extends ChangeNotifier {
   bool isDarkMode = false;
-  bool isLiked = false;
   //optional access token (fetched at app startup)
   String? accessToken;
   List<Track>? tracks = [];
@@ -183,8 +183,6 @@ class MyAppState extends ChangeNotifier {
 
   int ratingFor(Track t) => ratings[keyOf(t)] ?? 0;
 
-
-
   void setRating(Track t, int rating) {
     final r = rating.clamp(0, 5);
     final k = keyOf(t);
@@ -192,12 +190,10 @@ class MyAppState extends ChangeNotifier {
     if (r <= 0) {
       ratings.remove(k);
       favorites.removeWhere((x) => keyOf(x) == k);
-      isLiked = false;
     } else {
       ratings[k] = r;
       if (!favorites.any((x) => keyOf(x) == k)) {
         favorites.add(t);
-        isLiked = true;
       }
     }
     notifyListeners();
@@ -250,10 +246,8 @@ class MyAppState extends ChangeNotifier {
     final isFavNow = !favorites.any((t) => t.name == current!.name);
     if (isFavNow) {
       favorites.add(current!);
-      isLiked = true;
     } else {
       favorites.removeWhere((t) => t.name == current!.name);
-      isLiked = false;
     }
     notifyListeners();
     try {
@@ -268,14 +262,15 @@ class MyAppState extends ChangeNotifier {
       print('Failed to save favorite: $e');
     }
   }
-
-  void incRecCount() {
-    recommendService.recCount++;
-    if(recommendService.recCount >= 5) {
-      recommendService.recCount = 0;
-      generateRecommendations();
-    }
-  }
+  
+  //! DEPRECATED
+  // void incRecCount() {
+  //   recommendService.recCount++;
+  //   if(recommendService.recCount >= 5) {
+  //     recommendService.recCount = 0;
+  //     generateRecommendations();
+  //   }
+  // }
 
   Future<void> generateRecommendations() async {
     if (favorites.isEmpty) {
@@ -284,19 +279,9 @@ class MyAppState extends ChangeNotifier {
     }
     else{
       recommended = await recommendService.getRec(favorites, accessToken);
-      Track songs;
-      for (songs in recommended) {
-        print("Recommended Song: ${songs.name} by ${songs.artists}");
-      }
-      notifyListeners();
     }
+    notifyListeners();
   }
-
-    void checkLikedStatus(){
-      if(isLiked && current != null){
-        incRecCount();
-      }
-    } 
 
   void changeBackground(Color color) {
     backgroundColor = color;
@@ -451,8 +436,6 @@ class GeneratorPage extends StatelessWidget { // page builder
               ElevatedButton(
                 onPressed: () {
                   appState.getNext();
-                  appState.checkLikedStatus();
-                  appState.isLiked = false;
                 },
                 child: Text('Next'),
               ),
@@ -465,20 +448,6 @@ class GeneratorPage extends StatelessWidget { // page builder
 }
 
 
-
-class RecommendationsPage extends StatelessWidget { //favorites page 
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(20),
-          child: Text('You have no Recommendations yet'),
-        )
-      ],
-    );
-  }
-}
 
 class BigCard extends StatelessWidget {
   const BigCard({

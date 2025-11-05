@@ -2,7 +2,6 @@
 import 'spotify.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'favorites.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
@@ -24,40 +23,11 @@ class Recommendations {
           .doc(_uid)
           .collection('recommendations');
 
-  List<Track>? likedTracks = [];
   // counter for number of recommendations made, making available tracks list respectively  
   int recCount = 0;
   
-  
-  // callback to update liked songs in UI when recommendations are generated 
-  void Function(List<Track>)? onUpdate;
 
-  // setter for update callback
-  void setUpdate(void Function(List<Track>) callback) {
-    onUpdate = callback;
-  }
 
-  // helper function to pull artist names from a track
-  Set<String> artistNames(Track track) {
-    // establishing variables to hold artist names
-    final names = <String>{};
-    final artists = (track.artists as List?) ?? const[];
-
-    // looping through artists to extract names from maps and/or strings
-    for (final a in artists){
-      // checking if artist is a map with a name key
-      if (a is Map && a['name'] != null) {
-        final s = a['name'].toString().trim().toLowerCase();
-        if (s.isNotEmpty) names.add(s);
-      }
-      // checking if artist is a string
-      else{
-        final s = a.toString().trim().toLowerCase();
-        if (s.isNotEmpty) names.add(s);
-      }
-    }
-    return names; // returning set of artist names
-  }
 
   //helper function to parse track json data into Track object
   Track parseTrack(var data){
@@ -127,33 +97,61 @@ class Recommendations {
 
   //Future: Function to get liked songs, then find patterns in the user's liked songs
   //! Recomendation algorithm goes here!
-  Future<List<Track>> getRec(List<Track> likedSongs, String ?accessToken) async {
-    List<Track> recommendedTracks = [];
-    Track songs;
-    for (songs in likedSongs) {
-      //iterate though liked songs and get audio features
-      if (songs.id != null) {
-         recommendedTracks.add(await getArtistPopularTrack(songs, accessToken!));
-        await Future.delayed(const Duration(milliseconds: 100)); // small delay for safety
-      }
-      else{
-        recommendedTracks.add(songs); //if no id, add the song as is
-      }
+  Future<List<Track>> getRec(List<Track> likedSongs, String? accessToken) async {
+  List<Track> recommendedTracks = [];
+
+  for (final song in likedSongs) {
+    if (song.id == null) {
+      //if the song has no ID, skip or add as-is
+      recommendedTracks.add(song);
+      continue;
     }
-    return recommendedTracks;
+
+    try {
+      //get most popular track from artist
+      final recommended = await getArtistPopularTrack(song, accessToken!);
+      recommendedTracks.add(recommended);
+
+      //save recommended track to Firestore
+      await Recommendations.instance.setRecommended(
+        trackId: recommended.id!,
+        name: recommended.name,
+        artists: recommended.artists,
+        albumImageUrl: recommended.albumImageUrl,
+        recommend: true,
+      );
+    } catch (e) {
+      print('Failed to process ${song.name}: $e');
+    }
   }
-  //function to add a track to liked songs and increment recommendation count
+  return recommendedTracks;
+}
 
 
+  //! Firestore functions to save recommended tracks for user
 
-  //helper function to check if recommendation count has reached threshold
-  //called in appstate
-  void checkRecCount(String ?accessToken) {
-    if (recCount >= 5 && likedTracks != null) {
-      print("_________________________________");
-      getRec(likedTracks!, accessToken!);
-      recCount = 0; //reset count after getting recommendations
-    }
+   /// Toggle  flag (true/false).
+  Future<void> setRecommended({
+    required String trackId,
+    required String name,
+    required String artists,
+    String? albumImageUrl,
+    required bool recommend,
+  }) async {
+    await _col.doc(trackId).set({
+      'name': name,
+      'artists': artists,
+      'albumImageUrl': albumImageUrl,
+      'recommend': recommend,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// streams recommended tracks for the current user.
+  Stream<List<Map<String, dynamic>>> recommendedStream() {
+    return _col.where('recommend', isEqualTo: true).snapshots().map(
+      (snap) => snap.docs.map((d) => {...d.data(), 'id': d.id}).toList(),
+    );
   }
 
 }
