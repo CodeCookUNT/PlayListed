@@ -431,7 +431,7 @@ class GeneratorPage extends StatelessWidget { // page builder
                 onPressed: () {
                   appState.getNext();
                   appState.checkLikedStatus(); //only add the to liked song if the song is liked and the user clicks next
-                  appState.recommendService.checkRecCount(); //check if we need to get new recommendations
+                  appState.recommendService.checkRecCount(appState.accessToken); //check if we need to get new recommendations
                   appState.isLiked = false;
                 },
                 child: Text('Next'),
