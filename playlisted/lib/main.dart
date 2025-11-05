@@ -178,30 +178,32 @@ class MyAppState extends ChangeNotifier {
   List<Track>? tracks = [];
   RecommendService recommendService = RecommendService();
   //map for song ratings
-  final Map<String, int> ratings = {};
+  final Map<String, double> ratings = {};
   String keyOf(Track t) => t.name;
 
-  int ratingFor(Track t) => ratings[keyOf(t)] ?? 0;
+  double ratingFor(Track t) => ratings[keyOf(t)] ?? 0;
 
 
 
-  void setRating(Track t, int rating) {
-    final r = rating.clamp(0, 5);
-    final k = keyOf(t);
+void setRating(Track t, double rating) {
+  final r = rating.clamp(0.0, 5.0);
+  final k = keyOf(t);
 
-    if (r <= 0) {
-      ratings.remove(k);
-      favorites.removeWhere((x) => keyOf(x) == k);
-      isLiked = false;
-    } else {
-      ratings[k] = r;
-      if (!favorites.any((x) => keyOf(x) == k)) {
-        favorites.add(t);
-        isLiked = true;
-      }
+  if (r <= 0.0) {
+    ratings.remove(k);
+    favorites.removeWhere((x) => keyOf(x) == k);
+    isLiked = false;
+  } else {
+    ratings[k] = r;
+    if (!favorites.any((x) => keyOf(x) == k)) {
+      favorites.add(t);
+      isLiked = true;
     }
-    notifyListeners();
   }
+
+  notifyListeners();
+}
+
   
 
   MyAppState({this.accessToken, this.tracks}) {
@@ -648,6 +650,11 @@ void _openSettings(BuildContext context) {
 
 
 class StarRating extends StatelessWidget {
+  final double rating; // 0.0–5.0, supports halves
+  final ValueChanged<double> onChanged;
+  final double size;
+  final double spacing;
+
   const StarRating({
     super.key,
     required this.rating,
@@ -656,29 +663,42 @@ class StarRating extends StatelessWidget {
     this.spacing = 0,
   });
 
-  final int rating;
-  final ValueChanged<int> onChanged;
-  final double size;
-  final double spacing;
-
   @override
   Widget build(BuildContext context) {
+    // Use theme color for consistency
+    final starColor = Theme.of(context).colorScheme.secondary;
+
     return Row(
       mainAxisSize: MainAxisSize.min,
-      children: List.generate(5, (i) {
-        final filled = i < rating;
-        return Padding(
-          padding: EdgeInsets.only(right: i == 4 ? 0 : spacing),
-          child: IconButton(
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            iconSize: size,
-            icon: Icon(filled ? Icons.star : Icons.star_border),
-            onPressed: () => onChanged(i + 1),
-            tooltip: 'Rate ${i + 1}',
+      children: List.generate(5, (index) {
+        final starValue = index + 1;
+        IconData icon;
+
+        if (rating >= starValue) {
+          icon = Icons.star;
+        } else if (rating >= starValue - 0.5) {
+          icon = Icons.star_half;
+        } else {
+          icon = Icons.star_border;
+        }
+
+        return GestureDetector(
+          onTap: () {
+            if (rating >= starValue) {
+              onChanged(starValue - 0.5);
+            } else {
+              onChanged(starValue.toDouble());
+            }
+          },
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: spacing / 2),
+            child: Icon(icon, size: size, color: starColor),
           ),
         );
       }),
     );
   }
 }
+
+
+

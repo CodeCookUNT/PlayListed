@@ -5,23 +5,25 @@ class Favorites {
   Favorites._();
   static final Favorites instance = Favorites._();
 
+  // Current user's UID
   String get _uid => FirebaseAuth.instance.currentUser!.uid;
 
+  // Reference to this user's ratings collection
   CollectionReference<Map<String, dynamic>> get _col =>
       FirebaseFirestore.instance
           .collection('users')
           .doc(_uid)
           .collection('ratings');
 
-  /// Set a 0-5 rating.
+  /// Set a 0–5 rating (can include halves, e.g., 3.5).
   Future<void> setRating({
     required String trackId,
     required String name,
     required String artists,
     String? albumImageUrl,
-    required int rating,
+    required double rating,
   }) async {
-    final safe = rating.clamp(0, 5);
+    final safe = rating.clamp(0.0, 5.0);
     await _col.doc(trackId).set({
       'name': name,
       'artists': artists,
@@ -31,9 +33,10 @@ class Favorites {
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
+
   // Delete the song from the database
   Future<void> deleteTrack({required String trackId}) async {
-  await _col.doc(trackId).delete();
+    await _col.doc(trackId).delete();
   }
 
   /// Toggle favorite flag (true/false).

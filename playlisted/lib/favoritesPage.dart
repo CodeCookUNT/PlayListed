@@ -45,7 +45,7 @@ class FavoritesPage extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     StarRating(
-                      rating: (doc['rating'] ?? 0) as int,
+                      rating: (doc['rating'] ?? 0).toDouble(),
                       onChanged: (r) => Favorites.instance.setRating(
                         trackId: doc['id'],
                         name: doc['name'],
