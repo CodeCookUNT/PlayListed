@@ -176,7 +176,7 @@ class MyAppState extends ChangeNotifier {
   //optional access token (fetched at app startup)
   String? accessToken;
   List<Track>? tracks = [];
-  RecommendService recommendService = RecommendService();
+  Recommendations recommendService = Recommendations.instance;
   //map for song ratings
   final Map<String, int> ratings = {};
   String keyOf(Track t) => t.name;
@@ -241,6 +241,7 @@ class MyAppState extends ChangeNotifier {
 
   
   var favorites = List<Track>.empty(growable: true);
+  var recommended = List<Track>.empty(growable: true);
 
   Color backgroundColor = Colors.white;
 
@@ -268,12 +269,32 @@ class MyAppState extends ChangeNotifier {
     }
   }
 
+  void incRecCount() {
+    recommendService.recCount++;
+    if(recommendService.recCount >= 5) {
+      recommendService.recCount = 0;
+      generateRecommendations();
+    }
+  }
+
+  Future<void> generateRecommendations() async {
+    if (favorites.isEmpty) {
+      print('No liked tracks available for recommendations.');
+      return;
+    }
+    else{
+      recommended = await recommendService.getRec(favorites, accessToken);
+      Track songs;
+      for (songs in recommended) {
+        print("Recommended Song: ${songs.name} by ${songs.artists}");
+      }
+      notifyListeners();
+    }
+  }
 
     void checkLikedStatus(){
       if(isLiked && current != null){
-        //get the previous track and add to liked songs since clicking next loads the current song
-        int currIndex = tracks!.indexWhere((track) => track.name == current?.name);
-        recommendService.addToLiked(tracks![currIndex-1], recommendService.likedTracks!);
+        incRecCount();
       }
     } 
 
@@ -430,8 +451,7 @@ class GeneratorPage extends StatelessWidget { // page builder
               ElevatedButton(
                 onPressed: () {
                   appState.getNext();
-                  appState.checkLikedStatus(); //only add the to liked song if the song is liked and the user clicks next
-                  appState.recommendService.checkRecCount(appState.accessToken); //check if we need to get new recommendations
+                  appState.checkLikedStatus();
                   appState.isLiked = false;
                 },
                 child: Text('Next'),

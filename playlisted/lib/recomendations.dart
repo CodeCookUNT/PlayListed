@@ -12,27 +12,22 @@ import 'dart:convert';
 //later we can implement collaborative filtering which uses user behavior and preferences
 //to recommend the next track, we pass in the entire list of top songs and filter based on likes.
 
-class RecommendService {
-  // RecommendService._();
-  // static final RecommendService instance = RecommendService._();
+class Recommendations {
+  Recommendations._();
+  static final Recommendations instance = Recommendations._();
 
-  // String get _uid => FirebaseAuth.instance.currentUser!.uid;
+  String get _uid => FirebaseAuth.instance.currentUser!.uid;
 
-  // CollectionReference<Map<String, dynamic>> get _col =>
-  //     FirebaseFirestore.instance
-  //         .collection('users')
-  //         .doc(_uid)
-  //         .collection('recommendations');
+  CollectionReference<Map<String, dynamic>> get _col =>
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(_uid)
+          .collection('recommendations');
 
   List<Track>? likedTracks = [];
   // counter for number of recommendations made, making available tracks list respectively  
   int recCount = 0;
-  List<Track> availableTracks = const [];
   
-  // setter for available tracks towards recommendation
-  void setAvailableTracks(List<Track> tracks) {
-    availableTracks = tracks;
-  }
   
   // callback to update liked songs in UI when recommendations are generated 
   void Function(List<Track>)? onUpdate;
@@ -111,9 +106,13 @@ class RecommendService {
     if(response.statusCode == 200){
       final data = jsonDecode(response.body);
       final tracksJson = data['tracks'] as List;
-      if(tracksJson.isNotEmpty){
+      if(tracksJson.isNotEmpty && tracksJson[0]['id'] != track.id){
         //convert the most popular track json to Track object
         popularTrack = parseTrack(tracksJson[0]);
+      }
+      else if(tracksJson.length > 1){
+        //if the most popular track is the same as the original, take the next popular
+        popularTrack = parseTrack(tracksJson[1]);
       }
       else{
         popularTrack = track; //fallback to the original track if no top tracks found
@@ -128,29 +127,23 @@ class RecommendService {
 
   //Future: Function to get liked songs, then find patterns in the user's liked songs
   //! Recomendation algorithm goes here!
-  void getRec(List<Track> likedSongs, String ?accessToken) async {
-    Track popularTrack;
+  Future<List<Track>> getRec(List<Track> likedSongs, String ?accessToken) async {
+    List<Track> recommendedTracks = [];
     Track songs;
     for (songs in likedSongs) {
       //iterate though liked songs and get audio features
       if (songs.id != null) {
-         popularTrack = await getArtistPopularTrack(songs, accessToken!);
-         print("Recommended Track: ${popularTrack.name} by ${popularTrack.artists}");
+         recommendedTracks.add(await getArtistPopularTrack(songs, accessToken!));
         await Future.delayed(const Duration(milliseconds: 100)); // small delay for safety
-        print("_________________________________");
       }
       else{
-        popularTrack = songs; //fallback if no id
+        recommendedTracks.add(songs); //if no id, add the song as is
       }
     }
-    //filtering and recommendation logic can be added here
+    return recommendedTracks;
   }
   //function to add a track to liked songs and increment recommendation count
-  void addToLiked(Track track, List<Track> likedSongs) {
-    recCount++;
-    likedSongs.add(track);
-    print('Added to liked songs: ${track.name} by ${track.artists}');
-  }
+
 
 
   //helper function to check if recommendation count has reached threshold
