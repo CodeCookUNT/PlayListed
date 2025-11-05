@@ -316,6 +316,10 @@ class _MyHomePageState extends State<MyHomePage> {
       builder: (context, constraints) {
         return Scaffold(
           appBar: AppBar(
+            leading: IconButton(
+              icon: Icon(Icons.settings),
+              onPressed: () => _openSettings(context),
+            ),
           ),
           body: Container(
             color: context.watch<MyAppState>().backgroundColor,
@@ -350,17 +354,6 @@ class _MyHomePageState extends State<MyHomePage> {
               onDestinationSelected: (index) {
                 setState(() => selectedIndex = index);
               },
-            ),
-          ),
-          floatingActionButton: Align(
-            alignment: Alignment.bottomLeft,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: FloatingActionButton(
-                heroTag: 'settingsButton',
-                onPressed: () => _openSettings(context),
-                child: const Icon(Icons.settings),
-              ),
             ),
           ),
         );
