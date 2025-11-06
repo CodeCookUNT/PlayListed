@@ -1,0 +1,157 @@
+// beginning development of recommendations algorithm, making file
+import 'spotify.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+
+//when building a recomendation system, we will begin with content-based filtering
+//which uses track attributes to recommend similar tracks
+//later we can implement collaborative filtering which uses user behavior and preferences
+//to recommend the next track, we pass in the entire list of top songs and filter based on likes.
+
+class Recommendations {
+  Recommendations._();
+  static final Recommendations instance = Recommendations._();
+
+  String get _uid => FirebaseAuth.instance.currentUser!.uid;
+
+  CollectionReference<Map<String, dynamic>> get _col =>
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(_uid)
+          .collection('recommendations');
+
+  // counter for number of recommendations made, making available tracks list respectively  
+  int recCount = 0;
+  
+
+
+
+  //helper function to parse track json data into Track object
+  Track parseTrack(var data){
+    final artists = (data['artists'] as List)
+        .map((artist) => artist['name'])
+        .join(', ');
+
+    //get album image URL from the track's album
+    String? albumImageUrl;
+    if (data['album'] != null && data['album']['images'] != null) {
+      final images = data['album']['images'] as List;
+      if (images.isNotEmpty) {
+        albumImageUrl = images.length > 1 ? images[1]['url'] : images[0]['url'];
+      }
+    }
+    return Track(
+      name: data['name'],
+      artists: artists,
+      durationMs: data['duration_ms'],
+      albumImageUrl: albumImageUrl,
+      popularity: data['popularity'],
+      url: data['external_urls']['spotify'],
+      explicit: data['explicit'],
+      releaseDate: data['album'] != null ? data['album']['release_date'] : null,
+      id: data['id'],
+      artistId: (data['artists'] != null && (data['artists'] as List).isNotEmpty)
+          ? data['artists'][0]['id']
+          : null,
+    );
+  }
+
+  //helper function to get a tracks stats
+  Future<Track> getArtistPopularTrack(Track track, String? accessToken) async {
+    final Track popularTrack;
+    final uri = Uri.https(
+      'api.spotify.com',
+      '/v1/artists/${track.artistId}/top-tracks',
+      {'market': 'US'},
+    );
+
+    final response = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $accessToken'},
+    );
+
+    if(response.statusCode == 200){
+      final data = jsonDecode(response.body);
+      final tracksJson = data['tracks'] as List;
+      if(tracksJson.isNotEmpty && tracksJson[0]['id'] != track.id){
+        //convert the most popular track json to Track object
+        popularTrack = parseTrack(tracksJson[0]);
+      }
+      else if(tracksJson.length > 1){
+        //if the most popular track is the same as the original, take the next popular
+        popularTrack = parseTrack(tracksJson[1]);
+      }
+      else{
+        popularTrack = track; //fallback to the original track if no top tracks found
+      }
+      return popularTrack;
+    }
+    else{
+      throw Exception('Failed to get artist top tracks: ${response.body}');
+    }
+
+  }
+
+  //Future: Function to get liked songs, then find patterns in the user's liked songs
+  //! Recomendation algorithm goes here!
+  Future<List<Track>> getRec(List<Track> likedSongs, String? accessToken) async {
+  List<Track> recommendedTracks = [];
+
+  for (final song in likedSongs) {
+    if (song.id == null) {
+      //if the song has no ID, skip or add as-is
+      recommendedTracks.add(song);
+      continue;
+    }
+
+    try {
+      //get most popular track from artist
+      final recommended = await getArtistPopularTrack(song, accessToken!);
+      recommendedTracks.add(recommended);
+
+      //save recommended track to Firestore
+      await Recommendations.instance.setRecommended(
+        trackId: recommended.id!,
+        name: recommended.name,
+        artists: recommended.artists,
+        albumImageUrl: recommended.albumImageUrl,
+        recommend: true,
+      );
+    } catch (e) {
+      print('Failed to process ${song.name}: $e');
+    }
+  }
+  return recommendedTracks;
+}
+
+
+  //! Firestore functions to save recommended tracks for user
+
+   /// Toggle  flag (true/false).
+  Future<void> setRecommended({
+    required String trackId,
+    required String name,
+    required String artists,
+    String? albumImageUrl,
+    required bool recommend,
+  }) async {
+    await _col.doc(trackId).set({
+      'name': name,
+      'artists': artists,
+      'albumImageUrl': albumImageUrl,
+      'recommend': recommend,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// streams recommended tracks for the current user.
+  Stream<List<Map<String, dynamic>>> recommendedStream() {
+    return _col.where('recommend', isEqualTo: true).snapshots().map(
+      (snap) => snap.docs.map((d) => {...d.data(), 'id': d.id}).toList(),
+    );
+  }
+
+}

@@ -13,6 +13,7 @@ class Track {
   final int? popularity;
   final String? releaseDate;
   final String? id;  // ← Add this
+  final String? artistId;
 
 
   Track({
@@ -25,6 +26,7 @@ class Track {
     this.popularity,
     this.releaseDate,
     this.id,
+    this.artistId,
   });
 
 }
@@ -147,7 +149,10 @@ Future<List<Track>> _searchTracks(String? accessToken, String query, {int limit 
         albumImageUrl: albumImageUrl,
         popularity: json['popularity'],
         releaseDate: json['album'] != null ? json['album']['release_date'] : null,
-        id: json['id']
+        id: json['id'],
+        artistId: (json['artists'] != null && (json['artists'] as List).isNotEmpty)
+            ? json['artists'][0]['id']
+            : null,
       );
     }).toList();
   } else {
