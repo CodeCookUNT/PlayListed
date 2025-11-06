@@ -97,20 +97,17 @@ class Recommendations {
 
   //Future: Function to get liked songs, then find patterns in the user's liked songs
   //! Recomendation algorithm goes here!
-  Future<List<Track>> getRec(List<Track> likedSongs, String? accessToken) async {
-  List<Track> recommendedTracks = [];
+  Future<void> getRec(List<Track> likedSongs, String? accessToken) async {
 
   for (final song in likedSongs) {
     if (song.id == null) {
       //if the song has no ID, skip or add as-is
-      recommendedTracks.add(song);
       continue;
     }
 
     try {
       //get most popular track from artist
       final recommended = await getArtistPopularTrack(song, accessToken!);
-      recommendedTracks.add(recommended);
 
       //save recommended track to Firestore
       await Recommendations.instance.setRecommended(
@@ -124,7 +121,6 @@ class Recommendations {
       print('Failed to process ${song.name}: $e');
     }
   }
-  return recommendedTracks;
 }
 
 

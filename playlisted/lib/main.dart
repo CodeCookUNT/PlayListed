@@ -241,7 +241,6 @@ void setRating(Track t, double rating) {
 
   
   var favorites = List<Track>.empty(growable: true);
-  var recommended = List<Track>.empty(growable: true);
 
   Color backgroundColor = Colors.white;
 
@@ -282,7 +281,7 @@ void setRating(Track t, double rating) {
       return;
     }
     else{
-      recommended = await recommendService.getRec(favorites, accessToken);
+      await recommendService.getRec(favorites, accessToken);
     }
     notifyListeners();
   }
