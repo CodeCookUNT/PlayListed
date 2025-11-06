@@ -12,6 +12,8 @@ import 'favorites.dart';
 import 'favoritesPage.dart';
 import 'recommendations.dart';
 import 'recommendationsPage.dart';
+import 'search.dart';
+import 'profile.dart';
 
 
 Future<void> main() async {
@@ -313,7 +315,9 @@ class _MyHomePageState extends State<MyHomePage> {
   final pages = [
     GeneratorPage(),
     FavoritesPage(),
+    SearchPage(),
     RecommendationsPage(), // switches to the favorites page class
+    ProfilePage(),
   ];
 
   @override
@@ -352,8 +356,16 @@ class _MyHomePageState extends State<MyHomePage> {
                   label: 'Favorites',
                 ),
                 NavigationDestination(
+                  icon: Icon(Icons.search_rounded),
+                  label: 'Search',
+                ),
+                NavigationDestination(
                   icon: Icon(Icons.library_music),
                   label: 'Recommendations',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.person),
+                  label: 'My Profile',
                 ),
               ],
               selectedIndex: selectedIndex,
