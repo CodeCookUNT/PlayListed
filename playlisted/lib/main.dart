@@ -361,7 +361,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.library_music),
-                  label: 'Recommendations',
+                  label: 'Recommend',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.person),
