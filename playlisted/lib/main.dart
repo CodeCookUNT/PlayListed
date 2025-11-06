@@ -455,7 +455,6 @@ class GeneratorPage extends StatelessWidget { // page builder
 }
 
 
-
 class BigCard extends StatelessWidget {
   const BigCard({
     super.key,
@@ -467,145 +466,170 @@ class BigCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final style = theme.textTheme.titleLarge!.copyWith(
-      color: theme.colorScheme.primary,
-    );
-    final artistStyle = theme.textTheme.titleMedium!.copyWith(
-      color: theme.colorScheme.primary.withOpacity(0.8),
-    );
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Vinyl and jacket display
-        if (track.albumImageUrl != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16.0),
-            child: Stack(
-              alignment: Alignment.centerLeft,
-              children: [
-                // Vinyl record 
-                Transform.translate(
-                  offset: Offset(158, 0),
-                  child: Container(
-                    width: 280,
-                    height: 280,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.black,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
-                          blurRadius: 20,
-                          spreadRadius: 5,
-                        ),
-                      ],
-                    ),
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        // Vinyl grooves
-                        for (int i = 1; i <= 6; i++)
-                          Container(
-                            width: 280 - (i * 30.0),
-                            height: 280 - (i * 30.0),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.grey.withOpacity(0.3),
-                                width: 1,
-                              ),
-                            ),
-                          ),
-                        // Center label
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: theme.colorScheme.primary,
-                          ),
-                          child: Icon(
-                            Icons.album,
-                            color: theme.colorScheme.onPrimary,
-                            size: 40,
-                          ),
-                        ),
-                        // Center hole
-                        Container(
-                          width: 20,
-                          height: 20,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Calculate responsive sizes based on available width
+        final maxWidth = constraints.maxWidth;
+        final albumSize = (maxWidth * 0.7).clamp(200.0, 300.0);
+        final vinylSize = albumSize * 0.93;
+        final vinylOffset = albumSize * 0.53;
+        final titleSize = (albumSize * 0.067).clamp(16.0, 24.0);
+        final artistSize = (albumSize * 0.053).clamp(14.0, 18.0);
+        
+        final style = theme.textTheme.titleLarge!.copyWith(
+          color: theme.colorScheme.primary,
+          fontSize: titleSize,
+        );
+        final artistStyle = theme.textTheme.titleMedium!.copyWith(
+          color: theme.colorScheme.primary.withOpacity(0.8),
+          fontSize: artistSize,
+        );
+        
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Vinyl and jacket display
+            if (track.albumImageUrl != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: SizedBox(
+                  width: albumSize + vinylOffset,
+                  height: albumSize,
+                  child: Stack(
+                    alignment: Alignment.centerLeft,
+                    children: [
+                      // Vinyl record 
+                      Positioned(
+                        left: vinylOffset,
+                        child: Container(
+                          width: vinylSize,
+                          height: vinylSize,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: Colors.black,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.3),
+                                blurRadius: 20,
+                                spreadRadius: 5,
+                              ),
+                            ],
+                          ),
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              // Vinyl grooves
+                              for (int i = 1; i <= 6; i++)
+                                Container(
+                                  width: vinylSize - (i * (vinylSize * 0.1)),
+                                  height: vinylSize - (i * (vinylSize * 0.1)),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.grey.withOpacity(0.3),
+                                      width: 1,
+                                    ),
+                                  ),
+                                ),
+                              // Center label
+                              Container(
+                                width: vinylSize * 0.28,
+                                height: vinylSize * 0.28,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: theme.colorScheme.primary,
+                                ),
+                                child: Icon(
+                                  Icons.album,
+                                  color: theme.colorScheme.onPrimary,
+                                  size: vinylSize * 0.14,
+                                ),
+                              ),
+                              // Center hole
+                              Container(
+                                width: vinylSize * 0.07,
+                                height: vinylSize * 0.07,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
-                // Album jacket/cover
-                Container(
-                  width: 300,
-                  height: 300,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(4.0),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.5),
-                        blurRadius: 15,
-                        spreadRadius: 2,
-                        offset: Offset(5, 5),
+                      ),
+                      // Album jacket and cover
+                      Positioned(
+                        left: 0,
+                        child: Container(
+                          width: albumSize,
+                          height: albumSize,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(4.0),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.5),
+                                blurRadius: 15,
+                                spreadRadius: 2,
+                                offset: Offset(5, 5),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(4.0),
+                            child: Image.network(
+                              track.albumImageUrl!,
+                              width: albumSize,
+                              height: albumSize,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  width: albumSize,
+                                  height: albumSize,
+                                  color: Colors.grey,
+                                  child: Icon(Icons.album, size: albumSize * 0.33, color: Colors.white),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4.0),
-                    child: Image.network(
-                      track.albumImageUrl!,
-                      width: 300,
-                      height: 300,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          width: 300,
-                          height: 300,
-                          color: Colors.grey,
-                          child: Icon(Icons.album, size: 100, color: Colors.white),
-                        );
-                      },
-                    ),
+                ),
+              ),
+            // Track info card
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Card(
+                color: theme.colorScheme.primary,
+                child: Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        track.name,
+                        style: style.copyWith(color: theme.colorScheme.onPrimary),
+                        textAlign: TextAlign.center,
+                        semanticsLabel: track.name,
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        track.artists,
+                        style: artistStyle.copyWith(color: theme.colorScheme.onPrimary.withOpacity(0.8)),
+                        textAlign: TextAlign.center,
+                        semanticsLabel: "by ${track.artists}",
+                      ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
-        // Track info card
-        Card(
-          color: theme.colorScheme.primary,
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  track.name,
-                  style: style.copyWith(color: theme.colorScheme.onPrimary),
-                  textAlign: TextAlign.center,
-                  semanticsLabel: track.name,
-                ),
-                SizedBox(height: 8),
-                Text(
-                  track.artists,
-                  style: artistStyle.copyWith(color: theme.colorScheme.onPrimary.withOpacity(0.8)),
-                  textAlign: TextAlign.center,
-                  semanticsLabel: "by ${track.artists}",
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
