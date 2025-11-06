@@ -543,7 +543,17 @@ class BigCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                // Album jacket/cover
+               
+               // Gray box that appear when imgage is loading and will be cover by the album image  
+                Container(
+                  width: 250,
+                  height: 250,
+                  decoration: BoxDecoration(
+                     color: Colors.grey,
+                  )
+                ),
+                
+                 // Album jacket/cover
                 Container(
                   width: 250,
                   height: 250,
@@ -562,8 +572,8 @@ class BigCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(4.0),
                     child: Image.network(
                       track.albumImageUrl!,
-                      width: 300,
-                      height: 300,
+                      width: 250,
+                      height: 250,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
