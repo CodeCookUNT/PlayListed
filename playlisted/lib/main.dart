@@ -486,10 +486,10 @@ class BigCard extends StatelessWidget {
               children: [
                 // Vinyl record 
                 Transform.translate(
-                  offset: Offset(158, 0),
+                  offset: Offset(132, 0),
                   child: Container(
-                    width: 280,
-                    height: 280,
+                    width: 230,
+                    height: 230,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: Colors.black,
@@ -546,8 +546,8 @@ class BigCard extends StatelessWidget {
                 ),
                 // Album jacket/cover
                 Container(
-                  width: 300,
-                  height: 300,
+                  width: 250,
+                  height: 250,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(4.0),
                     boxShadow: [
