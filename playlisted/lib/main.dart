@@ -192,12 +192,10 @@ void setRating(Track t, double rating) {
     if (r <= 0) {
       ratings.remove(k);
       favorites.removeWhere((x) => keyOf(x) == k);
-      isLiked = false;
     } else {
       ratings[k] = r;
       if (!favorites.any((x) => keyOf(x) == k)) {
         favorites.add(t);
-        isLiked = true;
       }
     }
     notifyListeners();
