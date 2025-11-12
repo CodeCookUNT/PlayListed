@@ -1,10 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'recommendations.dart';
+import 'main.dart' show MyAppState;
 
 class Favorites {
   Favorites._();
   static final Favorites instance = Favorites._();
+
 
   // Current user's UID
   String get _uid => FirebaseAuth.instance.currentUser!.uid;

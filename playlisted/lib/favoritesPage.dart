@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
 import 'favorites.dart';
 import 'main.dart' show StarRating;
+import 'main.dart' show MyAppState;
 import 'recommendations.dart';
 
 class FavoritesPage extends StatelessWidget {
@@ -10,7 +12,7 @@ class FavoritesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+    var appState = context.read<MyAppState>();
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: Favorites.instance.favoritesStream(),
       builder: (context, snap) {
@@ -166,6 +168,8 @@ class FavoritesPage extends StatelessWidget {
                           );
                           //also remove any recommendations based on this track
                           await Recommendations.instance.removeRecommendationsFromSource(doc['id']);
+                          //remove from local appState favorites list
+                          appState.removeFavorite(doc['id']);
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(

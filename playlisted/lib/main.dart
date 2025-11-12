@@ -266,14 +266,10 @@ void setRating(Track t, double rating) {
     }
   }
   
-  //! DEPRECATED
-  // void incRecCount() {
-  //   recommendService.recCount++;
-  //   if(recommendService.recCount >= 5) {
-  //     recommendService.recCount = 0;
-  //     generateRecommendations();
-  //   }
-  // }
+  void removeFavorite(String idToRemove) {
+    favorites.removeWhere((fav) => fav.id == idToRemove);
+    notifyListeners();
+  }
 
   Future<void> generateRecommendations() async {
     if (favorites.isEmpty) {
