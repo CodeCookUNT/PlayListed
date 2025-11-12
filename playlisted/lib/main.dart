@@ -255,7 +255,7 @@ void setRating(Track t, double rating) {
     notifyListeners();
     try {
         Favorites.instance.setFavorite(
-        trackId: keyOf(current!),
+        trackId: current!.id!,
         name: current!.name,
         artists: current!.artists,
         albumImageUrl: current!.albumImageUrl,
@@ -408,7 +408,7 @@ class GeneratorPage extends StatelessWidget { // page builder
               appState.setRating(track, r);
               // Reloads Favorites from Firestore
               await Favorites.instance.setRating(
-                trackId: context.read<MyAppState>().keyOf(track),
+                trackId: track.id!,
                 name: track.name,
                 artists: track.artists,
                 albumImageUrl: track.albumImageUrl,

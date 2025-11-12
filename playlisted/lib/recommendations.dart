@@ -116,6 +116,7 @@ class Recommendations {
         artists: recommended.artists,
         albumImageUrl: recommended.albumImageUrl,
         recommend: true,
+        sourceTrackId: song.id!, //the track that led to this recommendation
       );
     } catch (e) {
       print('Failed to process ${song.name}: $e');
@@ -133,12 +134,14 @@ class Recommendations {
     required String artists,
     String? albumImageUrl,
     required bool recommend,
+    required String sourceTrackId, //the track that led to this recommendation
   }) async {
     await _col.doc(trackId).set({
       'name': name,
       'artists': artists,
       'albumImageUrl': albumImageUrl,
       'recommend': recommend,
+      'sourceTrackId': sourceTrackId,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
@@ -148,6 +151,17 @@ class Recommendations {
     return _col.where('recommend', isEqualTo: true).snapshots().map(
       (snap) => snap.docs.map((d) => {...d.data(), 'id': d.id}).toList(),
     );
+  }
+
+  Future<void> removeRecommendationsFromSource(String sourceTrackId) async {
+  final query = await _col.where('sourceTrackId', isEqualTo: sourceTrackId).get();
+    for (var doc in query.docs) {
+      await _col.doc(doc.id).delete();
+    }
+  }
+
+  Future<void> recDeleteTrack({required String trackId}) async {
+    await _col.doc(trackId).delete();
   }
 
 }

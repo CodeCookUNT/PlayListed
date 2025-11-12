@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'favorites.dart';
 import 'main.dart' show StarRating;
+import 'recommendations.dart';
 
 class FavoritesPage extends StatelessWidget {
   const FavoritesPage({super.key});
@@ -163,7 +164,8 @@ class FavoritesPage extends StatelessWidget {
                           await Favorites.instance.deleteTrack(
                             trackId: doc['id'],
                           );
-
+                          //also remove any recommendations based on this track
+                          await Recommendations.instance.removeRecommendationsFromSource(doc['id']);
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(

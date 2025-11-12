@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'recommendations.dart';
 
 class Favorites {
   Favorites._();
@@ -21,15 +22,15 @@ class Favorites {
     required String name,
     required String artists,
     String? albumImageUrl,
-    required double rating,
+    double? rating,
   }) async {
-    final safe = rating.clamp(0.0, 5.0);
+    final double? safe = rating?.clamp(0.0, 5.0);
     await _col.doc(trackId).set({
       'name': name,
       'artists': artists,
       'albumImageUrl': albumImageUrl,
       'rating': safe,
-      'favorite': safe > 0,
+      'favorite': safe != null && safe > 0,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
@@ -55,6 +56,7 @@ class Favorites {
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
+
 
   /// streams favorited tracks for the current user.
   Stream<List<Map<String, dynamic>>> favoritesStream() {
