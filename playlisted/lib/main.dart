@@ -14,6 +14,7 @@ import 'recommendations.dart';
 import 'recommendationsPage.dart';
 import 'search.dart';
 import 'profile.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 
 Future<void> main() async {
@@ -325,6 +326,15 @@ class _MyHomePageState extends State<MyHomePage> {
               icon: Icon(Icons.settings),
               onPressed: () => _openSettings(context),
             ),
+          title: Text(
+          'Playlistd',
+            style: GoogleFonts.montserrat(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              letterSpacing: 0.5,
+              ),
+            ),  
           ),
           body: Container(
             color: context.watch<MyAppState>().backgroundColor,
@@ -393,7 +403,6 @@ class GeneratorPage extends StatelessWidget { // page builder
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text('Playlistd'), // Title above track names
           if (track != null)...[
             BigCard(track: track),
 
