@@ -15,6 +15,7 @@ import 'recommendationsPage.dart';
 import 'search.dart';
 import 'profile.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 
 Future<void> main() async {
@@ -406,20 +407,44 @@ class GeneratorPage extends StatelessWidget { // page builder
           if (track != null)...[
             BigCard(track: track),
 
-           StarRating(
-              rating: appState.ratingFor(track),
-              onChanged: (r) async {
-              // local
-              appState.setRating(track, r);
-              // Reloads Favorites from Firestore
-              await Favorites.instance.setRating(
-                trackId: track.id!,
-                name: track.name,
-                artists: track.artists,
-                albumImageUrl: track.albumImageUrl,
-                rating: r,
-                );
-              },
+            //star rating and open song button section
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                StarRating(
+                  rating: appState.ratingFor(track),
+                  onChanged: (r) async {
+                    // local
+                    appState.setRating(track, r);
+                    // Reloads Favorites from Firestore
+                    await Favorites.instance.setRating(
+                      trackId: track.id!,
+                      name: track.name,
+                      artists: track.artists,
+                      albumImageUrl: track.albumImageUrl,
+                      rating: r,
+                    );
+                  },
+                ),
+                SizedBox(width: 16), //space for spotify button
+                // Open in Spotify button
+                if (track.url != null)
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: const Color(0xFF1DB954),
+                    child: IconButton(
+                      icon: Icon(Icons.open_in_new, color: Colors.white),
+                      onPressed: () async {
+                        final uri = Uri.parse(track.url!);
+                        if (await canLaunchUrl(uri)) {
+                          await launchUrl(uri);
+                        } else {
+                          print('Could not launch ${track.url}');
+                        }
+                      },
+                    ),
+                  ),
+              ],
             ),
           ]else
             Text('Failed to fetch track'),
@@ -457,6 +482,8 @@ class GeneratorPage extends StatelessWidget { // page builder
     );
   }
 }
+
+
 
 
 
