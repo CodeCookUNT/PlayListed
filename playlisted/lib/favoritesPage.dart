@@ -6,15 +6,63 @@ import 'main.dart' show StarRating;
 import 'main.dart' show MyAppState;
 import 'recommendations.dart';
 
-class FavoritesPage extends StatelessWidget {
-  const FavoritesPage({super.key});
+class MySongsPage extends StatelessWidget {
+  MySongsPage({super.key});
+
+    @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          TabBar(
+            tabs: [
+              Tab(text: 'Liked'),
+              Tab(text: 'Rated'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                SongsList(
+                  stream: Favorites.instance.favoritesStream(),
+                  emptyMessage: 'No liked songs yet.',
+                  headerLabel: '{count} liked songs:',
+                ),
+                SongsList(
+                  stream: Favorites.instance.ratedStream(),
+                  emptyMessage: 'No rated songs yet.',
+                  headerLabel: '{count} rated songs:',
+                  showFavoriteIcon: false,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SongsList extends StatelessWidget {
+  final Stream<List<Map<String, dynamic>>> stream;
+  final String emptyMessage;
+  final String headerLabel;
+  final bool showFavoriteIcon;
+
+  const SongsList({
+    required this.stream,
+    required this.emptyMessage,
+    required this.headerLabel,
+    this.showFavoriteIcon = true,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    var appState = context.read<MyAppState>();
+    final appState = context.read<MyAppState>();
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: Favorites.instance.favoritesStream(),
+      stream: stream,
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return Center(
@@ -93,9 +141,9 @@ class FavoritesPage extends StatelessWidget {
                     ),
                   ),
                 ),
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
                 Text(
-                  'Loading favorites...',
+                  'Loading songs...',
                   style: theme.textTheme.titleMedium,
                 ),
               ],
@@ -118,14 +166,15 @@ class FavoritesPage extends StatelessWidget {
         });
 
         if (items.isEmpty) {
-          return const Center(child: Text('No favorites yet.'));
+          return Center(child: Text(emptyMessage));
         }
 
         return ListView(
           children: [
             Padding(
               padding: const EdgeInsets.all(20),
-              child: Text('You have ${items.length} favorites:'),
+              child: Text(headerLabel.replaceFirst('{count}', '${items.length}'),
+                  style: theme.textTheme.titleMedium),
             ),
 
             for (final doc in items)
@@ -136,10 +185,11 @@ class FavoritesPage extends StatelessWidget {
                         width: 50,
                         height: 50,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            const Icon(Icons.favorite),
+                        errorBuilder: (_, __, ___) => Icon(
+                          showFavoriteIcon ? Icons.favorite : Icons.library_music,
+                        )
                       )
-                    : const Icon(Icons.favorite),
+                    : Icon(showFavoriteIcon ? Icons.favorite : Icons.library_music),
                 title: Text(doc['name'] ?? ''),
                 subtitle: Text(doc['artists'] ?? ''),
 

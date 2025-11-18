@@ -311,7 +311,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   final pages = [
     GeneratorPage(),
-    FavoritesPage(),
+    MySongsPage(),
     SearchPage(),
     RecommendationsPage(), // switches to the favorites page class
     ProfilePage(),
@@ -358,8 +358,8 @@ class _MyHomePageState extends State<MyHomePage> {
                   label: 'Home',
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.favorite),
-                  label: 'Favorites',
+                  icon: Icon(Icons.library_music),
+                  label: 'My Songs',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.search_rounded),
