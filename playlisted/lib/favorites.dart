@@ -37,6 +37,37 @@ class Favorites {
     }, SetOptions(merge: true));
   }
 
+  /// Set or update a text review for a track
+  Future<void> setReview({
+    required String trackId,
+    required String name,
+    required String artists,
+    String? albumImageUrl,
+    required String review,
+  }) async {
+    await _col.doc(trackId).set({
+      'name': name,
+      'artists': artists,
+      'albumImageUrl': albumImageUrl,
+      'review': review,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// Get review for a specific track
+  Future<String?> getReview(String trackId) async {
+    try {
+      final doc = await _col.doc(trackId).get();
+      if (doc.exists && doc.data() != null) {
+        return doc.data()!['review'] as String?;
+      }
+      return null;
+    } catch (e) {
+      print('Error getting review: $e');
+      return null;
+    }
+  }
+
   // Delete the song from the database
   Future<void> deleteTrack({required String trackId}) async {
     await _col.doc(trackId).delete();
