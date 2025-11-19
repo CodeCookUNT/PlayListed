@@ -513,6 +513,32 @@ class GeneratorPage extends StatelessWidget { // page builder
           ]else
             Text('Failed to fetch track'),
           SizedBox(height: 10),
+          
+          // Add Review and View Reviews Buttons
+          if (track != null && track.id != null) ...[
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: () {
+                    _showReviewDialog(context, track);
+                  },
+                  icon: Icon(Icons.rate_review),
+                  label: Text('Write Review'),
+                ),
+                SizedBox(width: 10),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    _showAllReviewsDialog(context, track);
+                  },
+                  icon: Icon(Icons.reviews),
+                  label: Text('Reviews'),
+                ),
+              ],
+            ),
+            SizedBox(height: 10),
+          ],
+          
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -553,9 +579,350 @@ class GeneratorPage extends StatelessWidget { // page builder
   }
 }
 
- 
+// Dialog to write/edit review
+void _showReviewDialog(BuildContext context, Track track) async {
+  final userId = FirebaseAuth.instance.currentUser?.uid;
+  if (userId == null) return;
 
+  // Load existing review if any
+  String existingReview = '';
+  try {
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('ratings')
+        .doc(track.id)
+        .get();
+    
+    if (doc.exists && doc.data() != null) {
+      existingReview = doc.data()!['review'] ?? '';
+    }
+  } catch (e) {
+    print('Error loading existing review: $e');
+  }
 
+  final TextEditingController reviewController = TextEditingController(text: existingReview);
+  
+  showDialog(
+    context: context,
+    builder: (context) => ReviewDialog(
+      track: track,
+      reviewController: reviewController,
+    ),
+  );
+}
+
+// Dialog to show all reviews for a song
+void _showAllReviewsDialog(BuildContext context, Track track) async {
+  // First check if any reviews exist
+  print('Checking for reviews for trackId: ${track.id}');
+  
+  try {
+    final testQuery = await FirebaseFirestore.instance
+        .collection('song_reviews')
+        .where('trackId', isEqualTo: track.id)
+        .get();
+    print('Found ${testQuery.docs.length} reviews');
+  } catch (e) {
+    print('Error testing query: $e');
+  }
+  
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Reviews'),
+          SizedBox(height: 4),
+          Text(
+            track.name,
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          Text(
+            'by ${track.artists}',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ],
+      ),
+      content: Container(
+        width: double.maxFinite,
+        height: 400,
+        child: FutureBuilder<QuerySnapshot>(
+          future: FirebaseFirestore.instance
+              .collection('song_reviews')
+              .where('trackId', isEqualTo: track.id)
+              .get(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(child: CircularProgressIndicator());
+            }
+
+            if (snapshot.hasError) {
+              print('Error loading reviews: ${snapshot.error}');
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('Error loading reviews'),
+                    SizedBox(height: 8),
+                    Text('${snapshot.error}', style: TextStyle(fontSize: 10)),
+                    SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
+                      child: Text('Close'),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            final reviews = snapshot.data?.docs ?? [];
+            print('Loaded ${reviews.length} reviews');
+
+            if (reviews.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.reviews_outlined, size: 64, color: Colors.grey),
+                    SizedBox(height: 16),
+                    Text(
+                      'No reviews yet',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Be the first to review!',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            // Sort by most recent
+            reviews.sort((a, b) {
+              final aTime = (a.data() as Map<String, dynamic>)['updatedAt'] as Timestamp?;
+              final bTime = (b.data() as Map<String, dynamic>)['updatedAt'] as Timestamp?;
+              
+              if (aTime == null && bTime == null) return 0;
+              if (aTime == null) return 1;
+              if (bTime == null) return -1;
+              
+              return bTime.compareTo(aTime);
+            });
+
+            return ListView.builder(
+              itemCount: reviews.length,
+              itemBuilder: (context, index) {
+                final reviewData = reviews[index].data() as Map<String, dynamic>;
+                final review = reviewData['review'] as String? ?? '';
+                final rating = reviewData['rating'] as double?;
+                final timestamp = reviewData['updatedAt'] as Timestamp?;
+                final userEmail = reviewData['userEmail'] as String? ?? 'Anonymous';
+                
+                // Format timestamp
+                String timeAgo = 'Recently';
+                if (timestamp != null) {
+                  final date = timestamp.toDate();
+                  final now = DateTime.now();
+                  final difference = now.difference(date);
+                  
+                  if (difference.inDays > 30) {
+                    timeAgo = '${(difference.inDays / 30).floor()} month${(difference.inDays / 30).floor() > 1 ? 's' : ''} ago';
+                  } else if (difference.inDays > 0) {
+                    timeAgo = '${difference.inDays} day${difference.inDays > 1 ? 's' : ''} ago';
+                  } else if (difference.inHours > 0) {
+                    timeAgo = '${difference.inHours} hour${difference.inHours > 1 ? 's' : ''} ago';
+                  } else if (difference.inMinutes > 0) {
+                    timeAgo = '${difference.inMinutes} minute${difference.inMinutes > 1 ? 's' : ''} ago';
+                  } else {
+                    timeAgo = 'Just now';
+                  }
+                }
+
+                return Card(
+                  margin: EdgeInsets.only(bottom: 12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 16,
+                              backgroundColor: Theme.of(context).colorScheme.primary,
+                              child: Text(
+                                userEmail.isNotEmpty ? userEmail[0].toUpperCase() : '?',
+                                style: TextStyle(color: Colors.white, fontSize: 14),
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    userEmail.length > 20 ? '${userEmail.substring(0, 20)}...' : userEmail,
+                                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                  ),
+                                  Text(
+                                    timeAgo,
+                                    style: TextStyle(fontSize: 11, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (rating != null && rating > 0)
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.star, color: Colors.amber, size: 16),
+                                  Text(
+                                    rating.toStringAsFixed(1),
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          review,
+                          style: TextStyle(fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('Close'),
+        ),
+      ],
+    ),
+  );
+}
+
+// Stateful dialog widget for character counter
+class ReviewDialog extends StatefulWidget {
+  final Track track;
+  final TextEditingController reviewController;
+
+  const ReviewDialog({
+    super.key,
+    required this.track,
+    required this.reviewController,
+  });
+
+  @override
+  State<ReviewDialog> createState() => _ReviewDialogState();
+}
+
+class _ReviewDialogState extends State<ReviewDialog> {
+  static const int maxCharacters = 300;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.reviewController.addListener(() {
+      setState(() {}); // Rebuild to update character count
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final remainingChars = maxCharacters - widget.reviewController.text.length;
+    
+    return AlertDialog(
+      title: Text('Write a Review'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${widget.track.name}',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          Text(
+            'by ${widget.track.artists}',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          SizedBox(height: 16),
+          TextField(
+            controller: widget.reviewController,
+            maxLength: maxCharacters,
+            maxLines: 5,
+            decoration: InputDecoration(
+              hintText: 'Share your thoughts about this song...',
+              border: OutlineInputBorder(),
+              counterText: '$remainingChars characters remaining',
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('Cancel'),
+        ),
+        if (widget.reviewController.text.isNotEmpty)
+          TextButton(
+            onPressed: () async {
+              // Delete review
+              await Favorites.instance.setReview(
+                trackId: widget.track.id!,
+                name: widget.track.name,
+                artists: widget.track.artists,
+                albumImageUrl: widget.track.albumImageUrl,
+                review: '',
+              );
+              Navigator.of(context).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Review deleted')),
+              );
+            },
+            child: Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ElevatedButton(
+          onPressed: () async {
+            final review = widget.reviewController.text.trim();
+            if (review.isEmpty) {
+              Navigator.of(context).pop();
+              return;
+            }
+            
+            // Save review to Firestore
+            await Favorites.instance.setReview(
+              trackId: widget.track.id!,
+              name: widget.track.name,
+              artists: widget.track.artists,
+              albumImageUrl: widget.track.albumImageUrl,
+              review: review,
+            );
+            
+            Navigator.of(context).pop();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Review saved!')),
+            );
+          },
+          child: Text('Save Review'),
+        ),
+      ],
+    );
+  }
+}
 
 class BigCard extends StatelessWidget {
   const BigCard({

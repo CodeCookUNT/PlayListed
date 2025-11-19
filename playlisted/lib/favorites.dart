@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'recommendations.dart';
-import 'main.dart' show MyAppState;
+//import 'main.dart' show MyAppState;
 
 class Favorites {
   Favorites._();
@@ -35,6 +35,24 @@ class Favorites {
       'favorite': safe != null && safe > 0,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+    
+    // Update rating in song_reviews if a review exists
+    try {
+      final reviewDoc = await FirebaseFirestore.instance
+          .collection('song_reviews')
+          .doc('${trackId}_$_uid')
+          .get();
+      
+      if (reviewDoc.exists) {
+        await FirebaseFirestore.instance
+            .collection('song_reviews')
+            .doc('${trackId}_$_uid')
+            .update({'rating': safe});
+        print('Updated rating in existing review');
+      }
+    } catch (e) {
+      print('Error updating rating in song_reviews: $e');
+    }
   }
 
   /// Set or update a text review for a track
@@ -45,6 +63,9 @@ class Favorites {
     String? albumImageUrl,
     required String review,
   }) async {
+    print('setReview called for trackId: $trackId, review: "$review"');
+    
+    // Save to user's personal ratings
     await _col.doc(trackId).set({
       'name': name,
       'artists': artists,
@@ -52,25 +73,75 @@ class Favorites {
       'review': review,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
-  }
+    print('Saved to user ratings collection');
 
-  /// Get review for a specific track
-  Future<String?> getReview(String trackId) async {
-    try {
-      final doc = await _col.doc(trackId).get();
-      if (doc.exists && doc.data() != null) {
-        return doc.data()!['review'] as String?;
+    // Also save to global reviews collection for easy querying
+    if (review.trim().isNotEmpty) {
+      final userEmail = FirebaseAuth.instance.currentUser?.email ?? 'Anonymous';
+      final docId = '${trackId}_$_uid';
+      print('Saving to song_reviews collection with docId: $docId');
+      
+      try {
+        await FirebaseFirestore.instance
+            .collection('song_reviews')
+            .doc(docId)
+            .set({
+          'trackId': trackId,
+          'trackName': name,
+          'artists': artists,
+          'albumImageUrl': albumImageUrl,
+          'review': review,
+          'userId': _uid,
+          'userEmail': userEmail,
+          'rating': null,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        print('Successfully saved to song_reviews collection');
+        
+        // Update with rating if exists
+        final ratingDoc = await _col.doc(trackId).get();
+        if (ratingDoc.exists && ratingDoc.data() != null) {
+          final rating = ratingDoc.data()!['rating'] as double?;
+          if (rating != null) {
+            await FirebaseFirestore.instance
+                .collection('song_reviews')
+                .doc(docId)
+                .update({'rating': rating});
+            print('Updated rating in song_reviews: $rating');
+          }
+        }
+      } catch (e) {
+        print('Error saving to song_reviews: $e');
+        rethrow;
       }
-      return null;
-    } catch (e) {
-      print('Error getting review: $e');
-      return null;
+    } else {
+      // Delete from global reviews if review is empty
+      final docId = '${trackId}_$_uid';
+      print('Deleting from song_reviews: $docId');
+      try {
+        await FirebaseFirestore.instance
+            .collection('song_reviews')
+            .doc(docId)
+            .delete();
+        print('Successfully deleted from song_reviews');
+      } catch (e) {
+        print('Error deleting from song_reviews: $e');
+      }
     }
   }
 
   // Delete the song from the database
   Future<void> deleteTrack({required String trackId}) async {
     await _col.doc(trackId).delete();
+    // Also delete from global reviews
+    try {
+      await FirebaseFirestore.instance
+          .collection('song_reviews')
+          .doc('${trackId}_$_uid')
+          .delete();
+    } catch (e) {
+      print('Error deleting from song_reviews: $e');
+    }
   }
 
   /// Toggle favorite flag (true/false).
