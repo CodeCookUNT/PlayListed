@@ -612,6 +612,209 @@ void _showReviewDialog(BuildContext context, Track track) async {
   );
 }
 
+// Dialog to show all reviews for a song
+void _showAllReviewsDialog(BuildContext context, Track track) async {
+  // First check if any reviews exist
+  print('Checking for reviews for trackId: ${track.id}');
+  
+  try {
+    final testQuery = await FirebaseFirestore.instance
+        .collection('song_reviews')
+        .where('trackId', isEqualTo: track.id)
+        .get();
+    print('Found ${testQuery.docs.length} reviews');
+  } catch (e) {
+    print('Error testing query: $e');
+  }
+  
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Reviews'),
+          SizedBox(height: 4),
+          Text(
+            track.name,
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          Text(
+            'by ${track.artists}',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ],
+      ),
+      content: Container(
+        width: double.maxFinite,
+        height: 400,
+        child: FutureBuilder<QuerySnapshot>(
+          future: FirebaseFirestore.instance
+              .collection('song_reviews')
+              .where('trackId', isEqualTo: track.id)
+              .get(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(child: CircularProgressIndicator());
+            }
+
+            if (snapshot.hasError) {
+              print('Error loading reviews: ${snapshot.error}');
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('Error loading reviews'),
+                    SizedBox(height: 8),
+                    Text('${snapshot.error}', style: TextStyle(fontSize: 10)),
+                    SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
+                      child: Text('Close'),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            final reviews = snapshot.data?.docs ?? [];
+            print('Loaded ${reviews.length} reviews');
+
+            if (reviews.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.reviews_outlined, size: 64, color: Colors.grey),
+                    SizedBox(height: 16),
+                    Text(
+                      'No reviews yet',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Be the first to review!',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            // Sort by most recent
+            reviews.sort((a, b) {
+              final aTime = (a.data() as Map<String, dynamic>)['updatedAt'] as Timestamp?;
+              final bTime = (b.data() as Map<String, dynamic>)['updatedAt'] as Timestamp?;
+              
+              if (aTime == null && bTime == null) return 0;
+              if (aTime == null) return 1;
+              if (bTime == null) return -1;
+              
+              return bTime.compareTo(aTime);
+            });
+
+            return ListView.builder(
+              itemCount: reviews.length,
+              itemBuilder: (context, index) {
+                final reviewData = reviews[index].data() as Map<String, dynamic>;
+                final review = reviewData['review'] as String? ?? '';
+                final rating = reviewData['rating'] as double?;
+                final timestamp = reviewData['updatedAt'] as Timestamp?;
+                final userEmail = reviewData['userEmail'] as String? ?? 'Anonymous';
+                
+                // Format timestamp
+                String timeAgo = 'Recently';
+                if (timestamp != null) {
+                  final date = timestamp.toDate();
+                  final now = DateTime.now();
+                  final difference = now.difference(date);
+                  
+                  if (difference.inDays > 30) {
+                    timeAgo = '${(difference.inDays / 30).floor()} month${(difference.inDays / 30).floor() > 1 ? 's' : ''} ago';
+                  } else if (difference.inDays > 0) {
+                    timeAgo = '${difference.inDays} day${difference.inDays > 1 ? 's' : ''} ago';
+                  } else if (difference.inHours > 0) {
+                    timeAgo = '${difference.inHours} hour${difference.inHours > 1 ? 's' : ''} ago';
+                  } else if (difference.inMinutes > 0) {
+                    timeAgo = '${difference.inMinutes} minute${difference.inMinutes > 1 ? 's' : ''} ago';
+                  } else {
+                    timeAgo = 'Just now';
+                  }
+                }
+
+                return Card(
+                  margin: EdgeInsets.only(bottom: 12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 16,
+                              backgroundColor: Theme.of(context).colorScheme.primary,
+                              child: Text(
+                                userEmail.isNotEmpty ? userEmail[0].toUpperCase() : '?',
+                                style: TextStyle(color: Colors.white, fontSize: 14),
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    userEmail.length > 20 ? '${userEmail.substring(0, 20)}...' : userEmail,
+                                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                  ),
+                                  Text(
+                                    timeAgo,
+                                    style: TextStyle(fontSize: 11, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (rating != null && rating > 0)
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.star, color: Colors.amber, size: 16),
+                                  Text(
+                                    rating.toStringAsFixed(1),
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          review,
+                          style: TextStyle(fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('Close'),
+        ),
+      ],
+    ),
+  );
+}
+
 // Stateful dialog widget for character counter
 class ReviewDialog extends StatefulWidget {
   final Track track;
@@ -720,182 +923,6 @@ class _ReviewDialogState extends State<ReviewDialog> {
     );
   }
 }
-
-// Dialog to show all reviews for a song
-void _showAllReviewsDialog(BuildContext context, Track track) {
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('Reviews'),
-          SizedBox(height: 4),
-          Text(
-            track.name,
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-          Text(
-            'by ${track.artists}',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
-          ),
-        ],
-      ),
-      content: Container(
-        width: double.maxFinite,
-        height: 400,
-        child: StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collectionGroup('ratings')
-              .where('name', isEqualTo: track.name)
-              .where('review', isGreaterThan: '')
-              .snapshots(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return Center(child: CircularProgressIndicator());
-            }
-
-            if (snapshot.hasError) {
-              print('Error loading reviews: ${snapshot.error}');
-              return Center(child: Text('Error loading reviews: ${snapshot.error}'));
-            }
-
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.reviews_outlined, size: 64, color: Colors.grey),
-                    SizedBox(height: 16),
-                    Text(
-                      'No reviews yet',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Be the first to review!',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            // Sort reviews by timestamp client-side
-            final reviews = snapshot.data!.docs.toList();
-            reviews.sort((a, b) {
-              final aTime = (a.data() as Map<String, dynamic>)['updatedAt'] as Timestamp?;
-              final bTime = (b.data() as Map<String, dynamic>)['updatedAt'] as Timestamp?;
-              
-              if (aTime == null && bTime == null) return 0;
-              if (aTime == null) return 1;
-              if (bTime == null) return -1;
-              
-              return bTime.compareTo(aTime); // Most recent first
-            });
-
-            return ListView.builder(
-              itemCount: reviews.length,
-              itemBuilder: (context, index) {
-                final reviewData = reviews[index].data() as Map<String, dynamic>;
-                final review = reviewData['review'] as String? ?? '';
-                final rating = reviewData['rating'] as double? ?? 0.0;
-                final timestamp = reviewData['updatedAt'] as Timestamp?;
-                
-                // Get user email from the document path
-                final userId = reviews[index].reference.parent.parent?.id ?? 'Unknown';
-                
-                // Format timestamp
-                String timeAgo = 'Recently';
-                if (timestamp != null) {
-                  final date = timestamp.toDate();
-                  final now = DateTime.now();
-                  final difference = now.difference(date);
-                  
-                  if (difference.inDays > 30) {
-                    timeAgo = '${(difference.inDays / 30).floor()} month${(difference.inDays / 30).floor() > 1 ? 's' : ''} ago';
-                  } else if (difference.inDays > 0) {
-                    timeAgo = '${difference.inDays} day${difference.inDays > 1 ? 's' : ''} ago';
-                  } else if (difference.inHours > 0) {
-                    timeAgo = '${difference.inHours} hour${difference.inHours > 1 ? 's' : ''} ago';
-                  } else if (difference.inMinutes > 0) {
-                    timeAgo = '${difference.inMinutes} minute${difference.inMinutes > 1 ? 's' : ''} ago';
-                  } else {
-                    timeAgo = 'Just now';
-                  }
-                }
-
-                return Card(
-                  margin: EdgeInsets.only(bottom: 12),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 16,
-                              backgroundColor: Theme.of(context).colorScheme.primary,
-                              child: Text(
-                                userId.isNotEmpty ? userId[0].toUpperCase() : '?',
-                                style: TextStyle(color: Colors.white, fontSize: 14),
-                              ),
-                            ),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'User ${userId.substring(0, userId.length > 8 ? 8 : userId.length)}',
-                                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                                  ),
-                                  Text(
-                                    timeAgo,
-                                    style: TextStyle(fontSize: 11, color: Colors.grey),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (rating > 0)
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.star, color: Colors.amber, size: 16),
-                                  Text(
-                                    rating.toStringAsFixed(1),
-                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                                  ),
-                                ],
-                              ),
-                          ],
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          review,
-                          style: TextStyle(fontSize: 14),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            );
-          },
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text('Close'),
-        ),
-      ],
-    ),
-  );
-}
-
 
 class BigCard extends StatelessWidget {
   const BigCard({
