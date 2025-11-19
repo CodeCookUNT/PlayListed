@@ -55,7 +55,8 @@ class ProfileFunctions {
 
     for (var doc in snapshot.docs) {
       final data = doc.data() as Map<String, dynamic>;
-      final rating = data['rating'] as double?;
+      //final rating = data['rating'] as double?; causes bug I think
+      final rating = (data['rating'] as num?)?.toDouble();
       if (rating != null && rating > 0) {
         count++;
         sum += rating;
@@ -71,7 +72,8 @@ class ProfileFunctions {
 
     for (var doc in snapshot.docs) {
       final data = doc.data() as Map<String, dynamic>;
-      final rating = data['rating'] as double?;
+      //final rating = data['rating'] as double?; cause sbug
+      final rating = (data['rating'] as num?)?.toDouble();
       
       // Only include songs with 5 star rating
       if (rating != null && rating == 5.0) {
