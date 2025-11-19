@@ -758,7 +758,8 @@ class GlobalRatingDisplay extends StatelessWidget {
         }
 
         final data = snapshot.data ?? {'averageRating': 0.0, 'totalRatings': 0};
-        final averageRating = data['averageRating'] as double;
+        //final averageRating = data['averageRating'] as double; causes bug
+        final averageRating = (data['averageRating'] as num?)?.toDouble() ?? 0.0;
         final totalRatings = data['totalRatings'] as int;
 
         return Column(
