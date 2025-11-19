@@ -17,6 +17,9 @@ import 'profile.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'globalratings.dart';
+import 'friendsPage.dart';
+import 'friends.dart';
+import 'chat.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -377,6 +380,7 @@ class _MyHomePageState extends State<MyHomePage> {
     GeneratorPage(),
     MySongsPage(),
     SearchPage(),
+    FriendsPage(),
     RecommendationsPage(), // switches to the favorites page class
     ProfilePage(),
   ];
@@ -430,8 +434,12 @@ class _MyHomePageState extends State<MyHomePage> {
                   label: 'Search',
                 ),
                 NavigationDestination(
+                  icon: Icon(Icons.people),
+                  label: 'Friends',
+                ),
+                NavigationDestination(
                   icon: Icon(Icons.library_music),
-                  label: 'Recommend',
+                  label: 'Recom',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.person),
