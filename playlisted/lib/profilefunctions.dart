@@ -39,7 +39,8 @@ class ProfileFunctions {
     int total = 0;
     for (var doc in snapshot.docs) {
       final data = doc.data() as Map<String, dynamic>;
-      final rating = data['rating'] as double?;
+      //final rating = data['rating'] as double?; causes bug
+      final rating = (data['rating'] as num?)?.toDouble();
       if (rating != null && rating > 0) {
         total++;
       }
