@@ -16,7 +16,7 @@ import 'search.dart';
 import 'profile.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
-
+import 'globalratings.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -187,19 +187,80 @@ class MyAppState extends ChangeNotifier {
 
   double ratingFor(Track t) => ratings[keyOf(t)] ?? 0;
 
+  // Load user's ratings from Firestore when app starts
+  Future<void> loadUserRatings() async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) {
+      print('No user logged in, cannot load ratings');
+      return;
+    }
 
+    try {
+      // Load from user's personal ratings collection
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('ratings')
+          .get();
 
-void setRating(Track t, double rating) {
-  final r = rating.clamp(0.0, 5.0);
-  final k = keyOf(t);
+      print('Loading ${snapshot.docs.length} ratings from Firestore');
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final trackName = data['name'] as String?;
+        final rating = data['rating'] as double?;
+        
+        if (trackName != null && rating != null && rating > 0) {
+          ratings[trackName] = rating;
+          print('Loaded rating for $trackName: $rating');
+        }
+      }
+      
+      notifyListeners();
+      print('Finished loading ${ratings.length} ratings');
+    } catch (e) {
+      print('Error loading user ratings: $e');
+    }
+  }
+
+  void setRating(Track t, double rating) {
+    final r = rating.clamp(0.0, 5.0);
+    final k = keyOf(t);
 
     if (r <= 0) {
       ratings.remove(k);
       favorites.removeWhere((x) => keyOf(x) == k);
+      
+      // Remove from global ratings if track has an ID
+      if (t.id != null) {
+        final userId = FirebaseAuth.instance.currentUser?.uid;
+        if (userId != null) {
+          GlobalRatings.instance.removeRating(
+            trackId: t.id!,
+            userId: userId,
+          ).catchError((e) {
+            print('Error removing global rating: $e');
+          });
+        }
+      }
     } else {
       ratings[k] = r;
       if (!favorites.any((x) => keyOf(x) == k)) {
         favorites.add(t);
+      }
+      
+      // Submit to global ratings if track has an ID
+      if (t.id != null) {
+        final userId = FirebaseAuth.instance.currentUser?.uid;
+        if (userId != null) {
+          GlobalRatings.instance.submitRating(
+            trackId: t.id!,
+            userId: userId,
+            rating: r,
+          ).catchError((e) {
+            print('Error submitting global rating: $e');
+          });
+        }
       }
     }
     notifyListeners();
@@ -213,6 +274,9 @@ void setRating(Track t, double rating) {
     } else {
       current = null;
     }
+    
+    // Load user's previous ratings from Firestore
+    loadUserRatings();
   }
 
   Track? current; // Changed to Track? instead of dynamic
@@ -477,13 +541,19 @@ class GeneratorPage extends StatelessWidget { // page builder
               ),
             ],
           ),
+          
+          // Global Average Rating Section
+          if (track != null && track.id != null) ...[
+            SizedBox(height: 20),
+            GlobalRatingDisplay(trackId: track.id!),
+          ],
         ],
       ),
     );
   }
 }
 
-
+ 
 
 
 
@@ -651,6 +721,98 @@ class BigCard extends StatelessWidget {
   }
 }
 
+
+// Widget to display global average rating
+class GlobalRatingDisplay extends StatelessWidget {
+  final String trackId;
+
+  const GlobalRatingDisplay({
+    super.key,
+    required this.trackId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<Map<String, dynamic>>(
+      stream: GlobalRatings.instance.watchAverageRating(trackId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Column(
+            children: [
+              Text(
+                'Global Avg',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              SizedBox(height: 4),
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ],
+          );
+        }
+
+        final data = snapshot.data ?? {'averageRating': 0.0, 'totalRatings': 0};
+        final averageRating = data['averageRating'] as double;
+        final totalRatings = data['totalRatings'] as int;
+
+        return Column(
+          children: [
+            Text(
+              'Global Avg',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            SizedBox(height: 4),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Display stars for global rating (read-only)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(5, (index) {
+                    final starValue = index + 1;
+                    IconData icon;
+
+                    if (averageRating >= starValue) {
+                      icon = Icons.star;
+                    } else if (averageRating >= starValue - 0.5) {
+                      icon = Icons.star_half;
+                    } else {
+                      icon = Icons.star_border;
+                    }
+
+                    return Icon(
+                      icon,
+                      size: 24,
+                      color: Colors.amber,
+                    );
+                  }),
+                ),
+                SizedBox(width: 8),
+                Text(
+                  '${averageRating.toStringAsFixed(1)} ($totalRatings)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onBackground.withOpacity(0.7),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
 void _openSettings(BuildContext context) {
   showModalBottomSheet(
     context: context,
