@@ -1,7 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'recommendations.dart';
-//import 'main.dart' show MyAppState;
 
 class Favorites {
   Favorites._();
@@ -134,14 +132,13 @@ class Favorites {
   Future<void> deleteTrack({required String trackId}) async {
     await _col.doc(trackId).delete();
     // Also delete from global reviews
-    try {
-      await FirebaseFirestore.instance
-          .collection('song_reviews')
-          .doc('${trackId}_$_uid')
-          .delete();
-    } catch (e) {
-      print('Error deleting from song_reviews: $e');
-    }
+    // try {
+    //   await FirebaseFirestore.instance
+    //       .collection('song_reviews')
+    //       .doc('${trackId}_$_uid')
+    //       .delete();
+    // } catch (_) { //ignore missing doc
+    // }
   }
 
   /// Toggle favorite flag (true/false).

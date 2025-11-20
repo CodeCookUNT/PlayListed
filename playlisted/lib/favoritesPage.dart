@@ -217,7 +217,7 @@ class SongsList extends StatelessWidget {
                             trackId: doc['id'],
                           );
                           //also remove any recommendations based on this track
-                          await Recommendations.instance.removeRecommendationsFromSource(doc['id']);
+                          appState.markSongsForDeletion(doc['id']);
                           //remove from local appState favorites list
                           appState.removeFavorite(doc['id']);
                           ScaffoldMessenger.of(context).showSnackBar(

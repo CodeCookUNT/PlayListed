@@ -17,6 +17,8 @@ import 'profile.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'globalratings.dart';
+import 'dart:collection';
+import 'dart:async';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -180,6 +182,8 @@ class MyAppState extends ChangeNotifier {
   //optional access token (fetched at app startup)
   String? accessToken;
   List<Track>? tracks = [];
+  List<String> _deltracks= []; 
+  Timer? _deleteTimer;
   Recommendations recommendService = Recommendations.instance;
   //map for song ratings
   final Map<String, double> ratings = {};
@@ -222,6 +226,20 @@ class MyAppState extends ChangeNotifier {
       print('Error loading user ratings: $e');
     }
   }
+
+  //add tracks to 
+  void markSongsForDeletion(String songID){
+    _deltracks.add(songID);
+
+    _deleteTimer?.cancel();
+
+      _deleteTimer = Timer(const Duration(seconds: 3), () async {
+        final todelete = List<String>.from(_deltracks);
+        _deltracks.clear();
+        await Recommendations.instance.removeRecommendationsFromSource(todelete);
+      });
+  }
+  
 
   void setRating(Track t, double rating) {
     final r = rating.clamp(0.0, 5.0);
@@ -343,7 +361,7 @@ class MyAppState extends ChangeNotifier {
       return;
     }
     else{
-      await recommendService.getRec(favorites, accessToken);
+      await recommendService.getRec(favorites, accessToken, tracks);
     }
     notifyListeners();
   }

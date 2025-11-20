@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 
+
 //when building a recomendation system, we will begin with content-based filtering
 //which uses track attributes to recommend similar tracks
 //later we can implement collaborative filtering which uses user behavior and preferences
@@ -22,11 +23,6 @@ class Recommendations {
           .collection('users')
           .doc(_uid)
           .collection('recommendations');
-
-  // counter for number of recommendations made, making available tracks list respectively  
-  int recCount = 0;
-  
-
 
 
   //helper function to parse track json data into Track object
@@ -97,7 +93,7 @@ class Recommendations {
 
   //Future: Function to get liked songs, then find patterns in the user's liked songs
   //! Recomendation algorithm goes here!
-  Future<void> getRec(List<Track> likedSongs, String? accessToken) async {
+  Future<void> getRec(List<Track> likedSongs, String? accessToken, List<Track>? tracks) async {
 
   for (final song in likedSongs) {
     if (song.id == null) {
@@ -118,6 +114,9 @@ class Recommendations {
         recommend: true,
         sourceTrackId: song.id!, //the track that led to this recommendation
       );
+
+      //add recommended track to list of initial loaded tracks
+      addRecTrackToList(recommended, tracks);
     } catch (e) {
       print('Failed to process ${song.name}: $e');
     }
@@ -153,15 +152,31 @@ class Recommendations {
     );
   }
 
-  Future<void> removeRecommendationsFromSource(String sourceTrackId) async {
-  final query = await _col.where('sourceTrackId', isEqualTo: sourceTrackId).get();
-    for (var doc in query.docs) {
-      await _col.doc(doc.id).delete();
+  //switch to a batch delete for more efficient deletion
+  Future<void> removeRecommendationsFromSource(List<String> sourceIdSToDel) async {
+    final batch = FirebaseFirestore.instance.batch();
+    
+    //iterate though ids marked for deletion
+    for (var sourceTrackId in sourceIdSToDel) {
+      final query = await _col.where('sourceTrackId', isEqualTo: sourceTrackId).get();
+      //iterate through tracks with a matching source id for deletion
+      for (var doc in query.docs) {
+        await _col.doc(doc.id).delete();
+      }
     }
+
+    //delete all tracks at once
+    await batch.commit(); 
   }
 
-  Future<void> recDeleteTrack({required String trackId}) async {
-    await _col.doc(trackId).delete();
+  // Future<void> recDeleteTrack({required String trackId}) async {
+  //   await _col.doc(trackId).delete();
+  // }
+
+
+  void addRecTrackToList(Track recTrack, List<Track>? tracks){
+    //get the appstates list and insert a recommended track
+    tracks?.insert(3, recTrack);
   }
 
 }
