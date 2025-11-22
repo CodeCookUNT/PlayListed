@@ -298,8 +298,6 @@ class MyAppState extends ChangeNotifier {
   }
 
   Track? current; // Changed to Track? instead of dynamic
-  //! in order for the next button and next button to work correctly you need to create a index
-  //! function that both pull from so they dont make 2 seperate indexs
   void getNext() {
     if (tracks != null && tracks!.isNotEmpty) {
       //cycle to next track
@@ -468,8 +466,8 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
-
-class GeneratorPage extends StatelessWidget { // page builder
+// Bulid the page
+class GeneratorPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     var appState = context.watch<MyAppState>();
@@ -487,7 +485,22 @@ class GeneratorPage extends StatelessWidget { // page builder
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           if (track != null)...[
-            BigCard(track: track),
+            // Get global average rating to be used later 
+            FutureBuilder<Map<String, dynamic>>(
+              future: track.id != null 
+                ? GlobalRatings.instance.getAverageRating(track.id!)
+                : Future.value({'averageRating': 0.0, 'totalRatings': 0}),
+              builder: (context, snapshot) {
+                final globalRating = snapshot.hasData 
+                  ? (snapshot.data!['averageRating'] as num?)?.toDouble() ?? 0.0
+                  : 0.0;
+                
+                return BigCard(
+                  track: track,
+                  globalRating: globalRating,
+                );
+              },
+            ),
 
             //star rating and open song button section
             Row(
@@ -496,9 +509,7 @@ class GeneratorPage extends StatelessWidget { // page builder
                 StarRating(
                   rating: appState.ratingFor(track),
                   onChanged: (r) async {
-                    // local
                     appState.setRating(track, r);
-                    // Reloads Favorites from Firestore
                     await Favorites.instance.setRating(
                       trackId: track.id!,
                       name: track.name,
@@ -508,8 +519,7 @@ class GeneratorPage extends StatelessWidget { // page builder
                     );
                   },
                 ),
-                SizedBox(width: 16), //space for spotify button
-                // Open in Spotify button
+                SizedBox(width: 16),
                 if (track.url != null)
                   CircleAvatar(
                     radius: 20,
@@ -588,7 +598,7 @@ class GeneratorPage extends StatelessWidget { // page builder
           
           // Global Average Rating Section
           if (track != null && track.id != null) ...[
-            SizedBox(height: 20),
+            SizedBox(height: 10),
             GlobalRatingDisplay(trackId: track.id!),
           ],
         ],
@@ -946,9 +956,26 @@ class BigCard extends StatelessWidget {
   const BigCard({
     super.key,
     required this.track,
+    this.globalRating = 0.0,
   });
 
   final Track track;
+  final double globalRating;
+
+  // Function to determine vinyl color based on rating
+  Color _getVinylColor(double rating) {
+    if (rating >= 4.8) {
+      return const Color.fromARGB(255, 167, 228, 227); // Platium
+    } else if (rating >= 4.0) {
+      return const Color.fromARGB(255, 193, 190, 60); // Gold
+    } else if (rating >= 3.0) {
+      return const Color.fromARGB(255, 135, 147, 147); // Silver
+    } else if (rating >= 2.0) {
+      return const Color.fromARGB(255, 153, 105, 1); // Bronze 
+    } else {
+      return Colors.black;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -960,6 +987,8 @@ class BigCard extends StatelessWidget {
       color: theme.colorScheme.primary.withOpacity(0.8),
     );
 
+    final vinylColor = _getVinylColor(globalRating);
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -970,7 +999,7 @@ class BigCard extends StatelessWidget {
             child: Stack(
               alignment: Alignment.centerLeft,
               children: [
-                // Vinyl record 
+                // Vinyl record
                 Transform.translate(
                   offset: Offset(132, 0),
                   child: Container(
@@ -978,10 +1007,10 @@ class BigCard extends StatelessWidget {
                     height: 230,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Colors.black,
+                      color: vinylColor,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
+                          color: vinylColor.withOpacity(0.5),
                           blurRadius: 20,
                           spreadRadius: 5,
                         ),
@@ -998,11 +1027,12 @@ class BigCard extends StatelessWidget {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: Colors.grey.withOpacity(0.3),
+                                color: const Color.fromARGB(255, 245, 244, 244).withOpacity(0.3),
                                 width: 1,
                               ),
                             ),
                           ),
+
                         // Center label
                         Container(
                           width: 80,
@@ -1017,6 +1047,7 @@ class BigCard extends StatelessWidget {
                             size: 40,
                           ),
                         ),
+
                         // Center hole
                         Container(
                           width: 20,
@@ -1031,16 +1062,16 @@ class BigCard extends StatelessWidget {
                   ),
                 ),
                
-               // Gray box that appear when imgage is loading and will be cover by the album image  
+                // Gray box that appear when imgage is loading and will be cover by the album image
                 Container(
                   width: 250,
                   height: 250,
                   decoration: BoxDecoration(
-                     color: Colors.grey,
-                  )
+                    color: Colors.grey,
+                  ),
                 ),
                 
-                 // Album jacket/cover
+                // Album jacket/cover
                 Container(
                   width: 250,
                   height: 250,
@@ -1105,7 +1136,6 @@ class BigCard extends StatelessWidget {
     );
   }
 }
-
 
 // Widget to display global average rating
 class GlobalRatingDisplay extends StatelessWidget {
@@ -1199,6 +1229,7 @@ class GlobalRatingDisplay extends StatelessWidget {
     );
   }
 }
+
 void _openSettings(BuildContext context) {
   showModalBottomSheet(
     context: context,
@@ -1229,8 +1260,6 @@ void _openSettings(BuildContext context) {
     },
   );
 }
-
-
 
 class StarRating extends StatelessWidget {
   final double rating; // 0.0–5.0, supports halves
