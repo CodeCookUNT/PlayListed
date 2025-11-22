@@ -21,7 +21,7 @@ class _FriendsPageState extends State<FriendsPage> {
   }
 
   Future<void> _addFriend() async {
-    final email = _emailController.text.trim();
+    final email = _emailController.text.trim().toLowerCase();
     if (email.isEmpty) {
       setState(() => _error = 'Please enter an email.');
       return;
@@ -64,7 +64,7 @@ class _FriendsPageState extends State<FriendsPage> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
-                    labelText: 'Add friend by email',
+                    labelText: 'Add friend by Username or email',
                     border: OutlineInputBorder(),
                   ),
                   onSubmitted: (_) => _addFriend(),
@@ -118,7 +118,7 @@ class _FriendsPageState extends State<FriendsPage> {
               if (friends.isEmpty) {
                 return const Center(
                   child: Text(
-                    'No friends yet.\nAdd someone by their email to start chatting.',
+                    'No friends yet.\nAdd someone by their Username or email to start chatting.',
                     textAlign: TextAlign.center,
                   ),
                 );

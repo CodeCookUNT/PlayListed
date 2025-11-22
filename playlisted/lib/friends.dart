@@ -20,7 +20,7 @@ class FriendsService {
     await docRef.set({
       'uid': user.uid,
       'email': user.email,
-      'displayName': user.displayName ?? (user.email?.split('@').first ?? 'User'),
+      'username': user.displayName,
       'photoUrl': user.photoURL,
       'updatedAt': FieldValue.serverTimestamp(),
       'createdAt': FieldValue.serverTimestamp(),
@@ -46,33 +46,53 @@ class FriendsService {
       throw Exception('You must be logged in to add friends.');
     }
 
-    final trimmed = email.trim().toLowerCase();
-    if (trimmed.isEmpty) {
-      throw Exception('Enter an email.');
+    final input = email.trim().toLowerCase();
+    if (input.isEmpty) {
+      throw Exception('Enter a username or email.');
     }
-    if (current.email != null &&
-        current.email!.toLowerCase() == trimmed) {
+    if (current.email != null && current.email!.toLowerCase() == input) {
       throw Exception('You cannot add yourself.');
     }
 
-    // Find the other user by email in Firestore
-    final query = await _db
-        .collection('users')
-        .where('email', isEqualTo: trimmed)
-        .limit(1)
-        .get();
+    QuerySnapshot<Map<String, dynamic>> query;
+
+    final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+    final isEmail = emailRegex.hasMatch(input);
+
+    if (isEmail) {
+      query = await _db
+          .collection('users')
+          .where('email', isEqualTo: input)
+          .limit(1)
+          .get();
+    } else {
+      final unameDoc = await _db.collection('usernames').doc(input).get();
+      if (!unameDoc.exists) {
+        throw Exception('No user found with that username or email.');
+      }
+      final friendUid = unameDoc['uid'];
+
+      query = await _db
+          .collection('users')
+          .where('uid', isEqualTo: friendUid)
+          .limit(1)
+          .get();
+    }
 
     if (query.docs.isEmpty) {
-      throw Exception('No user found with that email.');
+      throw Exception('No user found.');
     }
 
     final otherDoc = query.docs.first;
     final otherData = otherDoc.data();
     final friendUid = otherDoc.id;
+
     final friendName =
+        (otherData['username'] as String?) ??  // prefer username
         (otherData['displayName'] as String?) ??
         (otherData['email'] as String?) ??
         'Friend';
+
     final friendPhotoUrl = otherData['photoUrl'] as String?;
 
     final now = FieldValue.serverTimestamp();
@@ -91,7 +111,6 @@ class FriendsService {
 
     final batch = _db.batch();
 
-    // Friend as seen from *my* side
     batch.set(myRef, {
       'friendUid': friendUid,
       'friendName': friendName,
@@ -100,7 +119,6 @@ class FriendsService {
       'createdAt': now,
     }, SetOptions(merge: true));
 
-    // Me as seen from *their* side
     batch.set(theirRef, {
       'friendUid': current.uid,
       'friendName': current.displayName ??

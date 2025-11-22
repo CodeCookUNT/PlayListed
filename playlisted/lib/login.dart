@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -9,22 +10,47 @@ class LoginPage extends StatefulWidget {
 }
 
 class LoginPageState extends State<LoginPage> {
+  final emailOrUsername = TextEditingController();
   final email = TextEditingController();
   final pass = TextEditingController();
   bool busy = false;
 
   Future<void> _login() async {
     setState(() => busy = true);
+
+    final input = emailOrUsername.text.trim();
+    String? emailToUse;
+
     try {
+    final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+    final isEmail = emailRegex.hasMatch(input);
+
+    if (isEmail) {
+      emailToUse = input;
+    } else {
+      final doc = await FirebaseFirestore.instance
+          .collection('usernames')
+          .doc(input.toLowerCase())
+          .get();
+      
+      if (!doc.exists){
+        throw FirebaseAuthException(
+          code: 'user-not-found',
+          message: 'No user found with that username.',
+        );
+      }
+
+      emailToUse = doc['email'];
+    }
+
       await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: email.text.trim(),
+        email: emailToUse!,
         password: pass.text,
       );
-      // The AuthGate function will switch you the homepage in main.dart
+
     } on FirebaseAuthException catch (e) {
-      debugPrint('Auth error: ${e.code} – ${e.message}');
       ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(e.message ?? 'Auth error: ${e.code}')),
+        SnackBar(content: Text(e.message ?? 'Login error: ${e.code}')),
       );
     } finally {
       if (mounted) setState(() => busy = false);
@@ -55,6 +81,7 @@ class LoginPageState extends State<LoginPage> {
   //clear email and password variables after use
   @override
   void dispose() {
+    emailOrUsername.dispose();
     email.dispose();
     pass.dispose();
     super.dispose();
@@ -70,9 +97,8 @@ class LoginPageState extends State<LoginPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             TextField(
-              controller: email,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(labelText: 'Email'),
+              controller: emailOrUsername,
+              decoration: const InputDecoration(labelText: 'Username or Email'),
             ),
             TextField(
               controller: pass,
@@ -125,6 +151,7 @@ class SignUpPage extends StatefulWidget {
 class SignUpPageState extends State<SignUpPage> {
   final firstName = TextEditingController();
   final lastName = TextEditingController();
+  final username = TextEditingController();
   final email = TextEditingController();
   final pass = TextEditingController();
   bool busy = false;
@@ -132,10 +159,39 @@ class SignUpPageState extends State<SignUpPage> {
   Future<void> _create() async {
     setState(() => busy = true);
     try {
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: email.text.trim(),
+      final uname = username.text.trim();
+      final fname = firstName.text.trim();
+      final lname = lastName.text.trim();
+      final mail = email.text.trim();
+
+      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: mail,
         password: pass.text,
       );
+
+      final user = cred.user;
+      if(user != null){
+        await user.updateDisplayName(uname);
+        await user.reload();
+
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'uid': user.uid,
+          'username': uname,
+          'firstName': fname,
+          'lastName': lname,
+          'email': mail,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        await FirebaseFirestore.instance
+            .collection('usernames')
+            .doc(uname.toLowerCase())
+            .set({
+          'uid': user.uid,
+          'email': mail,
+        });
+      }
+
       if (mounted) Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
       debugPrint('Auth error: ${e.code} – ${e.message}');
@@ -151,6 +207,7 @@ class SignUpPageState extends State<SignUpPage> {
   void dispose() {
     firstName.dispose();
     lastName.dispose();
+    username.dispose();
     email.dispose();
     pass.dispose();
     super.dispose();
@@ -165,6 +222,7 @@ class SignUpPageState extends State<SignUpPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            TextField(controller: username, decoration: const InputDecoration(labelText: 'User Name')),
             TextField(controller: firstName, decoration: const InputDecoration(labelText: 'First Name')),
             TextField(controller: lastName,  decoration: const InputDecoration(labelText: 'Last Name')),
             TextField(controller: email,     decoration: const InputDecoration(labelText: 'Email'), keyboardType: TextInputType.emailAddress),

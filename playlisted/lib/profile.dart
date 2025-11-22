@@ -58,7 +58,7 @@ class ProfilePage extends StatelessWidget {
                   SizedBox(height: 16),
                   // Email
                   Text(
-                    profileFunctions.userEmail ?? 'No email',
+                    FirebaseAuth.instance.currentUser!.displayName ?? 'No username',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w500,
