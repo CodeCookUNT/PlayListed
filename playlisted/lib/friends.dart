@@ -29,6 +29,9 @@ class FriendsService {
 
   /// Stream of accepted friends for the current user.
   Stream<List<Map<String, dynamic>>> friendsStream() {
+    final user = _auth.currentUser;
+    if (user == null) return Stream.value([]);
+    
     return _db
         .collection('users')
         .doc(_uid)
@@ -95,7 +98,7 @@ class FriendsService {
 
     final friendPhotoUrl = otherData['photoUrl'] as String?;
 
-    final now = FieldValue.serverTimestamp();
+    final now = Timestamp.now();
 
     final myRef = _db
         .collection('users')

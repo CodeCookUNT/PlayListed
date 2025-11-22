@@ -28,6 +28,24 @@ class _ChatPageState extends State<ChatPage> {
     return '${list[0]}_${list[1]}';
   }
 
+  @override
+  void initState() {
+    super.initState();
+    _ensureConvoExists();
+  }
+
+  Future<void> _ensureConvoExists() async {
+  final convoRef = _db.collection('conversations').doc(_convoId);
+    try {
+      await convoRef.set({
+        'participants': [_myUid, widget.friendUid],
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } on FirebaseException catch (e) {
+      debugPrint("ensureConvoExists failed: ${e.code} ${e.message}");
+    }
+  }
+
   CollectionReference<Map<String, dynamic>> get _messagesCol =>
       _db.collection('conversations').doc(_convoId).collection('messages');
 
@@ -38,21 +56,18 @@ class _ChatPageState extends State<ChatPage> {
     _controller.clear();
 
     final convoRef = _db.collection('conversations').doc(_convoId);
-    final msgRef = _messagesCol.doc();
 
-    await _db.runTransaction((txn) async {
-      txn.set(convoRef, {
-        'participants': [_myUid, widget.friendUid],
-        'lastMessage': text,
-        'lastSenderId': _myUid,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      txn.set(msgRef, {
-        'senderId': _myUid,
-        'text': text,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+    await convoRef.set({
+      'participants': [_myUid, widget.friendUid],
+      'updatedAt': FieldValue.serverTimestamp(),
+      'lastMessage': text,
+      'lastSenderId': _myUid,
+    }, SetOptions(merge: true));
+      
+    await _messagesCol.add({
+      'senderId': _myUid,
+      'text': text,
+      'createdAt': FieldValue.serverTimestamp(),
     });
   }
 

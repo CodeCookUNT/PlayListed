@@ -113,6 +113,12 @@ class _FriendsPageState extends State<FriendsPage> {
                 return const Center(child: CircularProgressIndicator());
               }
 
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text('Friends load error:\n${snapshot.error}'),
+                );
+              }
+
               final friends = snapshot.data ?? [];
 
               if (friends.isEmpty) {
@@ -135,9 +141,10 @@ class _FriendsPageState extends State<FriendsPage> {
 
                   return ListTile(
                     leading: CircleAvatar(
-                      backgroundImage:
-                          photoUrl != null ? NetworkImage(photoUrl) : null,
-                      child: photoUrl == null ? Text(name[0]) : null,
+                      backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+                      child: photoUrl == null
+                          ? Text(name.isNotEmpty ? name[0] : '?')
+                          : null,
                     ),
                     title: Text(name),
                     subtitle: const Text('Tap to open chat'),
