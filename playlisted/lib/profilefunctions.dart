@@ -10,14 +10,15 @@ class ProfileFunctions {
   // Get current user's UID
   String? get _uid => FirebaseAuth.instance.currentUser?.uid;
 
-  // Get current user's email
+  // Get useremail and username
   String? get userEmail => FirebaseAuth.instance.currentUser?.email;
+  String? get username => FirebaseAuth.instance.currentUser?.displayName;
 
-  // Get first letter of email for profile picture
+  // Get first letter for profile picture
   String get profileInitial {
-    final email = userEmail;
-    if (email != null && email.isNotEmpty) {
-      return email[0].toUpperCase();
+    final name = username ?? userEmail;
+    if (name != null && name.isNotEmpty) {
+      return name[0].toUpperCase();
     }
     return '?';
   }
