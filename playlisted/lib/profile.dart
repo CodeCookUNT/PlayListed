@@ -35,6 +35,11 @@ class ProfilePage extends StatelessWidget {
         final averageRating = stats['averageRating'] as double;
         final favoriteSongs = stats['favoriteSongs'] as List<Map<String, dynamic>>;
 
+        //get text reviews from profilefunctions
+        final textReviews = snapshot.hasData
+            ? profileFunctions.getTextReviews(snapshot.data!)
+            : <Map<String, dynamic>>[];
+
         return ListView(
           padding: const EdgeInsets.all(20),
           children: [
@@ -58,6 +63,7 @@ class ProfilePage extends StatelessWidget {
                   SizedBox(height: 16),
                   // Email
                   Text(
+                    //profileFunctions.userEmail ?? 'No email',
                     FirebaseAuth.instance.currentUser!.displayName ?? 'No username',
                     style: TextStyle(
                       fontSize: 18,
@@ -287,6 +293,116 @@ class ProfilePage extends StatelessWidget {
                                 Icons.star,
                                 color: Colors.amber,
                                 size: 20,
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            // your reviews section(any song with a text review)
+            if (textReviews.isNotEmpty) ...[
+              SizedBox(height: 20),
+              Card(
+                elevation: 4,
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Your Reviews:',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+
+                      ...textReviews.map((r) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 16.0),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Album image
+                              if (r['albumImageUrl'] != null)
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: Image.network(
+                                    r['albumImageUrl'],
+                                    width: 50,
+                                    height: 50,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              else
+                                Container(
+                                  width: 50,
+                                  height: 50,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade300,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Icon(Icons.music_note),
+                                ),
+
+                              SizedBox(width: 12),
+
+                              // Name, artist, and text review
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      r['name'] ?? 'Unknown',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      r['artists'] ?? 'Unknown Artist',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    SizedBox(height: 8),
+                                    Text(
+                                      r['review'] ?? '',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.grey.shade800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              // Star rating
+                              Column(
+                                children: [
+                                  Row(
+                                    children: List.generate(5, (i) {
+                                      final rr = (r['rating'] as double?) ?? 0.0;
+                                      return Icon(
+                                        i < rr ? Icons.star : Icons.star_border,
+                                        color: Colors.amber,
+                                        size: 16,
+                                      );
+                                    }),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
