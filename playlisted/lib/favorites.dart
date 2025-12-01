@@ -5,7 +5,6 @@ class Favorites {
   Favorites._();
   static final Favorites instance = Favorites._();
 
-
   // Current user's UID
   String get _uid => FirebaseAuth.instance.currentUser!.uid;
 
@@ -75,7 +74,10 @@ class Favorites {
 
     // Also save to global reviews collection for easy querying
     if (review.trim().isNotEmpty) {
-      final userEmail = FirebaseAuth.instance.currentUser?.email ?? 'Anonymous';
+      final user = FirebaseAuth.instance.currentUser;
+      final username = user?.displayName ?? 'Anonymous';
+      final userEmail = user?.email ?? 'Anonymous';
+
       final docId = '${trackId}_$_uid';
       print('Saving to song_reviews collection with docId: $docId');
       
@@ -91,6 +93,7 @@ class Favorites {
           'review': review,
           'userId': _uid,
           'userEmail': userEmail,
+          'username': username,
           'rating': null,
           'updatedAt': FieldValue.serverTimestamp(),
         });
@@ -157,7 +160,6 @@ class Favorites {
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
-
 
   /// streams favorited tracks for the current user.
   Stream<List<Map<String, dynamic>>> favoritesStream() {

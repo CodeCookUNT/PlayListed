@@ -35,6 +35,31 @@ class ProfileFunctions {
         .snapshots();
   }
 
+  //get text reviews function for the your reviews section on the profile page
+  List<Map<String, dynamic>> getTextReviews(QuerySnapshot snapshot) {
+    List<Map<String, dynamic>> textReviews = [];
+
+    for (var doc in snapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final rating = (data['rating'] as num?)?.toDouble();
+      final reviewText = (data['review'] as String?)?.trim();
+
+      // include only docs that have a non-empty text review
+      if (reviewText != null && reviewText.isNotEmpty) {
+        textReviews.add({
+          'id': doc.id,
+          'name': data['name'] ?? 'Unknown',
+          'artists': data['artists'] ?? 'Unknown Artist',
+          'albumImageUrl': data['albumImageUrl'],
+          'rating': rating ?? 0.0,
+          'review': reviewText,
+          'timestamp': data['timestamp'] ?? Timestamp(0, 0),
+        });
+      }
+    }
+    return textReviews;
+  }
+
   // Calculate total number of reviews (ratings > 0)
   int calculateTotalReviews(QuerySnapshot snapshot) {
     int total = 0;

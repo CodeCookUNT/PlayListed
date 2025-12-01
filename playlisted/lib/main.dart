@@ -759,8 +759,7 @@ void _showAllReviewsDialog(BuildContext context, Track track) async {
                 final review = reviewData['review'] as String? ?? '';
                 final rating = reviewData['rating'] as double?;
                 final timestamp = reviewData['updatedAt'] as Timestamp?;
-                final userEmail = reviewData['userEmail'] as String? ?? 'Anonymous';
-                
+                final username = reviewData['username'] as String? ?? 'Anonymous';
                 // Format timestamp
                 String timeAgo = 'Recently';
                 if (timestamp != null) {
@@ -794,7 +793,7 @@ void _showAllReviewsDialog(BuildContext context, Track track) async {
                               radius: 16,
                               backgroundColor: Theme.of(context).colorScheme.primary,
                               child: Text(
-                                userEmail.isNotEmpty ? userEmail[0].toUpperCase() : '?',
+                                username.isNotEmpty ? username[0].toUpperCase() : '?',
                                 style: TextStyle(color: Colors.white, fontSize: 14),
                               ),
                             ),
@@ -804,7 +803,7 @@ void _showAllReviewsDialog(BuildContext context, Track track) async {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    userEmail.length > 20 ? '${userEmail.substring(0, 20)}...' : userEmail,
+                                    username.length > 20 ? '${username.substring(0, 20)}...' : username,
                                     style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                                   ),
                                   Text(
