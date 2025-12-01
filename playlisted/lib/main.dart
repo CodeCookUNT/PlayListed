@@ -960,7 +960,8 @@ class _ReviewDialogState extends State<ReviewDialog> {
   }
 }
 
-class BigCard extends StatelessWidget {
+//Card that is about the viynl and jacket
+class BigCard extends StatefulWidget { //made the card to stateful to do movement 
   const BigCard({
     super.key,
     required this.track,
@@ -969,6 +970,71 @@ class BigCard extends StatelessWidget {
 
   final Track track;
   final double globalRating;
+
+  @override
+  State<BigCard> createState() => _BigCardState();
+}
+
+class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _slideAnimation;
+  Track? _previousTrack;
+  Color _currentVinylColor = Colors.black;
+  double _previousRating = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    );
+
+    // Slide animation starts
+    _slideAnimation = Tween<double>(
+      begin: 0.0,
+      end: 132.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: const Interval(0.25, 1.0, curve: Curves.easeOutCubic),
+    ));
+
+    _previousTrack = widget.track;
+    _previousRating = widget.globalRating;
+    _currentVinylColor = _getVinylColor(widget.globalRating);
+    _animationController.forward();
+  }
+
+  @override
+  void didUpdateWidget(BigCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // Check if track changed
+    if (oldWidget.track.id != widget.track.id) {
+      _previousTrack = oldWidget.track;
+      _previousRating = oldWidget.globalRating;
+      
+      // Update color immediately
+      setState(() {
+        _currentVinylColor = _getVinylColor(widget.globalRating);
+      });
+      
+      // Reset and play animation
+      _animationController.reset();
+      _animationController.forward();
+    } else if (oldWidget.globalRating != widget.globalRating) {
+      // If only rating changed, update color
+      setState(() {
+        _currentVinylColor = _getVinylColor(widget.globalRating);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
 
   // Function to determine vinyl color based on rating
   Color _getVinylColor(double rating) {
@@ -995,124 +1061,128 @@ class BigCard extends StatelessWidget {
       color: theme.colorScheme.primary.withOpacity(0.8),
     );
 
-    final vinylColor = _getVinylColor(globalRating);
-
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         // Vinyl and jacket display
-        if (track.albumImageUrl != null)
+        if (widget.track.albumImageUrl != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 16.0),
-            child: Stack(
-              alignment: Alignment.centerLeft,
-              children: [
-                // Vinyl record
-                Transform.translate(
-                  offset: Offset(132, 0),
-                  child: Container(
-                    width: 230,
-                    height: 230,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: vinylColor,
-                      boxShadow: [
-                        BoxShadow(
-                          color: vinylColor.withOpacity(0.5),
-                          blurRadius: 20,
-                          spreadRadius: 5,
+            child: AnimatedBuilder(
+              animation: _slideAnimation,
+              builder: (context, child) {
+                return Stack(
+                  alignment: Alignment.centerLeft,
+                  children: [
+                    // Vinyl record with slide animation
+                    Transform.translate(
+                      offset: Offset(_slideAnimation.value, 0),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 230,
+                        height: 230,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _currentVinylColor,
+                          boxShadow: [
+                            BoxShadow(
+                              color: _currentVinylColor.withOpacity(0.5),
+                              blurRadius: 20,
+                              spreadRadius: 5,
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        // Vinyl grooves
-                        for (int i = 1; i <= 6; i++)
-                          Container(
-                            width: 280 - (i * 30.0),
-                            height: 280 - (i * 30.0),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: const Color.fromARGB(255, 245, 244, 244).withOpacity(0.3),
-                                width: 1,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            // Vinyl grooves
+                            for (int i = 1; i <= 6; i++)
+                              Container(
+                                width: 280 - (i * 30.0),
+                                height: 280 - (i * 30.0),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: const Color.fromARGB(255, 245, 244, 244).withOpacity(0.3),
+                                    width: 1,
+                                  ),
+                                ),
+                              ),
+
+                            // Center label
+                            Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: theme.colorScheme.primary,
+                              ),
+                              child: Icon(
+                                Icons.album,
+                                color: theme.colorScheme.onPrimary,
+                                size: 40,
                               ),
                             ),
-                          ),
 
-                        // Center label
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: theme.colorScheme.primary,
-                          ),
-                          child: Icon(
-                            Icons.album,
-                            color: theme.colorScheme.onPrimary,
-                            size: 40,
-                          ),
+                            // Center hole
+                            Container(
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ],
                         ),
-
-                        // Center hole
-                        Container(
-                          width: 20,
-                          height: 20,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.black,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-               
-                // Gray box that appear when imgage is loading and will be cover by the album image
-                Container(
-                  width: 250,
-                  height: 250,
-                  decoration: BoxDecoration(
-                    color: Colors.grey,
-                  ),
-                ),
-                
-                // Album jacket/cover
-                Container(
-                  width: 250,
-                  height: 250,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(4.0),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.5),
-                        blurRadius: 15,
-                        spreadRadius: 2,
-                        offset: Offset(5, 5),
                       ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4.0),
-                    child: Image.network(
-                      track.albumImageUrl!,
+                    ),
+                   
+                    // Gray box that appear when image is loading and will be covered by the album image
+                    Container(
                       width: 250,
                       height: 250,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          width: 300,
-                          height: 300,
-                          color: Colors.grey,
-                          child: Icon(Icons.album, size: 100, color: Colors.white),
-                        );
-                      },
+                      decoration: BoxDecoration(
+                        color: Colors.grey,
+                      ),
                     ),
-                  ),
-                ),
-              ],
+                    
+                    // Album jacket/cover
+                    Container(
+                      width: 250,
+                      height: 250,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(4.0),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.5),
+                            blurRadius: 15,
+                            spreadRadius: 2,
+                            offset: Offset(5, 5),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4.0),
+                        child: Image.network(
+                          widget.track.albumImageUrl!,
+                          width: 250,
+                          height: 250,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              width: 300,
+                              height: 300,
+                              color: Colors.grey,
+                              child: Icon(Icons.album, size: 100, color: Colors.white),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         // Track info card
@@ -1124,17 +1194,17 @@ class BigCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  track.name,
+                  widget.track.name,
                   style: style.copyWith(color: theme.colorScheme.onPrimary),
                   textAlign: TextAlign.center,
-                  semanticsLabel: track.name,
+                  semanticsLabel: widget.track.name,
                 ),
                 SizedBox(height: 8),
                 Text(
-                  track.artists,
+                  widget.track.artists,
                   style: artistStyle.copyWith(color: theme.colorScheme.onPrimary.withOpacity(0.8)),
                   textAlign: TextAlign.center,
-                  semanticsLabel: "by ${track.artists}",
+                  semanticsLabel: "by ${widget.track.artists}",
                 ),
               ],
             ),
