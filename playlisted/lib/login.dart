@@ -13,6 +13,7 @@ class LoginPageState extends State<LoginPage> {
   final emailOrUsername = TextEditingController();
   final email = TextEditingController();
   final pass = TextEditingController();
+  bool passwordVisible = false;
   bool busy = false;
 
   Future<void> _login() async {
@@ -22,26 +23,24 @@ class LoginPageState extends State<LoginPage> {
     String? emailToUse;
 
     try {
-    final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
-    final isEmail = emailRegex.hasMatch(input);
+      final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+      final isEmail = emailRegex.hasMatch(input);
 
-    if (isEmail) {
-      emailToUse = input;
-    } else {
-      final doc = await FirebaseFirestore.instance
-          .collection('usernames')
-          .doc(input.toLowerCase())
-          .get();
-      
-      if (!doc.exists){
-        throw FirebaseAuthException(
-          code: 'user-not-found',
-          message: 'No user found with that username.',
-        );
+      if (isEmail) {
+        emailToUse = input;
+      } else {
+        final doc = await FirebaseFirestore.instance
+            .collection('usernames')
+            .doc(input.toLowerCase())
+            .get();
+
+        if (!doc.exists) {
+          throw FirebaseAuthException(
+              code: 'user-not-found', message: 'No user found for that username.');
+        }
+
+        emailToUse = doc['email'];
       }
-
-      emailToUse = doc['email'];
-    }
 
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: emailToUse!,
@@ -58,18 +57,25 @@ class LoginPageState extends State<LoginPage> {
   }
 
   Future<void> resetPassword() async {
-  final emailText = email.text.trim();
-  if (emailText.isEmpty) {
+  final input = emailOrUsername.text.trim();
+  if (input.isEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Enter your email first')),
     );
     return;
   }
 
-  try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: emailText);
+    final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+    if (!emailRegex.hasMatch(input)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Password reset email sent to $emailText')),
+        const SnackBar(content: Text('Please enter a valid email address')),
+      );
+      return;
+    }
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: input);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Password reset email sent to $input')),
       );
     } on FirebaseAuthException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -102,8 +108,16 @@ class LoginPageState extends State<LoginPage> {
             ),
             TextField(
               controller: pass,
-              decoration: const InputDecoration(labelText: 'Password'),
-              obscureText: true,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                suffixIcon: IconButton(
+                icon: Icon(
+                  passwordVisible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                ),
+                onPressed: () => setState(() => passwordVisible = !passwordVisible),
+                ),
+              ),
+                obscureText: !passwordVisible,
             ),
             const SizedBox(height: 20),
             ElevatedButton(
@@ -154,7 +168,17 @@ class SignUpPageState extends State<SignUpPage> {
   final username = TextEditingController();
   final email = TextEditingController();
   final pass = TextEditingController();
+  final confirmPass = TextEditingController();
+  bool passwordVisible = false;
+  bool confirmPasswordVisible = false;
   bool busy = false;
+
+  bool strongPassCheck(String password) {
+    final hasUppercase = RegExp(r'[A-Z]').hasMatch(password);
+    final hasNumber = RegExp(r'\d').hasMatch(password);
+    final hasSymbol = RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(password);
+    return password.length >= 8 && hasUppercase && hasNumber && hasSymbol;
+  }
 
   Future<void> _create() async {
     setState(() => busy = true);
@@ -163,10 +187,27 @@ class SignUpPageState extends State<SignUpPage> {
       final fname = firstName.text.trim();
       final lname = lastName.text.trim();
       final mail = email.text.trim();
+      final password = pass.text;
+
+      if (!strongPassCheck(password)) {
+        if (mounted) setState(() => busy = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Password Must Follow Requirements Guideline.')),
+          );
+        return;
+      }
+
+      if (password != confirmPass.text) {
+        if (mounted) setState(() => busy = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Passwords Do Not Match.')),
+        );
+        return;
+      }
 
       final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: mail,
-        password: pass.text,
+        password: password,
       );
 
       final user = cred.user;
@@ -210,6 +251,7 @@ class SignUpPageState extends State<SignUpPage> {
     username.dispose();
     email.dispose();
     pass.dispose();
+    confirmPass.dispose();
     super.dispose();
   }
 
@@ -224,9 +266,35 @@ class SignUpPageState extends State<SignUpPage> {
           children: [
             TextField(controller: username, decoration: const InputDecoration(labelText: 'User Name')),
             TextField(controller: firstName, decoration: const InputDecoration(labelText: 'First Name')),
-            TextField(controller: lastName,  decoration: const InputDecoration(labelText: 'Last Name')),
-            TextField(controller: email,     decoration: const InputDecoration(labelText: 'Email'), keyboardType: TextInputType.emailAddress),
-            TextField(controller: pass,      decoration: const InputDecoration(labelText: 'Password'), obscureText: true),
+            TextField(controller: lastName, decoration: const InputDecoration(labelText: 'Last Name')),
+            TextField(controller: email, decoration: const InputDecoration(labelText: 'Email')),
+            TextField( 
+              controller: pass,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                helperText: 'Must Be At Least 8 Characters and Include One Uppercase Letter, Number, and Special Symbol.',
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    passwordVisible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                  ),
+                  onPressed: () => setState(() => passwordVisible = !passwordVisible),
+                ),
+              ),
+              obscureText: !passwordVisible,
+            ),
+            TextField(
+              controller: confirmPass,
+              decoration: InputDecoration(
+                labelText: 'Confirm Password',
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    confirmPasswordVisible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                  ),
+                  onPressed: () => setState(() => confirmPasswordVisible = !confirmPasswordVisible),
+                ),
+              ),
+              obscureText: !confirmPasswordVisible,
+            ),      
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: busy ? null : _create,
