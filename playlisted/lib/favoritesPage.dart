@@ -34,11 +34,68 @@ class MySongsPage extends StatelessWidget {
                   emptyMessage: 'No rated songs yet.',
                   headerLabel: '{count} rated songs:',
                   showFavoriteIcon: false,
+                  
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class UnlikeButton extends StatefulWidget {
+  final Map<String, dynamic> doc;
+  final MyAppState appState;
+
+  const UnlikeButton({
+    required this.doc,
+    required this.appState,
+  });
+
+  @override
+  State<UnlikeButton> createState() => UnlikeButtonState();
+}
+
+class UnlikeButtonState extends State<UnlikeButton> {
+  
+  bool hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => hovering = true),
+      onExit: (_) => setState(() => hovering = false),
+      child: IconButton(
+        icon: Icon( hovering ? Icons.heart_broken : Icons.favorite ),
+        tooltip: hovering ? 'Unlike' : 'Liked',
+        onPressed: () async {
+          setState(() => hovering = true);
+          try {
+            await Favorites.instance.deleteTrack(
+              trackId: widget.doc['id'],
+            );
+            widget.appState.markSongsForDeletion(widget.doc['id']);
+            widget.appState.removeFavorite(widget.doc['id']);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                      'Unliked "${widget.doc['name']}"'),
+                ),
+              );
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                    content:
+                        Text('Error deleting favorite: $e')),
+              );
+            }
+          }
+        },
       ),
     );
   }
@@ -208,33 +265,34 @@ class SongsList extends StatelessWidget {
                       size: 20,
                       spacing: 2,
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline),
-                      tooltip: 'Delete',
-                      onPressed: () async {
-                        try {
-                          await Favorites.instance.deleteTrack(
-                            trackId: doc['id'],
-                          );
-                          //also remove any recommendations based on this track
-                          appState.markSongsForDeletion(doc['id']);
-                          //remove from local appState favorites list
-                          appState.removeFavorite(doc['id']);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                  'Deleted "${doc['name']}" from Firestore'),
-                            ),
-                          );
-                        } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                                content:
-                                    Text('Error deleting favorite: $e')),
-                          );
-                        }
-                      },
-                    ),
+                    if (showFavoriteIcon)
+                      UnlikeButton(doc: doc, appState: appState)
+                    else
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        tooltip: 'Delete',
+                        onPressed: () async {
+                          try {
+                            await Favorites.instance.deleteTrack(
+                              trackId: doc['id'],
+                            );
+                            appState.markSongsForDeletion(doc['id']);
+                            appState.removeFavorite(doc['id']);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                    'Unliked "${doc['name']}"'),
+                              ),
+                            );
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Error, Couldn\'t Delete Favorited List: $e'),
+                              ),
+                            );
+                          }
+                        },
+                      ),
                   ],
                 ),
               ),
