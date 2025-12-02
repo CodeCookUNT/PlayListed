@@ -78,7 +78,6 @@ class LoginPageState extends State<LoginPage> {
     }
   }
 
-  //clear email and password variables after use
   @override
   void dispose() {
     emailOrUsername.dispose();
@@ -87,54 +86,66 @@ class LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  // Puts the login info into a box  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Login')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextField(
-              controller: emailOrUsername,
-              decoration: const InputDecoration(labelText: 'Username or Email'),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Card(
+            elevation: 8,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-            TextField(
-              controller: pass,
-              decoration: const InputDecoration(labelText: 'Password'),
-              obscureText: true,
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: busy ? null : _login,
-              child: busy
-                  ? const SizedBox(
-                      height: 18, width: 18, child: CircularProgressIndicator())
-                  : const Text('Login'),
-            ),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SignUpPage()),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 400),
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: emailOrUsername,
+                    decoration: const InputDecoration(labelText: 'Username or Email'),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: pass,
+                    decoration: const InputDecoration(labelText: 'Password'),
+                    obscureText: true,
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: busy ? null : _login,
+                    child: busy
+                        ? const SizedBox(
+                            height: 18, width: 18, child: CircularProgressIndicator())
+                        : const Text('Login'),
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SignUpPage()),
+                    ),
+                    child: busy
+                        ? const SizedBox(
+                            height: 18, width: 18, child: CircularProgressIndicator())
+                        : const Text('Create an account'),
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: resetPassword,
+                    child: busy
+                        ? const SizedBox(
+                            height: 18, width: 18, child: CircularProgressIndicator())
+                        : const Text('Forgot Password?'),
+                  ),
+                ],
               ),
-              child: busy
-                  ? const SizedBox(
-                      height: 18, width: 18, child: CircularProgressIndicator())
-                  : const Text('Create an account'),
             ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: ElevatedButton(
-                onPressed: resetPassword,
-                child: busy
-                    ? const SizedBox(
-                        height: 18, width: 18, child: CircularProgressIndicator())
-                    : const Text('Forgot Password?'),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -217,25 +228,42 @@ class SignUpPageState extends State<SignUpPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Create account')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextField(controller: username, decoration: const InputDecoration(labelText: 'User Name')),
-            TextField(controller: firstName, decoration: const InputDecoration(labelText: 'First Name')),
-            TextField(controller: lastName,  decoration: const InputDecoration(labelText: 'Last Name')),
-            TextField(controller: email,     decoration: const InputDecoration(labelText: 'Email'), keyboardType: TextInputType.emailAddress),
-            TextField(controller: pass,      decoration: const InputDecoration(labelText: 'Password'), obscureText: true),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: busy ? null : _create,
-              child: busy
-                  ? const SizedBox(
-                      height: 18, width: 18, child: CircularProgressIndicator())
-                  : const Text('Finish'),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Card(
+            elevation: 8,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-          ],
+            //This will put the "creating account" into a box
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 400),
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(controller: username,decoration: const InputDecoration(labelText: 'User Name')),
+                  const SizedBox(height: 12),
+                  TextField(controller: firstName,decoration: const InputDecoration(labelText: 'First Name')),
+                  const SizedBox(height: 12),
+                  TextField(controller: lastName,decoration: const InputDecoration(labelText: 'Last Name')),
+                  const SizedBox(height: 12),
+                  TextField(controller: email,decoration: const InputDecoration(labelText: 'Email'), keyboardType: TextInputType.emailAddress),
+                  const SizedBox(height: 12),
+                  TextField(controller: pass,decoration: const InputDecoration(labelText: 'Password'), obscureText: true),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: busy ? null : _create,
+                    child: busy
+                        ? const SizedBox(
+                            height: 18, width: 18, child: CircularProgressIndicator())
+                        : const Text('Finish'),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
