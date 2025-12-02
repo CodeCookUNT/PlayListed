@@ -481,12 +481,7 @@ class GeneratorPage extends StatelessWidget {
     var appState = context.watch<MyAppState>();
     Track? track = appState.current;
 
-    IconData icon;
-    if (track != null && appState.favorites.any((t) => t.name == track.name)) {
-      icon = Icons.favorite;
-    } else {
-      icon = Icons.favorite_border;
-    }
+    final isLiked = track != null && appState.favorites.any((t) => t.name == track.name);
 
     return Center(
       child: Column(
@@ -587,12 +582,10 @@ class GeneratorPage extends StatelessWidget {
                   child: Text('Back'),
                 ),
               ),
-              ElevatedButton.icon(
-                onPressed: () {
-                  appState.toggleFavorite();
-                },
-                icon: Icon(icon),
-                label: Text('Like'),
+              LikeButton(
+                track: track,
+                isLiked: isLiked,
+                onToggle: appState.toggleFavorite,
               ),
               SizedBox(width: 10),
               ElevatedButton(
@@ -610,6 +603,54 @@ class GeneratorPage extends StatelessWidget {
             GlobalRatingDisplay(trackId: track.id!),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class LikeButton extends StatefulWidget {
+  final Track? track;
+  final bool isLiked;
+  final VoidCallback onToggle;
+
+  const LikeButton({
+    super.key,
+    required this.track,
+    required this.isLiked,
+    required this.onToggle,
+  });
+
+  @override
+  State<LikeButton> createState() => LikeButtonState();
+}
+
+class LikeButtonState extends State<LikeButton> {
+  bool hovering = false;
+
+  @override
+  void didUpdateWidget(covariant LikeButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.track?.id != oldWidget.track?.id) {
+      hovering = false;
+    }
+  }
+
+  IconData iconState() {
+    if (widget.isLiked) {
+      return hovering ? Icons.heart_broken : Icons.favorite;
+    }
+    return Icons.favorite_border;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => hovering = true),
+      onExit: (_) => setState(() => hovering = false),
+      child: ElevatedButton.icon(
+        onPressed: widget.track != null ? widget.onToggle : null,
+        icon: Icon(iconState()),
+        label: Text(widget.isLiked ? 'Liked' : 'Like'),
       ),
     );
   }
