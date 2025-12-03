@@ -375,7 +375,7 @@ class MyAppState extends ChangeNotifier {
       return;
     }
     else{
-      await recommendService.getRec(current, accessToken, tracks);
+      await recommendService.getRec(current, accessToken, tracks, _trackCounter);
     }
     notifyListeners();
   }

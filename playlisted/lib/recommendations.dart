@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'main.dart' show MyAppState;
 
 
 
@@ -93,7 +94,7 @@ class Recommendations {
 
   //Future: Function to get liked songs, then find patterns in the user's liked songs
   //! Recomendation algorithm goes here!
-  Future<void> getRec(Track? likedSong, String? accessToken, List<Track>? tracks) async {
+  Future<void> getRec(Track? likedSong, String? accessToken, List<Track>? tracks, int trackIndex) async {
     try {
       //get most popular track from artist
       final recommended = await getArtistPopularTrack(likedSong!, accessToken!);
@@ -108,7 +109,8 @@ class Recommendations {
         sourceTrackId: likedSong.id!, //the track that led to this recommendation
       );
 
-      
+      //insert recommended track into the appState's track list
+      addRecTrackToList(recommended, tracks, trackIndex);
     } catch (e) {
       print('Failed to process ${likedSong!.name}: $e');
     }
@@ -152,7 +154,7 @@ class Recommendations {
       final query = await _col.where('sourceTrackId', isEqualTo: sourceTrackId).get();
       //iterate through tracks with a matching source id for deletion
       for (var doc in query.docs) {
-        await _col.doc(doc.id).delete();
+        batch.delete(_col.doc(doc.id));
       }
     }
     //delete all tracks at once
@@ -176,7 +178,7 @@ class Recommendations {
 
   void addRecTrackToList(Track recTrack, List<Track>? tracks, int currIndex){
     //get the appstates list and insert a recommended track
-    tracks?.insert(currIndex, recTrack);
+    tracks?.insert(currIndex+5, recTrack);
   }
 
 }
