@@ -187,6 +187,7 @@ class MyAppState extends ChangeNotifier {
   List<Track>? tracks = [];
   List<String> _deltracks= []; 
   Timer? _deleteTimer;
+  int _trackCounter = 0;
   Recommendations recommendService = Recommendations.instance;
   //map for song ratings
   final Map<String, double> ratings = {};
@@ -230,13 +231,19 @@ class MyAppState extends ChangeNotifier {
     }
   }
 
+  void setTrackCounter(int value){
+    _trackCounter = value;
+  }
+
   //add tracks to 
   void markSongsForDeletion(String songID){
     _deltracks.add(songID);
 
+    print("Marked $songID for deletion");
+
     _deleteTimer?.cancel();
 
-      _deleteTimer = Timer(const Duration(seconds: 3), () async {
+      _deleteTimer = Timer(const Duration(seconds: 2), () async {
         final todelete = List<String>.from(_deltracks);
         _deltracks.clear();
         await Recommendations.instance.removeRecommendationsFromSource(todelete);
@@ -307,6 +314,8 @@ class MyAppState extends ChangeNotifier {
       int currentIndex = tracks!.indexWhere((track) => track.name == current?.name);
       int nextIndex = (currentIndex + 1) % tracks!.length;
       current = tracks![nextIndex];
+      //update track counter
+      setTrackCounter(nextIndex);
     } else {
       current = null;
     }
@@ -318,6 +327,8 @@ class MyAppState extends ChangeNotifier {
       int currentIndex = tracks!.indexWhere((track) => track.name == current?.name);
       int nextIndex = (currentIndex - 1) % tracks!.length;
       current = tracks![nextIndex];
+      //update track counter
+      setTrackCounter(nextIndex);
     } else {
       current = null;
     }
@@ -336,6 +347,7 @@ class MyAppState extends ChangeNotifier {
       favorites.add(current!);
     } else {
       favorites.removeWhere((t) => t.name == current!.name);
+      Recommendations.instance.removeOneSongFromSource(current!.id!);
     }
     notifyListeners();
     try {

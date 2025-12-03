@@ -108,8 +108,7 @@ class Recommendations {
         sourceTrackId: likedSong.id!, //the track that led to this recommendation
       );
 
-      //add recommended track to list of initial loaded tracks
-      addRecTrackToList(recommended, tracks);
+      
     } catch (e) {
       print('Failed to process ${likedSong!.name}: $e');
     }
@@ -156,9 +155,18 @@ class Recommendations {
         await _col.doc(doc.id).delete();
       }
     }
-
     //delete all tracks at once
     await batch.commit(); 
+  }
+
+  //function called to remove a single song from recommendations based on source track id
+  //Called when a user likes, then unlikes a song
+  Future<void> removeOneSongFromSource(String sourceIdToDel) async {
+    final query = await _col.where('sourceTrackId', isEqualTo: sourceIdToDel).get();
+      //iterate through tracks with a matching source id for deletion
+      for (var doc in query.docs) {
+        await _col.doc(doc.id).delete();
+      }
   }
 
   // Future<void> recDeleteTrack({required String trackId}) async {
@@ -166,9 +174,9 @@ class Recommendations {
   // }
 
 
-  void addRecTrackToList(Track recTrack, List<Track>? tracks){
+  void addRecTrackToList(Track recTrack, List<Track>? tracks, int currIndex){
     //get the appstates list and insert a recommended track
-    tracks?.insert(3, recTrack);
+    tracks?.insert(currIndex, recTrack);
   }
 
 }
