@@ -349,6 +349,7 @@ class MyAppState extends ChangeNotifier {
     } catch (e) {
       print('Failed to save favorite: $e');
     }
+    generateRecommendation();
   }
   
   void removeFavorite(String idToRemove) {
@@ -356,13 +357,13 @@ class MyAppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> generateRecommendations() async {
-    if (favorites.isEmpty) {
-      print('No liked tracks available for recommendations.');
+  Future<void> generateRecommendation() async {
+    if (current == null || accessToken == null) {
+      print('No liked track available for recommendations.');
       return;
     }
     else{
-      await recommendService.getRec(favorites, accessToken, tracks);
+      await recommendService.getRec(current, accessToken, tracks);
     }
     notifyListeners();
   }

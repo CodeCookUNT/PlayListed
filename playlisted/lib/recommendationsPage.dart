@@ -24,10 +24,10 @@ class _RecommendationsPageState extends State<RecommendationsPage> {
       _hasGenerated = true;
 
       //access appState
-      final appState = Provider.of<MyAppState>(context, listen: false);
+      //final appState = Provider.of<MyAppState>(context, listen: false);
 
       //generate recommendations
-      appState.generateRecommendations();
+      //appState.generateRecommendations();
     }
   }
 
