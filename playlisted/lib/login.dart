@@ -11,7 +11,6 @@ class LoginPage extends StatefulWidget {
 
 class LoginPageState extends State<LoginPage> {
   final emailOrUsername = TextEditingController();
-  final email = TextEditingController();
   final pass = TextEditingController();
   bool passwordVisible = false;
   bool busy = false;
@@ -36,7 +35,8 @@ class LoginPageState extends State<LoginPage> {
 
         if (!doc.exists) {
           throw FirebaseAuthException(
-              code: 'user-not-found', message: 'No user found for that username.');
+              code: 'user-not-found',
+              message: 'No user found for that username.');
         }
 
         emailToUse = doc['email'];
@@ -57,13 +57,14 @@ class LoginPageState extends State<LoginPage> {
   }
 
   Future<void> resetPassword() async {
-  final input = emailOrUsername.text.trim();
-  if (input.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Enter your email first')),
-    );
-    return;
-  }
+    final input = emailOrUsername.text.trim();
+
+    if (input.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter your email first')),
+      );
+      return;
+    }
 
     final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
     if (!emailRegex.hasMatch(input)) {
@@ -72,6 +73,7 @@ class LoginPageState extends State<LoginPage> {
       );
       return;
     }
+
     try {
       await FirebaseAuth.instance.sendPasswordResetEmail(email: input);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -87,12 +89,10 @@ class LoginPageState extends State<LoginPage> {
   @override
   void dispose() {
     emailOrUsername.dispose();
-    email.dispose();
     pass.dispose();
     super.dispose();
   }
 
-  // Puts the login info into a box  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -105,46 +105,6 @@ class LoginPageState extends State<LoginPage> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
-            TextField(
-              controller: pass,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                suffixIcon: IconButton(
-                icon: Icon(
-                  passwordVisible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                ),
-                onPressed: () => setState(() => passwordVisible = !passwordVisible),
-                ),
-              ),
-                obscureText: !passwordVisible,
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: busy ? null : _login,
-              child: busy
-                  ? const SizedBox(
-                      height: 18, width: 18, child: CircularProgressIndicator())
-                  : const Text('Login'),
-            ),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SignUpPage()),
-              ),
-              child: busy
-                  ? const SizedBox(
-                      height: 18, width: 18, child: CircularProgressIndicator())
-                  : const Text('Create an account'),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: ElevatedButton(
-                onPressed: resetPassword,
-                child: busy
-                    ? const SizedBox(
-                        height: 18, width: 18, child: CircularProgressIndicator())
-                    : const Text('Forgot Password?'),
             child: Container(
               constraints: const BoxConstraints(maxWidth: 400),
               padding: const EdgeInsets.all(24),
@@ -153,20 +113,33 @@ class LoginPageState extends State<LoginPage> {
                 children: [
                   TextField(
                     controller: emailOrUsername,
-                    decoration: const InputDecoration(labelText: 'Username or Email'),
+                    decoration:
+                        const InputDecoration(labelText: 'Username or Email'),
                   ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: pass,
-                    decoration: const InputDecoration(labelText: 'Password'),
-                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      suffixIcon: IconButton(
+                        icon: Icon(passwordVisible
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined),
+                        onPressed: () =>
+                            setState(() => passwordVisible = !passwordVisible),
+                      ),
+                    ),
+                    obscureText: !passwordVisible,
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton(
                     onPressed: busy ? null : _login,
                     child: busy
                         ? const SizedBox(
-                            height: 18, width: 18, child: CircularProgressIndicator())
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(),
+                          )
                         : const Text('Login'),
                   ),
                   const SizedBox(height: 12),
@@ -175,18 +148,12 @@ class LoginPageState extends State<LoginPage> {
                       context,
                       MaterialPageRoute(builder: (_) => const SignUpPage()),
                     ),
-                    child: busy
-                        ? const SizedBox(
-                            height: 18, width: 18, child: CircularProgressIndicator())
-                        : const Text('Create an account'),
+                    child: const Text('Create an account'),
                   ),
                   const SizedBox(height: 12),
                   ElevatedButton(
                     onPressed: resetPassword,
-                    child: busy
-                        ? const SizedBox(
-                            height: 18, width: 18, child: CircularProgressIndicator())
-                        : const Text('Forgot Password?'),
+                    child: const Text('Forgot Password?'),
                   ),
                 ],
               ),
@@ -220,11 +187,15 @@ class SignUpPageState extends State<SignUpPage> {
     final hasUppercase = RegExp(r'[A-Z]').hasMatch(password);
     final hasNumber = RegExp(r'\d').hasMatch(password);
     final hasSymbol = RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(password);
-    return password.length >= 8 && hasUppercase && hasNumber && hasSymbol;
+    return password.length >= 8 &&
+        hasUppercase &&
+        hasNumber &&
+        hasSymbol;
   }
 
   Future<void> _create() async {
     setState(() => busy = true);
+
     try {
       final uname = username.text.trim();
       final fname = firstName.text.trim();
@@ -235,8 +206,10 @@ class SignUpPageState extends State<SignUpPage> {
       if (!strongPassCheck(password)) {
         if (mounted) setState(() => busy = false);
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Password Must Follow Requirements Guideline.')),
-          );
+          const SnackBar(
+              content:
+                  Text('Password Must Follow Requirements Guideline.')),
+        );
         return;
       }
 
@@ -248,17 +221,22 @@ class SignUpPageState extends State<SignUpPage> {
         return;
       }
 
-      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      final cred = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(
         email: mail,
         password: password,
       );
 
       final user = cred.user;
-      if(user != null){
+
+      if (user != null) {
         await user.updateDisplayName(uname);
         await user.reload();
 
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .set({
           'uid': user.uid,
           'username': uname,
           'firstName': fname,
@@ -277,10 +255,11 @@ class SignUpPageState extends State<SignUpPage> {
       }
 
       if (mounted) Navigator.pop(context);
+
     } on FirebaseAuthException catch (e) {
       debugPrint('Auth error: ${e.code} – ${e.message}');
       ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(e.message ?? 'Auth error: ${e.code}')),
+        SnackBar(content: Text(e.message ?? 'Auth error: ${e.code}')),
       );
     } finally {
       if (mounted) setState(() => busy = false);
@@ -302,79 +281,66 @@ class SignUpPageState extends State<SignUpPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Create account')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextField(controller: username, decoration: const InputDecoration(labelText: 'User Name')),
-            TextField(controller: firstName, decoration: const InputDecoration(labelText: 'First Name')),
-            TextField(controller: lastName, decoration: const InputDecoration(labelText: 'Last Name')),
-            TextField(controller: email, decoration: const InputDecoration(labelText: 'Email')),
-            TextField( 
-              controller: pass,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                helperText: 'Must Be At Least 8 Characters and Include One Uppercase Letter, Number, and Special Symbol.',
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    passwordVisible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                  ),
-                  onPressed: () => setState(() => passwordVisible = !passwordVisible),
-                ),
-              ),
-              obscureText: !passwordVisible,
-            ),
-            TextField(
-              controller: confirmPass,
-              decoration: InputDecoration(
-                labelText: 'Confirm Password',
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    confirmPasswordVisible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                  ),
-                  onPressed: () => setState(() => confirmPasswordVisible = !confirmPasswordVisible),
-                ),
-              ),
-              obscureText: !confirmPasswordVisible,
-            ),      
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: busy ? null : _create,
-              child: busy
-                  ? const SizedBox(
-                      height: 18, width: 18, child: CircularProgressIndicator())
-                  : const Text('Finish'),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Card(
             elevation: 8,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            //This will put the "creating account" into a box
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Container(
               constraints: const BoxConstraints(maxWidth: 400),
               padding: const EdgeInsets.all(24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(controller: username,decoration: const InputDecoration(labelText: 'User Name')),
+                  TextField(controller: username, decoration: const InputDecoration(labelText: 'User Name')),
                   const SizedBox(height: 12),
-                  TextField(controller: firstName,decoration: const InputDecoration(labelText: 'First Name')),
+                  TextField(controller: firstName, decoration: const InputDecoration(labelText: 'First Name')),
                   const SizedBox(height: 12),
-                  TextField(controller: lastName,decoration: const InputDecoration(labelText: 'Last Name')),
+                  TextField(controller: lastName, decoration: const InputDecoration(labelText: 'Last Name')),
                   const SizedBox(height: 12),
-                  TextField(controller: email,decoration: const InputDecoration(labelText: 'Email'), keyboardType: TextInputType.emailAddress),
+                  TextField(controller: email, decoration: const InputDecoration(labelText: 'Email'), keyboardType: TextInputType.emailAddress),
                   const SizedBox(height: 12),
-                  TextField(controller: pass,decoration: const InputDecoration(labelText: 'Password'), obscureText: true),
+                  TextField(
+                    controller: pass,
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      helperText: 'At Least 8 Characters, One Uppercase Letter, Number, and Special Symbol.',
+                      suffixIcon: IconButton(
+                        icon: Icon(passwordVisible
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined),
+                        onPressed: () => setState(() =>
+                            passwordVisible = !passwordVisible),
+                      ),
+                    ),
+                    obscureText: !passwordVisible,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: confirmPass,
+                    decoration: InputDecoration(
+                      labelText: 'Confirm Password',
+                      suffixIcon: IconButton(
+                        icon: Icon(confirmPasswordVisible
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined),
+                        onPressed: () => setState(() =>
+                            confirmPasswordVisible =
+                                !confirmPasswordVisible),
+                      ),
+                    ),
+                    obscureText: !confirmPasswordVisible,
+                  ),
                   const SizedBox(height: 24),
                   ElevatedButton(
                     onPressed: busy ? null : _create,
                     child: busy
                         ? const SizedBox(
-                            height: 18, width: 18, child: CircularProgressIndicator())
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator())
                         : const Text('Finish'),
                   ),
                 ],
