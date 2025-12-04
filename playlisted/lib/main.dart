@@ -443,7 +443,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.library_music),
-                  label: 'My Songs',
+                  label: 'Songs',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.search_rounded),
@@ -454,12 +454,12 @@ class _MyHomePageState extends State<MyHomePage> {
                   label: 'Friends',
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.library_music),
+                  icon: Icon(Icons.library_music_outlined),
                   label: 'Recom',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.person),
-                  label: 'My Profile',
+                  label: 'Profile',
                 ),
               ],
               selectedIndex: selectedIndex,
@@ -483,126 +483,134 @@ class GeneratorPage extends StatelessWidget {
 
     final isLiked = track != null && appState.favorites.any((t) => t.name == track.name);
 
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (track != null)...[
-            // Get global average rating to be used later 
-            FutureBuilder<Map<String, dynamic>>(
-              future: track.id != null 
-                ? GlobalRatings.instance.getAverageRating(track.id!)
-                : Future.value({'averageRating': 0.0, 'totalRatings': 0}),
-              builder: (context, snapshot) {
-                final globalRating = snapshot.hasData 
-                  ? (snapshot.data!['averageRating'] as num?)?.toDouble() ?? 0.0
-                  : 0.0;
-                
-                return BigCard(
-                  track: track,
-                  globalRating: globalRating,
-                );
-              },
-            ),
-
-            //star rating and open song button section
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                StarRating(
-                  rating: appState.ratingFor(track),
-                  onChanged: (r) async {
-                    appState.setRating(track, r);
-                    await Favorites.instance.setRating(
-                      trackId: track.id!,
-                      name: track.name,
-                      artists: track.artists,
-                      albumImageUrl: track.albumImageUrl,
-                      rating: r,
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (track != null) ...[
+                // Get global average rating to be used later 
+                FutureBuilder<Map<String, dynamic>>(
+                  future: track.id != null 
+                    ? GlobalRatings.instance.getAverageRating(track.id!)
+                    : Future.value({'averageRating': 0.0, 'totalRatings': 0}),
+                  builder: (context, snapshot) {
+                    final globalRating = snapshot.hasData 
+                      ? (snapshot.data!['averageRating'] as num?)?.toDouble() ?? 0.0
+                      : 0.0;
+                    
+                    return BigCard(
+                      track: track,
+                      globalRating: globalRating,
                     );
                   },
                 ),
-                SizedBox(width: 16),
-                if (track.url != null)
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundColor: const Color(0xFF1DB954),
-                    child: IconButton(
-                      icon: Icon(Icons.open_in_new, color: Colors.white),
-                      onPressed: () async {
-                        final uri = Uri.parse(track.url!);
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(uri);
-                        } else {
-                          print('Could not launch ${track.url}');
-                        }
+
+                // star rating and open song button section
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    StarRating(
+                      rating: appState.ratingFor(track),
+                      onChanged: (r) async {
+                        appState.setRating(track, r);
+                        await Favorites.instance.setRating(
+                          trackId: track.id!,
+                          name: track.name,
+                          artists: track.artists,
+                          albumImageUrl: track.albumImageUrl,
+                          rating: r,
+                        );
                       },
                     ),
+                    const SizedBox(width: 16),
+                    if (track.url != null)
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: const Color(0xFF1DB954),
+                        child: IconButton(
+                          icon: const Icon(Icons.open_in_new, color: Colors.white),
+                          onPressed: () async {
+                            final uri = Uri.parse(track.url!);
+                            if (await canLaunchUrl(uri)) {
+                              await launchUrl(uri);
+                            } else {
+                              print('Could not launch ${track.url}');
+                            }
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ] else
+                const Text('Failed to fetch track'),
+
+              const SizedBox(height: 10),
+              
+              // Add Review and View Reviews Buttons
+              if (track != null && track.id != null) ...[
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        _showReviewDialog(context, track);
+                      },
+                      icon: const Icon(Icons.rate_review),
+                      label: const Text('Write Review'),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        _showAllReviewsDialog(context, track);
+                      },
+                      icon: const Icon(Icons.reviews),
+                      label: const Text('Reviews'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+              ],
+              
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: ElevatedButton(
+                      onPressed: () {
+                        appState.getPrevious();
+                      },
+                      child: const Text('Back'),
+                    ),
                   ),
+                  LikeButton(
+                    track: track,
+                    isLiked: isLiked,
+                    onToggle: appState.toggleFavorite,
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: () {
+                      appState.getNext();
+                    },
+                    child: const Text('Next'),
+                  ),
+                ],
+              ),
+              
+              // Global Average Rating Section
+              if (track != null && track.id != null) ...[
+                const SizedBox(height: 10),
+                GlobalRatingDisplay(trackId: track.id!),
               ],
-            ),
-          ]else
-            Text('Failed to fetch track'),
-          SizedBox(height: 10),
-          
-          // Add Review and View Reviews Buttons
-          if (track != null && track.id != null) ...[
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () {
-                    _showReviewDialog(context, track);
-                  },
-                  icon: Icon(Icons.rate_review),
-                  label: Text('Write Review'),
-                ),
-                SizedBox(width: 10),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    _showAllReviewsDialog(context, track);
-                  },
-                  icon: Icon(Icons.reviews),
-                  label: Text('Reviews'),
-                ),
-              ],
-            ),
-            SizedBox(height: 10),
-          ],
-          
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: ElevatedButton(
-                  onPressed: () {
-                    appState.getPrevious();
-                  },
-                  child: Text('Back'),
-                ),
-              ),
-              LikeButton(
-                track: track,
-                isLiked: isLiked,
-                onToggle: appState.toggleFavorite,
-              ),
-              SizedBox(width: 10),
-              ElevatedButton(
-                onPressed: () {
-                  appState.getNext();
-                },
-                child: Text('Next'),
-              ),
+
+              const SizedBox(height: 24), // extra bottom spacing
             ],
           ),
-          
-          // Global Average Rating Section
-          if (track != null && track.id != null) ...[
-            SizedBox(height: 10),
-            GlobalRatingDisplay(trackId: track.id!),
-          ],
-        ],
+        ),
       ),
     );
   }
