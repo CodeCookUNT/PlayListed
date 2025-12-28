@@ -14,6 +14,7 @@ import 'recommendations.dart';
 import 'recommendationsPage.dart';
 import 'search.dart';
 import 'profile.dart';
+import 'colike.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'globalratings.dart';
@@ -189,6 +190,7 @@ class MyAppState extends ChangeNotifier {
   Timer? _deleteTimer;
   int _trackCounter = 0;
   Recommendations recommendService = Recommendations.instance;
+  Colikes colikeService = Colikes.instance;
   //map for song ratings
   final Map<String, double> ratings = {};
   String keyOf(Track t) => t.name;
