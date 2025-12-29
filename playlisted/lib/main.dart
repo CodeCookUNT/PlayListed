@@ -265,6 +265,7 @@ class MyAppState extends ChangeNotifier {
       if (t.id != null) {
         final userId = FirebaseAuth.instance.currentUser?.uid;
         if (userId != null) {
+          Recommendations.instance.removeOneSongFromSource(current!.id!);
           GlobalRatings.instance.removeRating(
             trackId: t.id!,
             userId: userId,
@@ -277,6 +278,7 @@ class MyAppState extends ChangeNotifier {
       ratings[k] = r;
       if (!favorites.any((x) => keyOf(x) == k)) {
         favorites.add(t);
+        generateRecommendation();
       }
       
       // Submit to global ratings if track has an ID
