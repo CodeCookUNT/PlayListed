@@ -197,6 +197,9 @@ class MyAppState extends ChangeNotifier {
 
   double ratingFor(Track t) => ratings[keyOf(t)] ?? 0;
 
+  var favorites = List<Track>.empty(growable: true);
+
+
   // Load user's ratings from Firestore when app starts
   Future<void> loadUserRatings() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
@@ -307,8 +310,6 @@ class MyAppState extends ChangeNotifier {
       current = null;
     }
     
-    // Load user's previous ratings from Firestore
-    loadUserRatings();
   }
 
   Track? current; // Changed to Track? instead of dynamic
@@ -340,7 +341,7 @@ class MyAppState extends ChangeNotifier {
   }
 
   
-  var favorites = List<Track>.empty(growable: true);
+  
 
   Color backgroundColor = Colors.white;
 
@@ -408,6 +409,15 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   int selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Load user's previous ratings from Firestore after login
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<MyAppState>().loadUserRatings();
+    });
+  }
 
   final pages = [
     GeneratorPage(),
