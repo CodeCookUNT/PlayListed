@@ -192,15 +192,16 @@ class MyAppState extends ChangeNotifier {
   Recommendations recommendService = Recommendations.instance;
   Colikes colikeService = Colikes.instance;
   //map for song ratings
-  final Map<String, double> ratings = {};
+  final Map<String, double> likedOrRated = {};
+  final List<String> _likedOrRatedIDs = [];
   String keyOf(Track t) => t.name;
 
-  double ratingFor(Track t) => ratings[keyOf(t)] ?? 0;
+  double ratingFor(Track t) => likedOrRated[keyOf(t)] ?? 0;
 
   var favorites = List<Track>.empty(growable: true);
 
 
-  // Load user's ratings from Firestore when app starts
+  // Load user's likedOrRated from Firestore when app starts
   Future<void> loadUserRatings() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) {
@@ -217,20 +218,25 @@ class MyAppState extends ChangeNotifier {
           .get();
 
       print('Loading ${snapshot.docs.length} ratings from Firestore');
+      //final trackId = snapshot.docs[0].id;
 
       for (var doc in snapshot.docs) {
         final data = doc.data();
+        
+        //push ID into _list
+        _likedOrRatedIDs.add(doc.id);
+
         final trackName = data['name'] as String?;
         final rating = data['rating'] as double?;
         
-        if (trackName != null && rating != null && rating > 0) {
-          ratings[trackName] = rating;
+        if (trackName != null) {
+          likedOrRated[trackName] = rating ?? 0.0;
           print('Loaded rating for $trackName: $rating');
         }
       }
       
       notifyListeners();
-      print('Finished loading ${ratings.length} ratings');
+      print('Finished loading ${likedOrRated.length} ratings');
     } catch (e) {
       print('Error loading user ratings: $e');
     }
@@ -244,8 +250,6 @@ class MyAppState extends ChangeNotifier {
   void markSongsForDeletion(String songID){
     _deltracks.add(songID);
 
-    print("Marked $songID for deletion");
-
     _deleteTimer?.cancel();
 
       _deleteTimer = Timer(const Duration(seconds: 2), () async {
@@ -255,13 +259,19 @@ class MyAppState extends ChangeNotifier {
       });
   }
   
+  void printLikedOrRatedIDs(){
+    print('Liked or rated IDs:');
+    for (var id in _likedOrRatedIDs) {
+      print(id);
+    }
+  }
 
   void setRating(Track t, double rating) {
     final r = rating.clamp(0.0, 5.0);
     final k = keyOf(t);
 
     if (r <= 0) {
-      ratings.remove(k);
+      likedOrRated.remove(k);
       favorites.removeWhere((x) => keyOf(x) == k);
       
       // Remove from global ratings if track has an ID
@@ -278,7 +288,8 @@ class MyAppState extends ChangeNotifier {
         }
       }
     } else {
-      ratings[k] = r;
+      likedOrRated[k] = r;
+      _likedOrRatedIDs.add(t.id!);
       if (!favorites.any((x) => keyOf(x) == k)) {
         favorites.add(t);
         generateRecommendation();
@@ -350,8 +361,13 @@ class MyAppState extends ChangeNotifier {
     final isFavNow = !favorites.any((t) => t.name == current!.name);
     if (isFavNow) {
       favorites.add(current!);
+      likedOrRated[current!.name] = 0.0; // Auto-rate favorite songs as 0.0
+      _likedOrRatedIDs.add(current!.id!);
+      //printLikedOrRatedIDs();
     } else {
       favorites.removeWhere((t) => t.name == current!.name);
+      likedOrRated.remove(current!.name);
+      _likedOrRatedIDs.remove(current!.id!);
       Recommendations.instance.removeOneSongFromSource(current!.id!);
     }
     notifyListeners();
@@ -373,6 +389,19 @@ class MyAppState extends ChangeNotifier {
     favorites.removeWhere((fav) => fav.id == idToRemove);
     notifyListeners();
   }
+
+  void removeFromLikedOrRated(String idToRemove) {
+    _likedOrRatedIDs.remove(idToRemove);
+
+    final index = favorites.indexWhere((fav) => fav.id == idToRemove);
+    if (index != -1) {
+      final trackToRemove = favorites[index];
+      likedOrRated.remove(keyOf(trackToRemove));
+      favorites.removeAt(index);
+    }
+    notifyListeners();
+  }
+
 
   Future<void> generateRecommendation() async {
     if (current == null || accessToken == null) {
