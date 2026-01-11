@@ -231,7 +231,6 @@ class MyAppState extends ChangeNotifier {
         
         if (trackName != null) {
           likedOrRated[trackName] = rating ?? 0.0;
-          print('Loaded rating for $trackName: $rating');
         }
       }
       
@@ -364,6 +363,10 @@ class MyAppState extends ChangeNotifier {
       likedOrRated[current!.name] = 0.0; // Auto-rate favorite songs as 0.0
       _likedOrRatedIDs.add(current!.id!);
       //printLikedOrRatedIDs();
+      colikeService.updateCoLiked(
+        newSongId: current!.id!,
+        existingLikedSongs: _likedOrRatedIDs,
+      );
     } else {
       favorites.removeWhere((t) => t.name == current!.name);
       likedOrRated.remove(current!.name);

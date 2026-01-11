@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class Colikes {
   Colikes._();
@@ -40,16 +41,38 @@ Future<void> updateCoLiked({
   required List<String> existingLikedSongs,
 }) async {
   final firestore = FirebaseFirestore.instance;
+  final userId = FirebaseAuth.instance.currentUser!.uid;
   final batch = firestore.batch();
 
   for (final existingSong in existingLikedSongs) {
     if (existingSong == newSongId) continue;
 
     final pairId = generatePairId(newSongId, existingSong);
-    final docRef = firestore.collection('co_liked').doc(pairId);
+    final pairRef = firestore.collection('co_liked').doc(pairId);
+    final userPairRef = firestore
+        .collection('users')
+        .doc(userId)
+        .collection('co_liked')
+        .doc(pairId);
 
-    batch.set(
-      docRef,
+        //check if user has already coliked this pair
+        final userHasColiked = await hasUserColiked(pairId: pairId, userId: userId);
+        if(userHasColiked){
+          continue; //skip if user has already coliked this pair, avoid double counting
+        }
+        if (!userHasColiked) {
+
+          batch.set(
+            userPairRef,
+            {
+              'colikedAt': FieldValue.serverTimestamp(),
+            },
+          );
+        }
+
+    
+    batch.set(                                          
+      pairRef,
       {
         'songA': pairId.split('__')[0],
         'songB': pairId.split('__')[1],
@@ -59,8 +82,11 @@ Future<void> updateCoLiked({
       SetOptions(merge: true),
     );
   }
-
-  await batch.commit();
+  try {
+    await batch.commit();
+  } catch (e) {
+    print('Error updating co-liked counts: $e');
+  }
 }
 
 //retrieve co-liked songs for a given song
@@ -94,6 +120,22 @@ String extractOtherSong(String songId, Map<String, dynamic> data) {
       : data['songA'];
 }
 
+Future<bool> hasUserColiked({
+  required String pairId, required String userId
+}) async {
+  try{
+  final docRef = FirebaseFirestore.instance
+      .collection('users')
+      .doc(userId)
+      .collection('co_liked')
+      .doc(pairId);
 
+  final snapshot = await docRef.get();
+  return snapshot.exists;
+  } catch(e){
+    print("Error $e");
+    return false;
+  }
 }
 
+}
