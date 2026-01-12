@@ -14,6 +14,7 @@ import 'recommendations.dart';
 import 'recommendationsPage.dart';
 import 'search.dart';
 import 'profile.dart';
+import 'colike.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'globalratings.dart';
@@ -187,14 +188,20 @@ class MyAppState extends ChangeNotifier {
   List<Track>? tracks = [];
   List<String> _deltracks= []; 
   Timer? _deleteTimer;
+  int _trackCounter = 0;
   Recommendations recommendService = Recommendations.instance;
+  Colikes colikeService = Colikes.instance;
   //map for song ratings
-  final Map<String, double> ratings = {};
+  final Map<String, double> likedOrRated = {};
+  final List<String> _likedOrRatedIDs = [];
   String keyOf(Track t) => t.name;
 
-  double ratingFor(Track t) => ratings[keyOf(t)] ?? 0;
+  double ratingFor(Track t) => likedOrRated[keyOf(t)] ?? 0;
 
-  // Load user's ratings from Firestore when app starts
+  var favorites = List<Track>.empty(growable: true);
+
+
+  // Load user's likedOrRated from Firestore when app starts
   Future<void> loadUserRatings() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) {
@@ -211,23 +218,31 @@ class MyAppState extends ChangeNotifier {
           .get();
 
       print('Loading ${snapshot.docs.length} ratings from Firestore');
+      //final trackId = snapshot.docs[0].id;
 
       for (var doc in snapshot.docs) {
         final data = doc.data();
+        
+        //push ID into _list
+        _likedOrRatedIDs.add(doc.id);
+
         final trackName = data['name'] as String?;
         final rating = data['rating'] as double?;
         
-        if (trackName != null && rating != null && rating > 0) {
-          ratings[trackName] = rating;
-          print('Loaded rating for $trackName: $rating');
+        if (trackName != null) {
+          likedOrRated[trackName] = rating ?? 0.0;
         }
       }
       
       notifyListeners();
-      print('Finished loading ${ratings.length} ratings');
+      print('Finished loading ${likedOrRated.length} ratings');
     } catch (e) {
       print('Error loading user ratings: $e');
     }
+  }
+
+  void setTrackCounter(int value){
+    _trackCounter = value;
   }
 
   //add tracks to 
@@ -236,26 +251,37 @@ class MyAppState extends ChangeNotifier {
 
     _deleteTimer?.cancel();
 
-      _deleteTimer = Timer(const Duration(seconds: 3), () async {
+      _deleteTimer = Timer(const Duration(seconds: 2), () async {
         final todelete = List<String>.from(_deltracks);
         _deltracks.clear();
         await Recommendations.instance.removeRecommendationsFromSource(todelete);
       });
   }
   
+  void printLikedOrRatedIDs(){
+    print('Liked or rated IDs:');
+    for (var id in _likedOrRatedIDs) {
+      print(id);
+    }
+  }
+
+  List<String> getLikedOrRatedIDs(){
+    return _likedOrRatedIDs;
+  }
 
   void setRating(Track t, double rating) {
     final r = rating.clamp(0.0, 5.0);
     final k = keyOf(t);
 
     if (r <= 0) {
-      ratings.remove(k);
+      likedOrRated.remove(k);
       favorites.removeWhere((x) => keyOf(x) == k);
       
       // Remove from global ratings if track has an ID
       if (t.id != null) {
         final userId = FirebaseAuth.instance.currentUser?.uid;
         if (userId != null) {
+          Recommendations.instance.removeOneSongFromSource(current!.id!);
           GlobalRatings.instance.removeRating(
             trackId: t.id!,
             userId: userId,
@@ -265,7 +291,8 @@ class MyAppState extends ChangeNotifier {
         }
       }
     } else {
-      ratings[k] = r;
+      likedOrRated[k] = r;
+      _likedOrRatedIDs.add(t.id!);
       if (!favorites.any((x) => keyOf(x) == k)) {
         favorites.add(t);
       }
@@ -296,8 +323,6 @@ class MyAppState extends ChangeNotifier {
       current = null;
     }
     
-    // Load user's previous ratings from Firestore
-    loadUserRatings();
   }
 
   Track? current; // Changed to Track? instead of dynamic
@@ -307,6 +332,12 @@ class MyAppState extends ChangeNotifier {
       int currentIndex = tracks!.indexWhere((track) => track.name == current?.name);
       int nextIndex = (currentIndex + 1) % tracks!.length;
       current = tracks![nextIndex];
+      //update track counter
+      setTrackCounter(nextIndex);
+      print(_trackCounter);
+      if(_trackCounter % 5 == 0){
+        generateRecommendation();
+      }
     } else {
       current = null;
     }
@@ -318,6 +349,8 @@ class MyAppState extends ChangeNotifier {
       int currentIndex = tracks!.indexWhere((track) => track.name == current?.name);
       int nextIndex = (currentIndex - 1) % tracks!.length;
       current = tracks![nextIndex];
+      //update track counter
+      setTrackCounter(nextIndex);
     } else {
       current = null;
     }
@@ -325,7 +358,7 @@ class MyAppState extends ChangeNotifier {
   }
 
   
-  var favorites = List<Track>.empty(growable: true);
+  
 
   Color backgroundColor = Colors.white;
 
@@ -334,8 +367,18 @@ class MyAppState extends ChangeNotifier {
     final isFavNow = !favorites.any((t) => t.name == current!.name);
     if (isFavNow) {
       favorites.add(current!);
+      likedOrRated[current!.name] = 0.0; // Auto-rate favorite songs as 0.0
+      _likedOrRatedIDs.add(current!.id!);
+      //printLikedOrRatedIDs();
+      colikeService.updateCoLiked(
+        newSongId: current!.id!,
+        existingLikedSongs: _likedOrRatedIDs,
+      );
     } else {
       favorites.removeWhere((t) => t.name == current!.name);
+      likedOrRated.remove(current!.name);
+      _likedOrRatedIDs.remove(current!.id!);
+      Recommendations.instance.removeOneSongFromSource(current!.id!);
     }
     notifyListeners();
     try {
@@ -356,13 +399,26 @@ class MyAppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> generateRecommendations() async {
-    if (favorites.isEmpty) {
-      print('No liked tracks available for recommendations.');
+  void removeFromLikedOrRated(String idToRemove) {
+    _likedOrRatedIDs.remove(idToRemove);
+
+    final index = favorites.indexWhere((fav) => fav.id == idToRemove);
+    if (index != -1) {
+      final trackToRemove = favorites[index];
+      likedOrRated.remove(keyOf(trackToRemove));
+      favorites.removeAt(index);
+    }
+    notifyListeners();
+  }
+
+
+  Future<void> generateRecommendation() async {
+    if (current == null || accessToken == null) {
+      print('No liked track available for recommendations.');
       return;
     }
     else{
-      await recommendService.getRec(favorites, accessToken, tracks);
+      await recommendService.getRec(_likedOrRatedIDs);
     }
     notifyListeners();
   }
@@ -391,6 +447,15 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   int selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Load user's previous ratings from Firestore after login
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<MyAppState>().loadUserRatings();
+    });
+  }
 
   final pages = [
     GeneratorPage(),

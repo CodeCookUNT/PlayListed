@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'favorites.dart';
-import 'main.dart' show StarRating;
+import 'main.dart' show MyAppState, StarRating;
 import 'main.dart' show MyAppState;
 import 'recommendations.dart';
 
@@ -77,7 +77,7 @@ class UnlikeButtonState extends State<UnlikeButton> {
               trackId: widget.doc['id'],
             );
             widget.appState.markSongsForDeletion(widget.doc['id']);
-            widget.appState.removeFavorite(widget.doc['id']);
+            widget.appState.removeFromLikedOrRated(widget.doc['id']);
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -236,6 +236,7 @@ class SongsList extends StatelessWidget {
 
             for (final doc in items)
               ListTile(
+                key: ValueKey(doc['id']),
                 leading: (doc['albumImageUrl'] as String?) != null
                     ? Image.network(
                         doc['albumImageUrl'],
@@ -272,12 +273,13 @@ class SongsList extends StatelessWidget {
                         icon: const Icon(Icons.delete_outline),
                         tooltip: 'Delete',
                         onPressed: () async {
+                          //remove from favorites and ratings
                           try {
                             await Favorites.instance.deleteTrack(
                               trackId: doc['id'],
                             );
                             appState.markSongsForDeletion(doc['id']);
-                            appState.removeFavorite(doc['id']);
+                            appState.removeFromLikedOrRated(doc['id']);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(

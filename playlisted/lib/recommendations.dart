@@ -1,9 +1,12 @@
 // beginning development of recommendations algorithm, making file
+import 'package:flutter/material.dart';
 import 'spotify.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'colike.dart';
+import 'main.dart' show MyAppState;
 
 
 
@@ -93,36 +96,41 @@ class Recommendations {
 
   //Future: Function to get liked songs, then find patterns in the user's liked songs
   //! Recomendation algorithm goes here!
-  Future<void> getRec(List<Track> likedSongs, String? accessToken, List<Track>? tracks) async {
+  Future<void> getRec(List<String> likedOrRatedIDs) async {
+    //get the liked songs from the user
+    //generate candidate recommendations based on coliked tracks
+    //filter out already liked songs
+    //rank recommendations based on similarity to liked songs
 
-  for (final song in likedSongs) {
-    if (song.id == null) {
-      //if the song has no ID, skip or add as-is
-      continue;
+    final recommendedTrackIds = <String>{};
+
+    for(final likedId in likedOrRatedIDs){
+      // Get co-liked pairs for this liked song
+      final querySnapshotA = await FirebaseFirestore.instance
+          .collection('co_liked')
+          .where('songA', isEqualTo: likedId)
+          .get();
+      final querySnapshotB = await FirebaseFirestore.instance
+          .collection('co_liked')
+          .where('songB', isEqualTo: likedId)
+          .get();
+      
+      final allDocs = [...querySnapshotA.docs, ...querySnapshotB.docs];
+      
+      // Process each co-liked pair
+      for(final doc in allDocs){
+        final data = doc.data();
+        final pairId = doc.id;  // pairId is the document ID
+        final count = data['count'] as int;
+        if(count < 4){ 
+          continue;
+        }
+        print('Colike pairId: $pairId with count: $count');
+      }
     }
+    
 
-    try {
-      //get most popular track from artist
-      final recommended = await getArtistPopularTrack(song, accessToken!);
-
-      //save recommended track to Firestore
-      await Recommendations.instance.setRecommended(
-        trackId: recommended.id!,
-        name: recommended.name,
-        artists: recommended.artists,
-        albumImageUrl: recommended.albumImageUrl,
-        recommend: true,
-        sourceTrackId: song.id!, //the track that led to this recommendation
-      );
-
-      //add recommended track to list of initial loaded tracks
-      addRecTrackToList(recommended, tracks);
-    } catch (e) {
-      print('Failed to process ${song.name}: $e');
-    }
   }
-}
-
 
   //! Firestore functions to save recommended tracks for user
 
@@ -161,12 +169,21 @@ class Recommendations {
       final query = await _col.where('sourceTrackId', isEqualTo: sourceTrackId).get();
       //iterate through tracks with a matching source id for deletion
       for (var doc in query.docs) {
-        await _col.doc(doc.id).delete();
+        batch.delete(_col.doc(doc.id));
       }
     }
-
     //delete all tracks at once
     await batch.commit(); 
+  }
+
+  //function called to remove a single song from recommendations based on source track id
+  //Called when a user likes, then unlikes a song
+  Future<void> removeOneSongFromSource(String sourceIdToDel) async {
+    final query = await _col.where('sourceTrackId', isEqualTo: sourceIdToDel).get();
+      //iterate through tracks with a matching source id for deletion
+      for (var doc in query.docs) {
+        await _col.doc(doc.id).delete();
+      }
   }
 
   // Future<void> recDeleteTrack({required String trackId}) async {
@@ -174,9 +191,9 @@ class Recommendations {
   // }
 
 
-  void addRecTrackToList(Track recTrack, List<Track>? tracks){
+  void addRecTrackToList(Track recTrack, List<Track>? tracks, int currIndex){
     //get the appstates list and insert a recommended track
-    tracks?.insert(3, recTrack);
+    tracks?.insert(currIndex+5, recTrack);
   }
 
 }
