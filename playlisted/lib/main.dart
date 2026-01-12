@@ -265,6 +265,10 @@ class MyAppState extends ChangeNotifier {
     }
   }
 
+  List<String> getLikedOrRatedIDs(){
+    return _likedOrRatedIDs;
+  }
+
   void setRating(Track t, double rating) {
     final r = rating.clamp(0.0, 5.0);
     final k = keyOf(t);
@@ -291,7 +295,6 @@ class MyAppState extends ChangeNotifier {
       _likedOrRatedIDs.add(t.id!);
       if (!favorites.any((x) => keyOf(x) == k)) {
         favorites.add(t);
-        generateRecommendation();
       }
       
       // Submit to global ratings if track has an ID
@@ -331,6 +334,10 @@ class MyAppState extends ChangeNotifier {
       current = tracks![nextIndex];
       //update track counter
       setTrackCounter(nextIndex);
+      print(_trackCounter);
+      if(_trackCounter % 5 == 0){
+        generateRecommendation();
+      }
     } else {
       current = null;
     }
@@ -385,7 +392,6 @@ class MyAppState extends ChangeNotifier {
     } catch (e) {
       print('Failed to save favorite: $e');
     }
-    generateRecommendation();
   }
   
   void removeFavorite(String idToRemove) {
@@ -412,7 +418,7 @@ class MyAppState extends ChangeNotifier {
       return;
     }
     else{
-      await recommendService.getRec(current, accessToken, tracks, _trackCounter);
+      await recommendService.getRec(_likedOrRatedIDs);
     }
     notifyListeners();
   }

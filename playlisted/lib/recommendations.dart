@@ -1,9 +1,11 @@
 // beginning development of recommendations algorithm, making file
+import 'package:flutter/material.dart';
 import 'spotify.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'colike.dart';
 import 'main.dart' show MyAppState;
 
 
@@ -94,28 +96,41 @@ class Recommendations {
 
   //Future: Function to get liked songs, then find patterns in the user's liked songs
   //! Recomendation algorithm goes here!
-  Future<void> getRec(Track? likedSong, String? accessToken, List<Track>? tracks, int trackIndex) async {
-    try {
-      //get most popular track from artist
-      final recommended = await getArtistPopularTrack(likedSong!, accessToken!);
+  Future<void> getRec(List<String> likedOrRatedIDs) async {
+    //get the liked songs from the user
+    //generate candidate recommendations based on coliked tracks
+    //filter out already liked songs
+    //rank recommendations based on similarity to liked songs
 
-      //save recommended track to Firestore
-      await Recommendations.instance.setRecommended(
-        trackId: recommended.id!,
-        name: recommended.name,
-        artists: recommended.artists,
-        albumImageUrl: recommended.albumImageUrl,
-        recommend: true,
-        sourceTrackId: likedSong.id!, //the track that led to this recommendation
-      );
+    final recommendedTrackIds = <String>{};
 
-      //insert recommended track into the appState's track list
-      addRecTrackToList(recommended, tracks, trackIndex);
-    } catch (e) {
-      print('Failed to process ${likedSong!.name}: $e');
+    for(final likedId in likedOrRatedIDs){
+      // Get co-liked pairs for this liked song
+      final querySnapshotA = await FirebaseFirestore.instance
+          .collection('co_liked')
+          .where('songA', isEqualTo: likedId)
+          .get();
+      final querySnapshotB = await FirebaseFirestore.instance
+          .collection('co_liked')
+          .where('songB', isEqualTo: likedId)
+          .get();
+      
+      final allDocs = [...querySnapshotA.docs, ...querySnapshotB.docs];
+      
+      // Process each co-liked pair
+      for(final doc in allDocs){
+        final data = doc.data();
+        final pairId = doc.id;  // pairId is the document ID
+        final count = data['count'] as int;
+        if(count < 4){ 
+          continue;
+        }
+        print('Colike pairId: $pairId with count: $count');
+      }
     }
-  }
+    
 
+  }
 
   //! Firestore functions to save recommended tracks for user
 
