@@ -334,10 +334,9 @@ class MyAppState extends ChangeNotifier {
       current = tracks![nextIndex];
       //update track counter
       setTrackCounter(nextIndex);
-      print(_trackCounter);
-      if(_trackCounter % 5 == 0){
-        generateRecommendation();
-      }
+      // if(_trackCounter % 5 == 0){
+      //   generateRecommendation();
+      // }
     } else {
       current = null;
     }
@@ -370,10 +369,10 @@ class MyAppState extends ChangeNotifier {
       likedOrRated[current!.name] = 0.0; // Auto-rate favorite songs as 0.0
       _likedOrRatedIDs.add(current!.id!);
       //printLikedOrRatedIDs();
-      colikeService.updateCoLiked(
-        newSongId: current!.id!,
-        existingLikedSongs: _likedOrRatedIDs,
-      );
+      // colikeService.updateCoLiked(
+      //   newSongId: current!.id!,
+      //   existingLikedSongs: _likedOrRatedIDs,
+      // );
     } else {
       favorites.removeWhere((t) => t.name == current!.name);
       likedOrRated.remove(current!.name);
