@@ -12,9 +12,8 @@ class Track {
   final String? albumImageUrl;
   final int? popularity;
   final String? releaseDate;
-  final String? id;  // ← Add this
+  final String? id;
   final String? artistId;
-
 
   Track({
     required this.name,
@@ -28,7 +27,6 @@ class Track {
     this.id,
     this.artistId,
   });
-
 }
 
 //! The .env won't be pushed to git you gonna need to make it :}
@@ -60,36 +58,58 @@ class SpotifyService {
     }
   }
 
-  Future<List<Track>> fetchTopSongs(String? accessToken) async {
+  Future<List<Track>> fetchTopSongs(String? accessToken, {String? yearRange, int limit = 500}) async {
     List<Track> allTracks = [];
     
-    // Search for popular tracks from different years and genres
-    final searchQueries = [
-      //'year:2024',
-      //'year:2023',
-      //'year:2022',
-      'year:1970-1979',
-      'genre:pop',
-      'genre:rock',
-      'genre:hip-hop',
-      'genre:r&b',
-      'genre:country',
-      'genre:electronic',
-      'genre:indie',
-    ];
-    
-    for (String query in searchQueries) {
-      try {
-        final tracks = await _searchTracks(accessToken, query, limit: 50);
-        allTracks.addAll(tracks);
-        
-        // Stop if we've reached ~1000 songs
-        if (allTracks.length >= 500) {
-          break;
+    // If yearRange is provided, search specifically for that decade
+    if (yearRange != null) {
+      final searchQueries = [
+        'year:$yearRange',
+        'year:$yearRange genre:pop',
+        'year:$yearRange genre:rock',
+        'year:$yearRange genre:hip-hop',
+      ];
+      
+      for (String query in searchQueries) {
+        try {
+          final tracks = await _searchTracks(accessToken, query, limit: 50);
+          allTracks.addAll(tracks);
+          
+          // Stop if we've reached desired limit
+          if (allTracks.length >= limit) {
+            break;
+          }
+        } catch (e) {
+          print('Error searching for $query: $e');
+          continue;
         }
-      } catch (e) {
-        print('Error searching for $query: $e');
-        continue;
+      }
+    } else {
+      // Original behavior - search across multiple genres
+      final searchQueries = [
+        'year:1970-1979',
+        'genre:pop',
+        'genre:rock',
+        'genre:hip-hop',
+        'genre:r&b',
+        'genre:country',
+        'genre:electronic',
+        'genre:indie',
+      ];
+      
+      for (String query in searchQueries) {
+        try {
+          final tracks = await _searchTracks(accessToken, query, limit: 50);
+          allTracks.addAll(tracks);
+          
+          // Stop if we've reached ~500 songs
+          if (allTracks.length >= 500) {
+            break;
+          }
+        } catch (e) {
+          print('Error searching for $query: $e');
+          continue;
+        }
       }
     }
     
@@ -103,62 +123,63 @@ class SpotifyService {
     // Shuffle to mix songs from different searches
     final shuffledTracks = uniqueTracks.values.toList()..shuffle();
     
-    return shuffledTracks;
+    // Return up to the limit
+    return shuffledTracks.take(limit).toList();
   }
 
-// Helper method to search for tracks
-Future<List<Track>> _searchTracks(String? accessToken, String query, {int limit = 50}) async {
-  final uri = Uri.https(
-    'api.spotify.com',
-    '/v1/search',
-    {
-      'q': query,
-      'type': 'track',
-      'limit': limit.toString(),
-    },
-  );
+  // Helper method to search for tracks
+  Future<List<Track>> _searchTracks(String? accessToken, String query, {int limit = 50}) async {
+    final uri = Uri.https(
+      'api.spotify.com',
+      '/v1/search',
+      {
+        'q': query,
+        'type': 'track',
+        'limit': limit.toString(),
+      },
+    );
 
-  final response = await http.get(
-    uri,
-    headers: {'Authorization': 'Bearer $accessToken'},
-  );
+    final response = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $accessToken'},
+    );
 
-  if (response.statusCode == 200) {
-    final data = jsonDecode(response.body);
-    final tracksJson = data['tracks']['items'] as List;
-    return tracksJson.map((json) {
-      final artists = (json['artists'] as List)
-          .map((artist) => artist['name'])
-          .join(', ');
-      
-      // Get album image URL from the track's album
-      String? albumImageUrl;
-      if (json['album'] != null && json['album']['images'] != null) {
-        final images = json['album']['images'] as List;
-        if (images.isNotEmpty) {
-          albumImageUrl = images.length > 1 ? images[1]['url'] : images[0]['url'];
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final tracksJson = data['tracks']['items'] as List;
+      return tracksJson.map((json) {
+        final artists = (json['artists'] as List)
+            .map((artist) => artist['name'])
+            .join(', ');
+        
+        // Get album image URL from the track's album
+        String? albumImageUrl;
+        if (json['album'] != null && json['album']['images'] != null) {
+          final images = json['album']['images'] as List;
+          if (images.isNotEmpty) {
+            albumImageUrl = images.length > 1 ? images[1]['url'] : images[0]['url'];
+          }
         }
-      }
 
-      return Track(
-        name: json['name'],
-        artists: artists,
-        durationMs: json['duration_ms'],
-        explicit: json['explicit'],
-        url: json['external_urls']['spotify'],
-        albumImageUrl: albumImageUrl,
-        popularity: json['popularity'],
-        releaseDate: json['album'] != null ? json['album']['release_date'] : null,
-        id: json['id'],
-        artistId: (json['artists'] != null && (json['artists'] as List).isNotEmpty)
-            ? json['artists'][0]['id']
-            : null,
-      );
-    }).toList();
-  } else {
-    throw Exception('Failed to search tracks: ${response.body}');
+        return Track(
+          name: json['name'],
+          artists: artists,
+          durationMs: json['duration_ms'],
+          explicit: json['explicit'],
+          url: json['external_urls']['spotify'],
+          albumImageUrl: albumImageUrl,
+          popularity: json['popularity'],
+          releaseDate: json['album'] != null ? json['album']['release_date'] : null,
+          id: json['id'],
+          artistId: (json['artists'] != null && (json['artists'] as List).isNotEmpty)
+              ? json['artists'][0]['id']
+              : null,
+        );
+      }).toList();
+    } else {
+      throw Exception('Failed to search tracks: ${response.body}');
+    }
   }
-}
 
   Future<List<Track>> fetchRecommendations(String? accessToken,
       {String seedArtist = '4dpARuHxo51G3z768sgnrY', 
@@ -199,5 +220,4 @@ Future<List<Track>> _searchTracks(String? accessToken, String query, {int limit 
       throw Exception('Failed to fetch recommendations: ${response.body}');
     }
   }
-
 }

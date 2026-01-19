@@ -19,6 +19,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'globalratings.dart';
 import 'friendsPage.dart';
+import 'collectionspage.dart';
 import 'friends.dart';
 import 'chat.dart';
 import 'dart:collection';
@@ -54,7 +55,8 @@ Future<void> main() async {
   //get tracks by searching popular genres and years
   List<Track> initialTracks = [];
   try {
-    initialTracks = await SpotifyService().fetchTopSongs(initialToken);
+    //initialTracks = await SpotifyService().fetchTopSongs(initialToken);
+    initialTracks = await SpotifyService().fetchTopSongs(initialToken, limit: 500);
     print('Fetched ${initialTracks.length} songs');
   } catch (e) {
     print('Failed to fetch top songs: $e');
@@ -461,7 +463,8 @@ class _MyHomePageState extends State<MyHomePage> {
     MySongsPage(),
     SearchPage(),
     FriendsPage(),
-    RecommendationsPage(), // switches to the favorites page class
+    CollectionsPage(),
+    //RecommendationsPage(), // switches to the favorites page class
     ProfilePage(),
   ];
 
@@ -519,7 +522,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.library_music_outlined),
-                  label: 'Recom',
+                  label: 'Collections',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.person),
