@@ -19,9 +19,16 @@ class LoginPageState extends State<LoginPage> {
     setState(() => busy = true);
 
     final input = emailOrUsername.text.trim();
+    final password = pass.text;
     String? emailToUse;
 
     try {
+      if (input.isEmpty || password.isEmpty) {
+        throw FirebaseAuthException(
+            code: 'empty-fields',
+            message: 'Please enter both email/username and password.');
+      }
+
       final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
       final isEmail = emailRegex.hasMatch(input);
 
