@@ -64,7 +64,7 @@ class _FriendsPageState extends State<FriendsPage> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
-                    labelText: 'Add friend by Username or email',
+                    labelText: 'Send Request by Username or email',
                     border: OutlineInputBorder(),
                   ),
                   onSubmitted: (_) => _addFriend(),
@@ -79,6 +79,10 @@ class _FriendsPageState extends State<FriendsPage> {
                     )
                   : IconButton(
                       icon: const Icon(Icons.person_add),
+                      onPressed: _addFriend,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.account_box),
                       onPressed: _addFriend,
                     ),
             ],
