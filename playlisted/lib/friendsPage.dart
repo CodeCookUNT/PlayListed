@@ -172,3 +172,130 @@ class _FriendsPageState extends State<FriendsPage> {
     );
   }
 }
+
+class FriendRequestsPanel extends StatelessWidget {
+  const FriendRequestsPanel({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Friend Requests',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+
+            // ---- Incoming requests ----
+            const Text('Incoming',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            StreamBuilder<List<Map<String, dynamic>>>(
+              stream: FriendsService.instance.incomingRequestsStream(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: CircularProgressIndicator(),
+                  );
+                }
+
+                final incoming = snapshot.data ?? [];
+                if (incoming.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text('No incoming requests'),
+                  );
+                }
+
+                return Column(
+                  children: incoming.map((req) {
+                    final requestId = req['requestId'] as String;
+                    final fromName =
+                        (req['fromName'] as String?) ?? 'Unknown';
+
+                    return ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(fromName),
+                      trailing: Wrap(
+                        spacing: 8,
+                        children: [
+                          TextButton(
+                            onPressed: () {
+                              FriendsService.instance
+                                  .declineRequest(requestId);
+                            },
+                            child: const Text('Decline'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () {
+                              FriendsService.instance
+                                  .acceptRequest(requestId);
+                            },
+                            child: const Text('Accept'),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+
+            const Divider(),
+
+            // ---- Outgoing requests ----
+            const Text('Outgoing',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            StreamBuilder<List<Map<String, dynamic>>>(
+              stream: FriendsService.instance.outgoingRequestsStream(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: CircularProgressIndicator(),
+                  );
+                }
+
+                final outgoing = snapshot.data ?? [];
+                if (outgoing.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text('No outgoing requests'),
+                  );
+                }
+
+                return Column(
+                  children: outgoing.map((req) {
+                    final requestId = req['requestId'] as String;
+                    final toName =
+                        (req['toName'] as String?) ?? 'Unknown';
+
+                    return ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(toName),
+                      subtitle: const Text('Pending'),
+                      trailing: TextButton(
+                        onPressed: () {
+                          FriendsService.instance
+                              .cancelRequest(requestId);
+                        },
+                        child: const Text('Cancel'),
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

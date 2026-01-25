@@ -133,4 +133,28 @@ class FriendsService {
 
     await batch.commit();
   }
+
+  // Friend request features to work on
+
+Stream<List<Map<String, dynamic>>> incomingRequestsStream() {
+  // TODO: replace with Firestore query later
+  return Stream.value([]);
+}
+
+Stream<List<Map<String, dynamic>>> outgoingRequestsStream() {
+  // TODO: replace with Firestore query later
+  return Stream.value([]);
+}
+
+Future<void> acceptRequest(String requestId) async {
+  // TODO: implement later
+}
+
+Future<void> declineRequest(String requestId) async {
+  // TODO: implement later
+}
+
+Future<void> cancelRequest(String requestId) async {
+  // TODO: implement later
+}
 }
