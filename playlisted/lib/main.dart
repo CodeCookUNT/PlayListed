@@ -334,9 +334,9 @@ class MyAppState extends ChangeNotifier {
       current = tracks![nextIndex];
       //update track counter
       setTrackCounter(nextIndex);
-      // if(_trackCounter % 5 == 0){
-      //   generateRecommendation();
-      // }
+      if(_trackCounter % 5 == 0){
+        generateRecommendation();
+      }
     } else {
       current = null;
     }
@@ -368,7 +368,7 @@ class MyAppState extends ChangeNotifier {
       favorites.add(current!);
       likedOrRated[current!.name] = 0.0; // Auto-rate favorite songs as 0.0
       _likedOrRatedIDs.add(current!.id!);
-      //printLikedOrRatedIDs();
+      //! UNCOMMENT THIS TO ENABLE CO-LIKE TRACK UPDATING
       // colikeService.updateCoLiked(
       //   newSongId: current!.id!,
       //   existingLikedSongs: _likedOrRatedIDs,

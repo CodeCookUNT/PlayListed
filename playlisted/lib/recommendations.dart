@@ -96,41 +96,56 @@ class Recommendations {
 
   //Future: Function to get liked songs, then find patterns in the user's liked songs
   //! Recomendation algorithm goes here!
-  Future<void> getRec(List<String> likedOrRatedIDs) async {
-    //get the liked songs from the user
-    //generate candidate recommendations based on coliked tracks
-    //filter out already liked songs
-    //rank recommendations based on similarity to liked songs
+Future<void> getRec(List<String> likedOrRatedIDs) async {
+  final recTrackIds = <String>{};
 
-    final recommendedTrackIds = <String>{};
+  try {
+    //for each liked or rated track, find co-liked tracks
+    for (final likedId in likedOrRatedIDs) {
 
-    for(final likedId in likedOrRatedIDs){
-      // Get co-liked pairs for this liked song
-      final querySnapshotA = await FirebaseFirestore.instance
+      //2 CASES: songA is the likedId or songB is the likedId
+      //Cannot query songA OR songB in a single query, so we do two separate queries
+      
+      //songA == likedId
+      final q1 = await FirebaseFirestore.instance
           .collection('co_liked')
           .where('songA', isEqualTo: likedId)
+          .orderBy('count', descending: true)
+          .limit(3)
           .get();
-      final querySnapshotB = await FirebaseFirestore.instance
+
+      //extract songB from each document
+      for (final doc in q1.docs) {
+        final data = doc.data();
+        final songB = data['songB'];
+        if (songB != null) {
+          recTrackIds.add(songB);
+        }
+      }
+
+      //songB == likedId
+      final q2 = await FirebaseFirestore.instance
           .collection('co_liked')
           .where('songB', isEqualTo: likedId)
+          .orderBy('count', descending: true)
+          .limit(3)
           .get();
-      
-      final allDocs = [...querySnapshotA.docs, ...querySnapshotB.docs];
-      
-      // Process each co-liked pair
-      for(final doc in allDocs){
+
+      //extract songA from each document
+      for (final doc in q2.docs) {
         final data = doc.data();
-        final pairId = doc.id;  // pairId is the document ID
-        final count = data['count'] as int;
-        if(count < 4){ 
-          continue;
+        final songA = data['songA'];
+        if (songA != null) {
+          recTrackIds.add(songA);
         }
-        print('Colike pairId: $pairId with count: $count');
       }
     }
-    
-
+  } catch (e) {
+    print('Error fetching co-liked tracks: $e');
   }
+
+  print('Recommended Track IDs: $recTrackIds');
+}
 
   //! Firestore functions to save recommended tracks for user
 
