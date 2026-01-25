@@ -118,6 +118,9 @@ Future<void> getRec(List<String> likedOrRatedIDs) async {
       for (final doc in q1.docs) {
         final data = doc.data();
         final songB = data['songB'];
+        if(hasUserAlreadyLiked(likedOrRatedIDs, songB)){
+          continue; //skip if user has already liked/rated this track
+        }
         if (songB != null) {
           recTrackIds.add(songB);
         }
@@ -135,6 +138,9 @@ Future<void> getRec(List<String> likedOrRatedIDs) async {
       for (final doc in q2.docs) {
         final data = doc.data();
         final songA = data['songA'];
+        if(hasUserAlreadyLiked(likedOrRatedIDs, songA)){
+          continue; //skip if user has already liked/rated this track
+        }
         if (songA != null) {
           recTrackIds.add(songA);
         }
@@ -201,14 +207,9 @@ Future<void> getRec(List<String> likedOrRatedIDs) async {
       }
   }
 
-  // Future<void> recDeleteTrack({required String trackId}) async {
-  //   await _col.doc(trackId).delete();
-  // }
-
-
-  void addRecTrackToList(Track recTrack, List<Track>? tracks, int currIndex){
-    //get the appstates list and insert a recommended track
-    tracks?.insert(currIndex+5, recTrack);
+  bool hasUserAlreadyLiked(List<String> likedOrRatedIDs, String trackId) {
+    return likedOrRatedIDs.contains(trackId);
   }
+
 
 }
