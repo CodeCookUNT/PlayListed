@@ -186,6 +186,7 @@ class MyAppState extends ChangeNotifier {
   //optional access token (fetched at app startup)
   String? accessToken;
   List<Track>? tracks = [];
+  List<Track>? recommendedTracks = [];
   List<String> _deltracks= []; 
   Timer? _deleteTimer;
   int _trackCounter = 0;
@@ -325,7 +326,7 @@ class MyAppState extends ChangeNotifier {
     
   }
 
-  Track? current; // Changed to Track? instead of dynamic
+  Track? current; ////Changed to Track? instead of dynamic
   void getNext() {
     if (tracks != null && tracks!.isNotEmpty) {
       //cycle to next track
@@ -417,7 +418,7 @@ class MyAppState extends ChangeNotifier {
       return;
     }
     else{
-      await recommendService.getRec(_likedOrRatedIDs);
+      await recommendService.getRec(_likedOrRatedIDs, accessToken);
     }
     notifyListeners();
   }

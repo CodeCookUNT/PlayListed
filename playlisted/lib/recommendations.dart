@@ -27,77 +27,11 @@ class Recommendations {
           .doc(_uid)
           .collection('recommendations');
 
-
-  //helper function to parse track json data into Track object
-  Track parseTrack(var data){
-    final artists = (data['artists'] as List)
-        .map((artist) => artist['name'])
-        .join(', ');
-
-    //get album image URL from the track's album
-    String? albumImageUrl;
-    if (data['album'] != null && data['album']['images'] != null) {
-      final images = data['album']['images'] as List;
-      if (images.isNotEmpty) {
-        albumImageUrl = images.length > 1 ? images[1]['url'] : images[0]['url'];
-      }
-    }
-    return Track(
-      name: data['name'],
-      artists: artists,
-      durationMs: data['duration_ms'],
-      albumImageUrl: albumImageUrl,
-      popularity: data['popularity'],
-      url: data['external_urls']['spotify'],
-      explicit: data['explicit'],
-      releaseDate: data['album'] != null ? data['album']['release_date'] : null,
-      id: data['id'],
-      artistId: (data['artists'] != null && (data['artists'] as List).isNotEmpty)
-          ? data['artists'][0]['id']
-          : null,
-    );
-  }
-
-  //helper function to get a tracks stats
-  Future<Track> getArtistPopularTrack(Track track, String? accessToken) async {
-    final Track popularTrack;
-    final uri = Uri.https(
-      'api.spotify.com',
-      '/v1/artists/${track.artistId}/top-tracks',
-      {'market': 'US'},
-    );
-
-    final response = await http.get(
-      uri,
-      headers: {'Authorization': 'Bearer $accessToken'},
-    );
-
-    if(response.statusCode == 200){
-      final data = jsonDecode(response.body);
-      final tracksJson = data['tracks'] as List;
-      if(tracksJson.isNotEmpty && tracksJson[0]['id'] != track.id){
-        //convert the most popular track json to Track object
-        popularTrack = parseTrack(tracksJson[0]);
-      }
-      else if(tracksJson.length > 1){
-        //if the most popular track is the same as the original, take the next popular
-        popularTrack = parseTrack(tracksJson[1]);
-      }
-      else{
-        popularTrack = track; //fallback to the original track if no top tracks found
-      }
-      return popularTrack;
-    }
-    else{
-      throw Exception('Failed to get artist top tracks: ${response.body}');
-    }
-
-  }
-
   //Future: Function to get liked songs, then find patterns in the user's liked songs
   //! Recomendation algorithm goes here!
-Future<void> getRec(List<String> likedOrRatedIDs) async {
-  final recTrackIds = <String>{};
+Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
+  final recTrackIds = <Track>{};
+
 
   try {
     //for each liked or rated track, find co-liked tracks
@@ -122,7 +56,7 @@ Future<void> getRec(List<String> likedOrRatedIDs) async {
           continue; //skip if user has already liked/rated this track
         }
         if (songB != null) {
-          recTrackIds.add(songB);
+          recTrackIds.add(await fetchTrackDetails(songB, accessToken));
         }
       }
 
@@ -142,15 +76,24 @@ Future<void> getRec(List<String> likedOrRatedIDs) async {
           continue; //skip if user has already liked/rated this track
         }
         if (songA != null) {
-          recTrackIds.add(songA);
+          recTrackIds.add(await fetchTrackDetails(songA, accessToken));
         }
       }
     }
   } catch (e) {
     print('Error fetching co-liked tracks: $e');
   }
-
-  print('Recommended Track IDs: $recTrackIds');
+  for (final track in recTrackIds) {
+    print('Recommended Track: ${track.name} by ${track.artists}');
+    await setRecommended(
+      trackId: track.id!,
+      name: track.name,
+      artists: track.artists,
+      albumImageUrl: track.albumImageUrl,
+      recommend: true,
+      sourceTrackId: 'to-add-later', //indicate source of recommendation
+    );
+  }
 }
 
   //! Firestore functions to save recommended tracks for user
@@ -211,5 +154,45 @@ Future<void> getRec(List<String> likedOrRatedIDs) async {
     return likedOrRatedIDs.contains(trackId);
   }
 
+  //Fetch the track details from Spotify API given only the track ID
+  Future<Track> fetchTrackDetails(String trackId, String? accessToken) async {
+    //get the track details from Spotify API
+    final uri = Uri.https(
+      'api.spotify.com',
+      '/v1/tracks/$trackId',
+    );
 
+    final response = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $accessToken'},
+    );
+    if(response.statusCode != 200){
+      throw Exception('Failed to fetch track details: ${response.body}');
+    }
+    final json = jsonDecode(response.body);
+    final artists = (json['artists'] as List)
+        .map((artist) => artist['name'])
+        .join(', ');
+    String? albumImageUrl;
+    if (json['album'] != null &&
+        json['album']['images'] != null &&
+        (json['album']['images'] as List).isNotEmpty) {
+      albumImageUrl = json['album']['images'][0]['url'];
+    }
+    //return Track object
+    return Track(
+      name: json['name'],
+      artists: artists,
+      durationMs: json['duration_ms'],
+      explicit: json['explicit'],
+      url: json['external_urls']['spotify'],
+      albumImageUrl: albumImageUrl,
+      popularity: json['popularity'],
+      releaseDate: json['album'] != null ? json['album']['release_date'] : null,
+      id: json['id'],
+      artistId: (json['artists'] != null && (json['artists'] as List).isNotEmpty)
+          ? json['artists'][0]['id']
+          : null,
+    );
+  }
 }
