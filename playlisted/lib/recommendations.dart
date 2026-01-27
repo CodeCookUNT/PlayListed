@@ -30,7 +30,7 @@ class Recommendations {
   //Future: Function to get liked songs, then find patterns in the user's liked songs
   //! Recomendation algorithm goes here!
 Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
-  final recTrackIds = <Track>{};
+  final recTrackIds = <Track, String>{};
 
 
   try {
@@ -56,7 +56,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
           continue; //skip if user has already liked/rated this track
         }
         if (songB != null) {
-          recTrackIds.add(await fetchTrackDetails(songB, accessToken));
+          recTrackIds[await fetchTrackDetails(songB, accessToken)] = likedId;
         }
       }
 
@@ -76,22 +76,22 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
           continue; //skip if user has already liked/rated this track
         }
         if (songA != null) {
-          recTrackIds.add(await fetchTrackDetails(songA, accessToken));
+          recTrackIds[await fetchTrackDetails(songA, accessToken)] = likedId;
         }
       }
     }
   } catch (e) {
     print('Error fetching co-liked tracks: $e');
   }
-  for (final track in recTrackIds) {
-    print('Recommended Track: ${track.name} by ${track.artists}');
+  for (final track in recTrackIds.entries) {
+    print('Recommended Track: ${track.key.name} by ${track.key.artists}');
     await setRecommended(
-      trackId: track.id!,
-      name: track.name,
-      artists: track.artists,
-      albumImageUrl: track.albumImageUrl,
+      trackId: track.key.id!,
+      name: track.key.name,
+      artists: track.key.artists,
+      albumImageUrl: track.key.albumImageUrl,
       recommend: true,
-      sourceTrackId: 'to-add-later', //indicate source of recommendation
+      sourceTrackId: track.value, //indicate source of recommendation
     );
   }
 }
@@ -195,4 +195,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
           : null,
     );
   }
+
+  
+
 }
