@@ -54,6 +54,14 @@ class _ChatPageState extends State<ChatPage> {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
 
+    // Checking for explicit language when sending messages between users
+    if (ExplicitContentFilter.contatinsExplicitContent(text)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please remove explicit content from your message.')),
+      );
+      return;
+    }
+
     _controller.clear();
 
     final convoRef = _db.collection('conversations').doc(_convoId);

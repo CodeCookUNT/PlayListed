@@ -23,6 +23,7 @@ import 'friends.dart';
 import 'chat.dart';
 import 'dart:collection';
 import 'dart:async';
+import 'content_filter.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -1048,6 +1049,14 @@ class _ReviewDialogState extends State<ReviewDialog> {
             final review = widget.reviewController.text.trim();
             if (review.isEmpty) {
               Navigator.of(context).pop();
+              return;
+            }
+
+            // Check for explicit language when a user is adding a review to a song
+            if (ExplicitContentFilter.contatinsExplicitContent(review)) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Please remove explicit language from your review.')),
+              );
               return;
             }
             

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'content_filter.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -268,7 +269,20 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
       final mail = email.text.trim();
       final password = pass.text;
 
-      if (!strongPassCheck(password)) {
+      // Checking if user made username when making account containt any sort of explicit language, denying account creation if true until corrected.
+      if (ExplicitContentFilter.contatinsExplicitContent(uname)) {
+        if (mounted) setState(() => busy = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Username contains explicit content.')),
+        );
+        return;
+      }
+
+
+      if (ExplicitContentFilter.contatinsExplicitContent(uname) ||
+          ExplicitContentFilter.contatinsExplicitContent(fname) ||
+          ExplicitContentFilter.contatinsExplicitContent(lname) ||
+          ExplicitContentFilter.contatinsExplicitContent(mail)) {
         if (mounted) setState(() => busy = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
