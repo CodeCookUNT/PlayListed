@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'resetpasswordpage.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -60,36 +61,6 @@ class LoginPageState extends State<LoginPage> {
       );
     } finally {
       if (mounted) setState(() => busy = false);
-    }
-  }
-
-  Future<void> resetPassword() async {
-    final input = emailOrUsername.text.trim();
-
-    if (input.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter your email first')),
-      );
-      return;
-    }
-
-    final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
-    if (!emailRegex.hasMatch(input)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid email address')),
-      );
-      return;
-    }
-
-    try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: input);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Password reset email sent to $input')),
-      );
-    } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? 'Failed to send reset email')),
-      );
     }
   }
 
@@ -159,8 +130,13 @@ class LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 12),
                   ElevatedButton(
-                    onPressed: resetPassword,
-                    child: const Text('Forgot Password?'),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ResetPasswordPage()),
+                    );
+                  },
+                  child: const Text('Forgot Password?'),
                   ),
                 ],
               ),
