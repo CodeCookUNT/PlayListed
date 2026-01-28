@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'recommendations.dart' show Recommendations, fetchTrackDetails;
 
 //Track Class for holding track info
 class Track {
@@ -14,6 +17,7 @@ class Track {
   final String? releaseDate;
   final String? id;  // ← Add this
   final String? artistId;
+  final int? popularityScore;
 
 
   Track({
@@ -27,6 +31,7 @@ class Track {
     this.releaseDate,
     this.id,
     this.artistId,
+    this.popularityScore,
   });
 
 }
@@ -37,10 +42,13 @@ class Track {
 //! Replace the placeholder with actully numbers from the spotify devloper app or the number on I put in discord   
 
 class SpotifyService {
+
+  String get _uid => FirebaseAuth.instance.currentUser!.uid;
+
   Future<String> getAccessToken() async {
     final clientId = dotenv.env['SPOTIFY_CLIENT_ID']!;
     final clientSecret = dotenv.env['SPOTIFY_CLIENT_SECRET']!;
-    
+
     final credentials = base64Encode(utf8.encode('$clientId:$clientSecret'));
     
     final response = await http.post(
@@ -61,7 +69,10 @@ class SpotifyService {
   }
 
   Future<List<Track>> fetchTopSongs(String? accessToken) async {
-    List<Track> allTracks = [];
+
+    //Store the track and its score
+    Map<Track, double> allTracks = {};
+    Map<Track, double> recTracks = {};
     
     // Search for popular tracks from different years and genres
     final searchQueries = [
@@ -81,7 +92,8 @@ class SpotifyService {
     for (String query in searchQueries) {
       try {
         final tracks = await _searchTracks(accessToken, query, limit: 50);
-        allTracks.addAll(tracks);
+        // Add tracks to allTracks with their popularity as score
+        allTracks.addEntries(tracks.map((t) => MapEntry(t, (t.popularityScore ?? 0).toDouble())));
         
         // Stop if we've reached ~1000 songs
         if (allTracks.length >= 500) {
@@ -95,11 +107,28 @@ class SpotifyService {
     
     // Remove duplicates based on track name and artist
     final uniqueTracks = <String, Track>{};
-    for (var track in allTracks) {
+    for (var track in allTracks.entries.map((e) => e.key)) {
       final key = '${track.name}-${track.artists}';
       uniqueTracks[key] = track;
     }
     
+    //add user's recommended tracks
+    final userRecSnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(_uid)
+        .collection('recommendations')
+        .where('recommend', isEqualTo: true)
+        .get();
+
+    for (var doc in userRecSnapshot.docs) {
+      final data = doc.data();
+      final recommendations = Recommendations.instance; // Use the appropriate named constructor
+      final track = await recommendations.fetchTrackDetails(data['trackId'], accessToken);
+      recTracks[track] = 0.0;
+    }
+      
+    
+
     // Shuffle to mix songs from different searches
     final shuffledTracks = uniqueTracks.values.toList()..shuffle();
     
@@ -153,6 +182,7 @@ Future<List<Track>> _searchTracks(String? accessToken, String query, {int limit 
         artistId: (json['artists'] != null && (json['artists'] as List).isNotEmpty)
             ? json['artists'][0]['id']
             : null,
+        popularityScore: json['popularity'],
       );
     }).toList();
   } else {
@@ -160,44 +190,25 @@ Future<List<Track>> _searchTracks(String? accessToken, String query, {int limit 
   }
 }
 
-  Future<List<Track>> fetchRecommendations(String? accessToken,
-      {String seedArtist = '4dpARuHxo51G3z768sgnrY', 
-       String seedGenre = 'pop', 
-       String seedTrack = '3n3Ppam7vgaVa1iaRUc9Lp'}) async {
-    final uri = Uri.https(
-      'api.spotify.com',
-      '/v1/recommendations',
-      {
-        'seed_artists': seedArtist,
-        'seed_genres': seedGenre,
-        'seed_tracks': seedTrack,
-        'limit': '10',
-      },
-    );
+  //Future<void> scorePopularTrack(Track track) async
 
-    final response = await http.get(
-      uri,
-      headers: {'Authorization': 'Bearer $accessToken'},
-    );
+  // Future<List<Track>> scoreAndSortTracks(Map<Track, double> allTracks, Map<Track, double> recTracks) async {
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final tracksJson = data['tracks'] as List;
-      return tracksJson.map((json) {
-        final artists = (json['artists'] as List)
-            .map((artist) => artist['name'])
-            .join(', ');
-        return Track(
-          name: json['name'],
-          artists: artists,
-          durationMs: json['duration_ms'],
-          explicit: json['explicit'],
-          url: json['external_urls']['spotify'],
-        );
-      }).toList();
-    } else {
-      throw Exception('Failed to fetch recommendations: ${response.body}');
-    }
-  }
+  //   for (var song in allTracks.entries) {
+  //     final track = song.key;
+  //     final score = song.value;
+
+      
+
+  //   }
+
+  //   for (var song in recTracks.entries) {
+  //     final track = song.key;
+  //     final score = song.value;
+  //     // Apply scoring logic here
+  //   }
+
+  // }
+
 
 }
