@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'recommendations.dart' show Recommendations, fetchTrackDetails;
+import 'recommendations.dart';
 
 //Track Class for holding track info
 class Track {
@@ -72,7 +72,6 @@ class SpotifyService {
 
     //Store the track and its score
     Map<Track, double> allTracks = {};
-    Map<Track, double> recTracks = {};
     
     // Search for popular tracks from different years and genres
     final searchQueries = [
@@ -91,10 +90,10 @@ class SpotifyService {
     
     for (String query in searchQueries) {
       try {
+        print("POPULAR SONGS");
         final tracks = await _searchTracks(accessToken, query, limit: 50);
         // Add tracks to allTracks with their popularity as score
         allTracks.addEntries(tracks.map((t) => MapEntry(t, (t.popularityScore ?? 0).toDouble())));
-        
         // Stop if we've reached ~1000 songs
         if (allTracks.length >= 500) {
           break;
@@ -110,8 +109,19 @@ class SpotifyService {
     for (var track in allTracks.entries.map((e) => e.key)) {
       final key = '${track.name}-${track.artists}';
       uniqueTracks[key] = track;
+      print("${track.name} by ${track.artists} SCORE: ${allTracks[track]}");
     }
     
+
+    // Shuffle to mix songs from different searches
+    final shuffledTracks = uniqueTracks.values.toList()..shuffle();
+    
+    return shuffledTracks;
+  }
+
+  Future<void> fetchRecommendedTracks(String? accessToken) async {
+    Map<Track, double> recTracks = {};
+    print("RECOMMENDED SONGS");
     //add user's recommended tracks
     final userRecSnapshot = await FirebaseFirestore.instance
         .collection('users')
@@ -123,17 +133,13 @@ class SpotifyService {
     for (var doc in userRecSnapshot.docs) {
       final data = doc.data();
       final recommendations = Recommendations.instance; // Use the appropriate named constructor
-      final track = await recommendations.fetchTrackDetails(data['trackId'], accessToken);
-      recTracks[track] = 0.0;
+      final track = await recommendations.fetchTrackDetails(doc.id, accessToken);
+      final score = (data['score'] as num?)?.toDouble() ?? 0.0;
+      recTracks[track] = score + 15.0;
+      print("${track.name} by ${track.artists} SCORE: ${data['score']}");
     }
-      
-    
-
-    // Shuffle to mix songs from different searches
-    final shuffledTracks = uniqueTracks.values.toList()..shuffle();
-    
-    return shuffledTracks;
   }
+      
 
 // Helper method to search for tracks
 Future<List<Track>> _searchTracks(String? accessToken, String query, {int limit = 50}) async {
@@ -190,17 +196,17 @@ Future<List<Track>> _searchTracks(String? accessToken, String query, {int limit 
   }
 }
 
-  //Future<void> scorePopularTrack(Track track) async
+  // Future<void> scoreRecTracks(Track track, double score) async {
+   
+  // }
 
-  // Future<List<Track>> scoreAndSortTracks(Map<Track, double> allTracks, Map<Track, double> recTracks) async {
+  // Future<List<Track>> sortTracks(Map<Track, double> allTracks, Map<Track, double> recTracks) async {
 
-  //   for (var song in allTracks.entries) {
-  //     final track = song.key;
-  //     final score = song.value;
-
-      
-
-  //   }
+  //   //sort the tracks based on their score
+  //   allTracks = Map.fromEntries(
+  //     allTracks.entries.toList()
+  //       ..sort((a, b) => b.value.compareTo(a.value)),
+  //   );
 
   //   for (var song in recTracks.entries) {
   //     final track = song.key;

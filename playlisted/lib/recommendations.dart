@@ -31,8 +31,6 @@ class Recommendations {
   //! Recomendation algorithm goes here!
 Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
   final recTrackIds = <Track, String>{};
-
-
   try {
     //for each liked or rated track, find co-liked tracks
     for (final likedId in likedOrRatedIDs) {
@@ -92,6 +90,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
       albumImageUrl: track.key.albumImageUrl,
       recommend: true,
       sourceTrackId: track.value, //indicate source of recommendation
+      score: track.key.popularityScore ?? 0, //placeholder score for now,
     );
   }
 }
@@ -106,6 +105,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
     String? albumImageUrl,
     required bool recommend,
     required String sourceTrackId, //the track that led to this recommendation
+    required int score,
   }) async {
     await _col.doc(trackId).set({
       'name': name,
@@ -193,6 +193,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
       artistId: (json['artists'] != null && (json['artists'] as List).isNotEmpty)
           ? json['artists'][0]['id']
           : null,
+      popularityScore: json['popularity'],
     );
   }
 
