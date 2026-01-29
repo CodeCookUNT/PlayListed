@@ -83,8 +83,13 @@ class _FriendsPageState extends State<FriendsPage> {
                     ),
                     IconButton(
                       icon: const Icon(Icons.account_box),
-                      onPressed: _addFriend,
-                    ),
+                      tooltip: 'Friend requests',
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const FriendRequestsPage()),
+                        );
+                     },
+                ),
             ],
           ),
         ),
@@ -295,6 +300,22 @@ class FriendRequestsPanel extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+class FriendRequestsPage extends StatelessWidget {
+  const FriendRequestsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Friend Requests')),
+      body: ListView(
+        padding: const EdgeInsets.only(top: 12),
+        children: const [
+          FriendRequestsPanel(),
+        ],
       ),
     );
   }
