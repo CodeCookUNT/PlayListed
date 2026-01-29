@@ -229,6 +229,7 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
   bool passwordVisible = false;
   bool confirmPasswordVisible = false;
   bool busy = false;
+  bool usernameError = false;
   
   late AnimationController _colorAnimationController;
   late Animation<Color?> _colorAnimation;
@@ -268,6 +269,14 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
       final lname = lastName.text.trim();
       final mail = email.text.trim();
       final password = pass.text;
+
+      if (ExplicitContentFilter.contatinsExplicitContent(uname)) {
+        if (mounted) { setState(() {busy = false; usernameError = true;}); }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Username contains explicit content.')),);
+        return; 
+      }
+      if (mounted) setState(() => usernameError = false);
 
       // Checking if user made username when making account containt any sort of explicit language, denying account creation if true until corrected.
       if (ExplicitContentFilter.contatinsExplicitContent(uname)) {
@@ -389,7 +398,20 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        TextField(controller: username, decoration: const InputDecoration(labelText: 'User Name')),
+                        TextField(
+                          controller: username,
+                          decoration: InputDecoration(
+                            labelText: 'Username',
+                            errorText: usernameError ? 'Username contains explicit content.' : null,
+                          ),
+                          onChanged: (value) {
+                            final trimmed = value.trim();
+                            final hasExplicit = ExplicitContentFilter.contatinsExplicitContent(trimmed);
+                            setState(() {
+                              usernameError = hasExplicit;
+                            });
+                          },
+                        ),
                         const SizedBox(height: 12),
                         TextField(controller: firstName, decoration: const InputDecoration(labelText: 'First Name')),
                         const SizedBox(height: 12),
