@@ -254,7 +254,7 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
       final mail = email.text.trim();
       final password = pass.text;
 
-      if (ExplicitContentFilter.contatinsExplicitContent(uname)) {
+      if (ExplicitContentFilter.containsExplicitContent(uname)) {
         if (mounted) { setState(() {busy = false; usernameError = true;}); }
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Username contains explicit content.')),);
@@ -263,7 +263,7 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
       if (mounted) setState(() => usernameError = false);
 
       // Checking if user made username when making account containt any sort of explicit language, denying account creation if true until corrected.
-      if (ExplicitContentFilter.contatinsExplicitContent(uname)) {
+      if (ExplicitContentFilter.containsExplicitContent(uname)) {
         if (mounted) setState(() => busy = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Username contains explicit content.')),
@@ -272,10 +272,10 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
       }
 
 
-      if (ExplicitContentFilter.contatinsExplicitContent(uname) ||
-          ExplicitContentFilter.contatinsExplicitContent(fname) ||
-          ExplicitContentFilter.contatinsExplicitContent(lname) ||
-          ExplicitContentFilter.contatinsExplicitContent(mail)) {
+      if (ExplicitContentFilter.containsExplicitContent(uname) ||
+          ExplicitContentFilter.containsExplicitContent(fname) ||
+          ExplicitContentFilter.containsExplicitContent(lname) ||
+          ExplicitContentFilter.containsExplicitContent(mail)) {
         if (mounted) setState(() => busy = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -390,7 +390,7 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
                           ),
                           onChanged: (value) {
                             final trimmed = value.trim();
-                            final hasExplicit = ExplicitContentFilter.contatinsExplicitContent(trimmed);
+                            final hasExplicit = ExplicitContentFilter.containsExplicitContent(trimmed);
                             setState(() {
                               usernameError = hasExplicit;
                             });

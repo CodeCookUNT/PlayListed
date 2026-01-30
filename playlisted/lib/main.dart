@@ -981,12 +981,16 @@ class ReviewDialog extends StatefulWidget {
 
 class _ReviewDialogState extends State<ReviewDialog> {
   static const int maxCharacters = 300;
+  String? reviewExplicitCheck;
+
 
   @override
   void initState() {
     super.initState();
     widget.reviewController.addListener(() {
-      setState(() {}); // Rebuild to update character count
+      setState(() {
+        reviewExplicitCheck = null;
+      }); 
     });
   }
 
@@ -1019,6 +1023,14 @@ class _ReviewDialogState extends State<ReviewDialog> {
               counterText: '$remainingChars characters remaining',
             ),
           ),
+          if (reviewExplicitCheck != null) ...[
+            SizedBox(height: 8),
+            Text(
+              reviewExplicitCheck!,
+              style: 
+                TextStyle(color: Colors.red, fontSize: 12),
+            ),
+          ],
         ],
       ),
       actions: [
@@ -1053,10 +1065,10 @@ class _ReviewDialogState extends State<ReviewDialog> {
             }
 
             // Check for explicit language when a user is adding a review to a song
-            if (ExplicitContentFilter.contatinsExplicitContent(review)) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Please remove explicit language from your review.')),
-              );
+            if (ExplicitContentFilter.containsExplicitContent(review)) {
+              setState(() {
+                reviewExplicitCheck = 'Please remove explicit language from your review.';
+              });
               return;
             }
             
