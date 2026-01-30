@@ -1065,7 +1065,7 @@ class _ReviewDialogState extends State<ReviewDialog> {
             }
 
             // Check for explicit language when a user is adding a review to a song
-            if (ExplicitContentFilter.contatinsExplicitContent(review)) {
+            if (ExplicitContentFilter.containsExplicitContent(review)) {
               setState(() {
                 reviewExplicitCheck = 'Please remove explicit language from your review.';
               });

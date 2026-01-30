@@ -55,7 +55,7 @@ class _ChatPageState extends State<ChatPage> {
     if (text.isEmpty) return;
 
     // Checking for explicit language when sending messages between users
-    if (ExplicitContentFilter.contatinsExplicitContent(text)) {
+    if (ExplicitContentFilter.containsExplicitContent(text)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please remove explicit content from your message.')),
       );
