@@ -339,12 +339,17 @@ class MyAppState extends ChangeNotifier {
       if(_trackCounter % 5 == 0){
         generateRecommendation();
       }
+      print('Current track index: $_trackCounter');
+      for(var track in _tempLikedTracks){
+        print('Temp liked track: $track');
+      }
       //update co-liked tracks every 10 tracks
       //! UNCOMMENT TO ENABLE CO-LIKED UPDATES
       //! Warning: May cause slower performance due to batch writes
-      // if(_trackCounter % 10 == 10){
-      //   _updateCoLiked(_tempLikedTracks, _likedOrRatedIDs);
-      // }
+      if(_trackCounter % 10 == 0){
+        print('Updating co-liked tracks...');
+        _updateCoLiked(_tempLikedTracks, _likedOrRatedIDs);
+      }
     } else {
       current = null;
     }
@@ -376,11 +381,13 @@ class MyAppState extends ChangeNotifier {
       favorites.add(current!);
       likedOrRated[current!.name] = 0.0; // Auto-rate favorite songs as 0.0
       _likedOrRatedIDs.add(current!.id!);
+      _tempLikedTracks.add(current!.id!);
       
     } else {
       favorites.removeWhere((t) => t.name == current!.name);
       likedOrRated.remove(current!.name);
       _likedOrRatedIDs.remove(current!.id!);
+      _tempLikedTracks.remove(current!.id!);
       Recommendations.instance.removeOneSongFromSource(current!.id!);
     }
     notifyListeners();
@@ -432,14 +439,35 @@ class MyAppState extends ChangeNotifier {
   }
 
   // update coliked tracks in batches to speedup process
-  Future<void> _updateCoLiked(List<String> tempLikedTracks, List<String> likedOrRatedIDs) async{
-    for (final newSongId in tempLikedTracks) {
-      await colikeService.updateCoLiked(
-        newSongId: newSongId,
-        existingLikedSongs: likedOrRatedIDs,
-      );
+  Future<void> _updateCoLiked(List<String> tempLikedTracks, List<String> likedOrRatedIDs) async {
+    if (tempLikedTracks.isEmpty) return;
+
+    //fetch user's existing co_liked pair IDs once to avoid per-pair queries
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    Set<String>? existingPairIds;
+    if (userId != null) {
+      try {
+        final snap = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .collection('co_liked')
+            .get();
+        existingPairIds = snap.docs.map((d) => d.id).toSet();
+      } catch (e) {
+        print('Error fetching existing user co_likes: $e');
+      }
     }
-  }
+
+    print('Updating co-liked for ${tempLikedTracks.length} new songs');
+    //use the new batch-optimized function
+    await colikeService.updateCoLikedBatch(
+      newSongIds: List.from(tempLikedTracks),
+      existingLikedSongs: likedOrRatedIDs,
+      existingPairIds: existingPairIds,
+    );
+
+    tempLikedTracks.clear();
+}
 
   void toggleDarkMode(bool enabled) {
     isDarkMode = enabled;
@@ -554,7 +582,7 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
           ),
         );
-      }
+      },
     );
   }
 }

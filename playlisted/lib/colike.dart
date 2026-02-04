@@ -138,4 +138,66 @@ Future<bool> hasUserColiked({
   }
 }
 
+
+//Optimized batch update: accept multiple newSongIds or a single one,
+//and a pre-fetched set of existing pair IDs to avoid per-pair queries.
+Future<void> updateCoLikedBatch({
+  required List<String> newSongIds,
+  required List<String> existingLikedSongs,
+  Set<String>? existingPairIds,
+}) async {
+  final firestore = FirebaseFirestore.instance;
+  final userId = FirebaseAuth.instance.currentUser!.uid;
+  final batch = firestore.batch();
+
+  //if existingPairIds not provided, fetch them once.
+  Set<String> userPairIdSet = existingPairIds ?? <String>{};
+  if (existingPairIds == null) {
+    final userColikesSnap = await firestore
+        .collection('users')
+        .doc(userId)
+        .collection('co_liked')
+        .get();
+    userPairIdSet = userColikesSnap.docs.map((d) => d.id).toSet();
+  }
+
+  for (final newSongId in newSongIds) {
+    for (final existingSong in existingLikedSongs) {
+      if (existingSong == newSongId) continue;
+
+      final pairId = generatePairId(newSongId, existingSong);
+      final pairRef = firestore.collection('co_liked').doc(pairId);
+      final userPairRef = firestore
+          .collection('users')
+          .doc(userId)
+          .collection('co_liked')
+          .doc(pairId);
+
+      //only create userPair doc if user hasn't coliked this pair yet.
+      if (!userPairIdSet.contains(pairId)) {
+        batch.set(userPairRef, {'colikedAt': FieldValue.serverTimestamp()});
+        //mark locally to avoid duplicate set within same batch
+        userPairIdSet.add(pairId);
+      }
+
+      batch.set(
+        pairRef,
+        {
+          'songA': pairId.split('__')[0],
+          'songB': pairId.split('__')[1],
+          'count': FieldValue.increment(1),
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+    }
+  }
+
+  try {
+    await batch.commit();
+  } catch (e) {
+    print('Error in updateCoLikedBatch: $e');
+  }
+}
+
 }

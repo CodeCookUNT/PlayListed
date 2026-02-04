@@ -130,6 +130,11 @@ class SpotifyService {
         .where('recommend', isEqualTo: true)
         .get();
 
+    if(userRecSnapshot.docs.isEmpty){
+      print("No recommended tracks found for user.");
+      return;
+    }
+
     for (var doc in userRecSnapshot.docs) {
       final data = doc.data();
       final recommendations = Recommendations.instance; // Use the appropriate named constructor
