@@ -114,6 +114,7 @@ class SongsList extends StatelessWidget {
     this.showFavoriteIcon = true,
   });
 
+  //This segment of code will appear when loading the song tab 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -234,6 +235,7 @@ class SongsList extends StatelessWidget {
                   style: theme.textTheme.titleMedium),
             ),
 
+            //This segment of code will display information about each song 
             for (final doc in items)
               ListTile(
                 key: ValueKey(doc['id']),
@@ -247,13 +249,19 @@ class SongsList extends StatelessWidget {
                           showFavoriteIcon ? Icons.favorite : Icons.library_music,
                         )
                       )
-                    : Icon(showFavoriteIcon ? Icons.favorite : Icons.library_music),
-                title: Text(doc['name'] ?? ''),
-                subtitle: Text(doc['artists'] ?? ''),
-
-                trailing: Row(
+                    : Icon(showFavoriteIcon ? Icons.favorite : Icons.library_music), 
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    Text(doc['name'] ?? ''),
+                    Text(
+                      doc['artists'] ?? '',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
                     StarRating(
                       rating: (doc['rating'] ?? 0).toDouble(),
                       onChanged: (r) => Favorites.instance.setRating(
@@ -263,13 +271,14 @@ class SongsList extends StatelessWidget {
                         albumImageUrl: doc['albumImageUrl'],
                         rating: r,
                       ),
-                      size: 20,
-                      spacing: 2,
+                      size: 16,
                     ),
-                    if (showFavoriteIcon)
-                      UnlikeButton(doc: doc, appState: appState)
-                    else
-                      IconButton(
+                  ],
+                ),
+               
+                trailing: showFavoriteIcon
+                    ? UnlikeButton(doc: doc, appState: appState)
+                    : IconButton(
                         icon: const Icon(Icons.delete_outline),
                         tooltip: 'Delete',
                         onPressed: () async {
@@ -295,8 +304,6 @@ class SongsList extends StatelessWidget {
                           }
                         },
                       ),
-                  ],
-                ),
               ),
           ],
         );
