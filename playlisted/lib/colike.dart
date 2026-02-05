@@ -35,60 +35,6 @@ class Colikes {
   }
 }
 
-  //update co-liked counts when a new song is liked
-Future<void> updateCoLiked({
-  required String newSongId,
-  required List<String> existingLikedSongs,
-}) async {
-  final firestore = FirebaseFirestore.instance;
-  final userId = FirebaseAuth.instance.currentUser!.uid;
-  final batch = firestore.batch();
-
-  for (final existingSong in existingLikedSongs) {
-    if (existingSong == newSongId) continue;
-
-    final pairId = generatePairId(newSongId, existingSong);
-    final pairRef = firestore.collection('co_liked').doc(pairId);
-    final userPairRef = firestore
-        .collection('users')
-        .doc(userId)
-        .collection('co_liked')
-        .doc(pairId);
-
-        //check if user has already coliked this pair
-        final userHasColiked = await hasUserColiked(pairId: pairId, userId: userId);
-        if(userHasColiked){
-          continue; //skip if user has already coliked this pair, avoid double counting
-        }
-        if (!userHasColiked) {
-
-          batch.set(
-            userPairRef,
-            {
-              'colikedAt': FieldValue.serverTimestamp(),
-            },
-          );
-        }
-
-    
-    batch.set(                                          
-      pairRef,
-      {
-        'songA': pairId.split('__')[0],
-        'songB': pairId.split('__')[1],
-        'count': FieldValue.increment(1),
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
-  }
-  try {
-    await batch.commit();
-  } catch (e) {
-    print('Error updating co-liked counts: $e');
-  }
-}
-
 //retrieve co-liked songs for a given song
 Future<List<QueryDocumentSnapshot>> getCoLikedSongs(
     String songId,
@@ -120,24 +66,23 @@ String extractOtherSong(String songId, Map<String, dynamic> data) {
       : data['songA'];
 }
 
-Future<bool> hasUserColiked({
-  required String pairId, required String userId
-}) async {
-  try{
-  final docRef = FirebaseFirestore.instance
-      .collection('users')
-      .doc(userId)
-      .collection('co_liked')
-      .doc(pairId);
+// Future<bool> hasUserColiked({
+//   required String pairId, required String userId
+// }) async {
+//   try{
+//   final docRef = FirebaseFirestore.instance
+//       .collection('users')
+//       .doc(userId)
+//       .collection('co_liked')
+//       .doc(pairId);
 
-  final snapshot = await docRef.get();
-  return snapshot.exists;
-  } catch(e){
-    print("Error $e");
-    return false;
-  }
-}
-
+//   final snapshot = await docRef.get();
+//   return snapshot.exists;
+//   } catch(e){
+//     print("Error $e");
+//     return false;
+//   }
+// }
 
 //Optimized batch update: accept multiple newSongIds or a single one,
 //and a pre-fetched set of existing pair IDs to avoid per-pair queries.

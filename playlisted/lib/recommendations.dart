@@ -31,6 +31,7 @@ class Recommendations {
   //! Recomendation algorithm goes here!
 Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
   final recTrackIds = <Track, String>{};
+
   try {
     //for each liked or rated track, find co-liked tracks
     for (final likedId in likedOrRatedIDs) {
@@ -50,7 +51,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
       for (final doc in q1.docs) {
         final data = doc.data();
         final songB = data['songB'];
-        if(hasUserAlreadyLiked(likedOrRatedIDs, songB)){
+        if(userPairIdSet.contains(doc.id)){
           continue; //skip if user has already liked/rated this track
         }
         if (songB != null) {
@@ -113,6 +114,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
       'albumImageUrl': albumImageUrl,
       'recommend': recommend,
       'sourceTrackId': sourceTrackId,
+      'score': score,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }

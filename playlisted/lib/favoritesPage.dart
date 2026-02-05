@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'favorites.dart';
 import 'main.dart' show MyAppState, StarRating;
 import 'main.dart' show MyAppState;
-import 'recommendations.dart';
 
 class MySongsPage extends StatelessWidget {
   MySongsPage({super.key});
