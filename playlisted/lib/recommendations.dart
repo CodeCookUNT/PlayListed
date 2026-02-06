@@ -51,7 +51,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
       for (final doc in q1.docs) {
         final data = doc.data();
         final songB = data['songB'];
-        if(userPairIdSet.contains(doc.id)){
+        if(hasUserAlreadyLiked(likedOrRatedIDs, songB)){
           continue; //skip if user has already liked/rated this track
         }
         if (songB != null) {
