@@ -236,10 +236,8 @@ class _SlidableListItemState extends State<SlidableListItem> {
         });
       },
       child: ClipRect(
-        child: Container(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          child: Stack(
-            children: [
+        child: Stack(
+          children: [
               // Red background with unlike button
               Positioned.fill(
                 child: Container(
@@ -278,6 +276,7 @@ class _SlidableListItemState extends State<SlidableListItem> {
                           }
                         }
                       },
+                      // Heart icon with hover effect
                       child: SizedBox(
                         width: 40,
                         child: Column(
@@ -303,7 +302,7 @@ class _SlidableListItemState extends State<SlidableListItem> {
                 transform: Matrix4.translationValues(_slideOffset, 0, 0),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Theme.of(context).scaffoldBackgroundColor,
+                    color: Colors.white,
                     border: Border(
                       bottom: BorderSide(
                         color: Theme.of(context).dividerColor.withOpacity(0.1),
@@ -383,7 +382,6 @@ class _SlidableListItemState extends State<SlidableListItem> {
             ],
           ),
         ),
-      ),
-    );
+      );
   }
 }
