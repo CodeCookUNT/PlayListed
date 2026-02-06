@@ -237,15 +237,7 @@ class _SlidableListItemState extends State<SlidableListItem> {
       },
       child: ClipRect(
         child: Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).scaffoldBackgroundColor,
-            border: Border(
-              bottom: BorderSide(
-                color: Colors.grey.withOpacity(0.2),
-                width: 1,
-              ),
-            ),
-          ),
+          color: Theme.of(context).scaffoldBackgroundColor,
           child: Stack(
             children: [
               // Red background with unlike button
@@ -310,7 +302,15 @@ class _SlidableListItemState extends State<SlidableListItem> {
                 curve: Curves.easeOut,
                 transform: Matrix4.translationValues(_slideOffset, 0, 0),
                 child: Container(
-                  color: Theme.of(context).scaffoldBackgroundColor,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    border: Border(
+                      bottom: BorderSide(
+                        color: Theme.of(context).dividerColor.withOpacity(0.1),
+                        width: 2,
+                      ),
+                    ),
+                  ),
                   child: ListTile(
                     leading: (widget.doc['albumImageUrl'] as String?) != null
                         ? Image.network(
