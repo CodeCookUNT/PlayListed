@@ -33,11 +33,11 @@ class _FriendsPageState extends State<FriendsPage> {
     });
 
     try {
-      await FriendsService.instance.addFriendByEmail(email.toLowerCase());
+      await FriendsService.instance.sendFriendRequest(email);
       _emailController.clear();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Friend added!')),
+        const SnackBar(content: Text('Friend request sent!')),
       );
     } catch (e) {
       setState(() {
