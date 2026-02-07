@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'resetpasswordpage.dart';
 import 'content_filter.dart';
 
 class LoginPage extends StatefulWidget {
@@ -84,36 +85,6 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
     }
   }
 
-  Future<void> resetPassword() async {
-    final input = emailOrUsername.text.trim();
-
-    if (input.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter your email first')),
-      );
-      return;
-    }
-
-    final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
-    if (!emailRegex.hasMatch(input)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid email address')),
-      );
-      return;
-    }
-
-    try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: input);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Password reset email sent to $input')),
-      );
-    } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? 'Failed to send reset email')),
-      );
-    }
-  }
-
   @override
   void dispose() {
     _colorAnimationController.dispose();
@@ -136,7 +107,8 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
                 end: Alignment.bottomRight,
                 colors: [
                   _colorAnimation.value ?? const Color(0xFF1583B7),
-                  _colorAnimation.value?.withOpacity(0.7) ?? const Color(0xFF1583B7).withOpacity(0.7),
+                  (_colorAnimation.value ?? const Color(0xFF1583B7))
+                      .withOpacity(0.7),
                   Colors.white,
                 ],
               ),
@@ -157,8 +129,9 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
                       children: [
                         TextField(
                           controller: emailOrUsername,
-                          decoration:
-                              const InputDecoration(labelText: 'Username or Email'),
+                          decoration: const InputDecoration(
+                            labelText: 'Username or Email',
+                          ),
                         ),
                         const SizedBox(height: 16),
                         TextField(
@@ -166,11 +139,14 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
                           decoration: InputDecoration(
                             labelText: 'Password',
                             suffixIcon: IconButton(
-                              icon: Icon(passwordVisible
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined),
-                              onPressed: () =>
-                                  setState(() => passwordVisible = !passwordVisible),
+                              icon: Icon(
+                                passwordVisible
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                              ),
+                              onPressed: () => setState(
+                                () => passwordVisible = !passwordVisible,
+                              ),
                             ),
                           ),
                           obscureText: !passwordVisible,
@@ -190,27 +166,35 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
                         ElevatedButton(
                           onPressed: () => Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (_) => const SignUpPage()),
+                            MaterialPageRoute(
+                              builder: (_) => const SignUpPage(),
+                            ),
                           ),
                           child: const Text('Create an account'),
                         ),
                         const SizedBox(height: 12),
                         ElevatedButton(
-                          onPressed: resetPassword,
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ResetPasswordPage(),
+                            ),
+                          ),
                           child: const Text('Forgot Password?'),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
 }
+}
+
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
