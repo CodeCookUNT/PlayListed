@@ -161,8 +161,28 @@ class _FriendsPageState extends State<FriendsPage> {
                       icon: const Icon(Icons.person_remove, color: Colors.red),
                       tooltip: 'Remove friend',
                       onPressed: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          title: const Text('Remove friend?'),
+                          content: Text('Remove $name from your friends list?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const Text('Remove'),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirm == true) {
                         await FriendsService.instance.removeFriend(friendUid);
-                      },
+                      }
+                    },
                     ),
                     onTap: () {
                       Navigator.of(context).push(
