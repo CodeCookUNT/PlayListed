@@ -157,6 +157,13 @@ class _FriendsPageState extends State<FriendsPage> {
                     ),
                     title: Text(name),
                     subtitle: const Text('Tap to open chat'),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.person_remove, color: Colors.red),
+                      tooltip: 'Remove friend',
+                      onPressed: () async {
+                        await FriendsService.instance.removeFriend(friendUid);
+                      },
+                    ),
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(

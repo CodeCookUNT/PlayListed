@@ -333,4 +333,27 @@ Future<void> cancelRequest(String requestId) async {
   batch.delete(theirIncomingRef);
   await batch.commit();
 }
+
+Future<void> removeFriend(String friendUid) async {
+  final current = _auth.currentUser;
+  if (current == null) return;
+
+  final myRef = _db
+      .collection('users')
+      .doc(current.uid)
+      .collection('friends')
+      .doc(friendUid);
+
+  final theirRef = _db
+      .collection('users')
+      .doc(friendUid)
+      .collection('friends')
+      .doc(current.uid);
+
+  final batch = _db.batch();
+  batch.delete(myRef);
+  batch.delete(theirRef);
+
+  await batch.commit();
+}
 }
