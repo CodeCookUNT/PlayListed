@@ -71,7 +71,7 @@ class SpotifyService {
   Future<List<Track>> fetchTopSongs(String? accessToken) async {
 
     //Store the track and its score
-    Map<Track, double> allTracks = {};
+    List<Track> allTracks = [];
     
     // Search for popular tracks from different years and genres
     final searchQueries = [
@@ -92,8 +92,7 @@ class SpotifyService {
       try {
         print("POPULAR SONGS");
         final tracks = await _searchTracks(accessToken, query, limit: 50);
-        // Add tracks to allTracks with their popularity as score
-        allTracks.addEntries(tracks.map((t) => MapEntry(t, (t.popularityScore ?? 0).toDouble())));
+        allTracks = tracks;
         // Stop if we've reached ~1000 songs
         if (allTracks.length >= 500) {
           break;
@@ -106,10 +105,10 @@ class SpotifyService {
     
     // Remove duplicates based on track name and artist
     final uniqueTracks = <String, Track>{};
-    for (var track in allTracks.entries.map((e) => e.key)) {
+    for (var track in allTracks) {
       final key = '${track.name}-${track.artists}';
       uniqueTracks[key] = track;
-      print("${track.name} by ${track.artists} SCORE: ${allTracks[track]}");
+      print("${track.name} by ${track.artists} SCORE: ${track.popularityScore}");
     }
     
 
@@ -120,7 +119,7 @@ class SpotifyService {
   }
 
   Future<void> fetchRecommendedTracks(String? accessToken) async {
-    Map<Track, double> recTracks = {};
+    List<Track> recTracks = [];
     print("RECOMMENDED SONGS");
     //add user's recommended tracks
     final userRecSnapshot = await FirebaseFirestore.instance
@@ -136,12 +135,12 @@ class SpotifyService {
     }
 
     for (var doc in userRecSnapshot.docs) {
-      final data = doc.data();
-      final recommendations = Recommendations.instance; // Use the appropriate named constructor
-      final track = await recommendations.fetchTrackDetails(doc.id, accessToken);
-      final score = (data['score'] as num?)?.toDouble() ?? 0.0;
-      recTracks[track] = score + 15.0;
-      print("${track.name} by ${track.artists} SCORE: ${data['score']}");
+      final recommendations = Recommendations.instance; //use the appropriate named constructor
+      final track = await recommendations.fetchTrackDetails(doc.id, accessToken); //fetch track, increment score by 15 for bias
+      recTracks.add(track);
+    }
+    for(Track track in recTracks){
+      print("${track.name} Score: ${track.popularityScore}");
     }
   }
       
@@ -201,25 +200,14 @@ Future<List<Track>> _searchTracks(String? accessToken, String query, {int limit 
   }
 }
 
-  // Future<void> scoreRecTracks(Track track, double score) async {
-   
-  // }
-
-  // Future<List<Track>> sortTracks(Map<Track, double> allTracks, Map<Track, double> recTracks) async {
-
-  //   //sort the tracks based on their score
-  //   allTracks = Map.fromEntries(
-  //     allTracks.entries.toList()
-  //       ..sort((a, b) => b.value.compareTo(a.value)),
-  //   );
-
-  //   for (var song in recTracks.entries) {
-  //     final track = song.key;
-  //     final score = song.value;
-  //     // Apply scoring logic here
-  //   }
-
-  // }
+Future<Map<Track,double>> sortRecommendedTracks(Map<Track, double> recommendedSongs) async{
+  // Sort the loaded songs by popularity score in descending order
+  Map<Track, double> sortedSongs = Map.fromEntries(recommendedSongs.entries.toList()..sort((a,b)=>b.value.compareTo(a.value)));
+  for (var track in sortedSongs.entries.map((e) => e.key)){
+    print("Track Name ${track.name}, Popularity Score: ${track.popularityScore}");
+  }
+  return sortedSongs;
+}
 
 
 }

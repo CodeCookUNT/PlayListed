@@ -30,7 +30,7 @@ class Recommendations {
   //Future: Function to get liked songs, then find patterns in the user's liked songs
   //! Recomendation algorithm goes here!
 Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
-  final recTrackIds = <Track, String>{};
+  final recTrackIds = <String, Map<String, dynamic>>{}; // trackId -> {track, sources}
 
   try {
     //for each liked or rated track, find co-liked tracks
@@ -55,7 +55,14 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
           continue; //skip if user has already liked/rated this track
         }
         if (songB != null) {
-          recTrackIds[await fetchTrackDetails(songB, accessToken)] = likedId;
+          final track = await fetchTrackDetails(songB, accessToken);
+          if (!recTrackIds.containsKey(songB)) {
+            recTrackIds[songB] = {
+              'track': track,
+              'sources': <String>{},
+            };
+          }
+          (recTrackIds[songB]!['sources'] as Set<String>).add(likedId);
         }
       }
 
@@ -75,23 +82,36 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
           continue; //skip if user has already liked/rated this track
         }
         if (songA != null) {
-          recTrackIds[await fetchTrackDetails(songA, accessToken)] = likedId;
+          final track = await fetchTrackDetails(songA, accessToken);
+          if (!recTrackIds.containsKey(songA)) {
+            recTrackIds[songA] = {
+              'track': track,
+              'sources': <String>{},
+            };
+          }
+          (recTrackIds[songA]!['sources'] as Set<String>).add(likedId);
         }
       }
     }
   } catch (e) {
     print('Error fetching co-liked tracks: $e');
   }
-  for (final track in recTrackIds.entries) {
-    print('Recommended Track: ${track.key.name} by ${track.key.artists}');
+  
+  for (final entry in recTrackIds.entries) {
+    final track = entry.value['track'] as Track;
+    final sources = entry.value['sources'] as Set<String>;
+    
+    print('Recommended Track: ${track.name} by ${track.artists}');
+    print('Sources: $sources');
+    
     await setRecommended(
-      trackId: track.key.id!,
-      name: track.key.name,
-      artists: track.key.artists,
-      albumImageUrl: track.key.albumImageUrl,
+      trackId: track.id!,
+      name: track.name,
+      artists: track.artists,
+      albumImageUrl: track.albumImageUrl,
       recommend: true,
-      sourceTrackId: track.value, //indicate source of recommendation
-      score: track.key.popularityScore ?? 0, //placeholder score for now,
+      sourceTrackIds: sources.toList(),
+      score: track.popularityScore ?? 0,
     );
   }
 }
@@ -105,7 +125,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
     required String artists,
     String? albumImageUrl,
     required bool recommend,
-    required String sourceTrackId, //the track that led to this recommendation
+    required List<String> sourceTrackIds, //the tracks that led to this recommendation
     required int score,
   }) async {
     await _col.doc(trackId).set({
@@ -113,7 +133,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
       'artists': artists,
       'albumImageUrl': albumImageUrl,
       'recommend': recommend,
-      'sourceTrackId': sourceTrackId,
+      'sourceTrackIds': sourceTrackIds,
       'score': score,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
@@ -132,7 +152,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
     
     //iterate though ids marked for deletion
     for (var sourceTrackId in sourceIdSToDel) {
-      final query = await _col.where('sourceTrackId', isEqualTo: sourceTrackId).get();
+      final query = await _col.where('sourceTrackIds', arrayContains: sourceTrackId).get();
       //iterate through tracks with a matching source id for deletion
       for (var doc in query.docs) {
         batch.delete(_col.doc(doc.id));
@@ -145,11 +165,18 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
   //function called to remove a single song from recommendations based on source track id
   //Called when a user likes, then unlikes a song
   Future<void> removeOneSongFromSource(String sourceIdToDel) async {
-    final query = await _col.where('sourceTrackId', isEqualTo: sourceIdToDel).get();
-      //iterate through tracks with a matching source id for deletion
-      for (var doc in query.docs) {
-        await _col.doc(doc.id).delete();
+    final query = await _col.where('sourceTrackIds', arrayContains: sourceIdToDel).get();
+    //iterate through tracks with a matching source id for deletion
+    for (var doc in query.docs) {
+      final sources = List<String>.from(doc['sourceTrackIds'] ?? []);
+      sources.remove(sourceIdToDel);
+      
+      if (sources.isEmpty) {
+        await _col.doc(doc.id).delete(); //delete if no more sources
+      } else {
+        await _col.doc(doc.id).update({'sourceTrackIds': sources});
       }
+    }
   }
 
   bool hasUserAlreadyLiked(List<String> likedOrRatedIDs, String trackId) {
@@ -195,7 +222,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
       artistId: (json['artists'] != null && (json['artists'] as List).isNotEmpty)
           ? json['artists'][0]['id']
           : null,
-      popularityScore: json['popularity'],
+      popularityScore: (json['popularity'] + 15.0 > 100) ? 100 : json['popularity'] + 15.0, //inc score by 15, cap to 100
     );
   }
 
