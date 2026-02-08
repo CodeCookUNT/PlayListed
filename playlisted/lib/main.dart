@@ -187,6 +187,8 @@ class MyAppState extends ChangeNotifier {
   //optional access token (fetched at app startup)
   String? accessToken;
   List<Track>? tracks = [];
+  List <Track> recTracks = [];
+  List<String> _tempLikedTracks = [];
   List<String> _deltracks= []; 
   Timer? _deleteTimer;
   int _trackCounter = 0;
@@ -239,6 +241,13 @@ class MyAppState extends ChangeNotifier {
       print('Finished loading ${likedOrRated.length} ratings');
     } catch (e) {
       print('Error loading user ratings: $e');
+    }
+  }
+
+  Future<void> loadRecommendations() async {
+    recTracks = await SpotifyService().fetchRecommendedTracks(accessToken);
+    for(Track track in recTracks){
+      print("Recommended Track: ${track.name} by ${track.artists} Score: ${track.popularityScore}");
     }
   }
 
@@ -326,7 +335,7 @@ class MyAppState extends ChangeNotifier {
     
   }
 
-  Track? current; // Changed to Track? instead of dynamic
+  Track? current; ////Changed to Track? instead of dynamic
   void getNext() {
     if (tracks != null && tracks!.isNotEmpty) {
       //cycle to next track
@@ -335,9 +344,17 @@ class MyAppState extends ChangeNotifier {
       current = tracks![nextIndex];
       //update track counter
       setTrackCounter(nextIndex);
-      // if(_trackCounter % 5 == 0){
-      //   generateRecommendation();
-      // }
+      //generate new recommendation every 5 tracks
+      print('Current track index: $_trackCounter');
+      //update co-liked tracks every 10 tracks
+      //! UNCOMMENT TO ENABLE CO-LIKED UPDATES
+      //! Warning: May cause slower performance due to batch writes
+      if(_trackCounter % 5 == 0){
+        print('Updating co-liked tracks...');
+        _updateCoLiked(_tempLikedTracks, _likedOrRatedIDs);
+        generateRecommendation();
+        _tempLikedTracks.clear();
+      }
     } else {
       current = null;
     }
@@ -369,15 +386,13 @@ class MyAppState extends ChangeNotifier {
       favorites.add(current!);
       likedOrRated[current!.name] = 0.0; // Auto-rate favorite songs as 0.0
       _likedOrRatedIDs.add(current!.id!);
-      //printLikedOrRatedIDs();
-      // colikeService.updateCoLiked(
-      //   newSongId: current!.id!,
-      //   existingLikedSongs: _likedOrRatedIDs,
-      // );
+      _tempLikedTracks.add(current!.id!);
+      
     } else {
       favorites.removeWhere((t) => t.name == current!.name);
       likedOrRated.remove(current!.name);
       _likedOrRatedIDs.remove(current!.id!);
+      _tempLikedTracks.remove(current!.id!);
       Recommendations.instance.removeOneSongFromSource(current!.id!);
     }
     notifyListeners();
@@ -418,7 +433,7 @@ class MyAppState extends ChangeNotifier {
       return;
     }
     else{
-      await recommendService.getRec(_likedOrRatedIDs);
+      await recommendService.getRec(_tempLikedTracks, accessToken);
     }
     notifyListeners();
   }
@@ -428,6 +443,34 @@ class MyAppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // update coliked tracks in batches to speedup process
+  Future<void> _updateCoLiked(List<String> tempLikedTracks, List<String> likedOrRatedIDs) async {
+    if (tempLikedTracks.isEmpty) return;
+
+    //fetch user's existing co_liked pair IDs once to avoid per-pair queries
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    Set<String>? existingPairIds;
+    if (userId != null) {
+      try {
+        final snap = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .collection('co_liked')
+            .get();
+        existingPairIds = snap.docs.map((d) => d.id).toSet();
+      } catch (e) {
+        print('Error fetching existing user co_likes: $e');
+      }
+    }
+
+    print('Updating co-liked for ${tempLikedTracks.length} new songs');
+    //use the new batch-optimized function
+    await colikeService.updateCoLikedBatch(
+      newSongIds: List.from(tempLikedTracks),
+      existingLikedSongs: likedOrRatedIDs,
+      existingPairIds: existingPairIds,
+    );
+}
 
   void toggleDarkMode(bool enabled) {
     isDarkMode = enabled;
@@ -453,8 +496,18 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
     // Load user's previous ratings from Firestore after login
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchRecommendedTracksAfterLogin();
       context.read<MyAppState>().loadUserRatings();
+      context.read<MyAppState>().loadRecommendations();
     });
+  }
+
+  Future<List<Track>> _fetchRecommendedTracksAfterLogin() async {
+    final appState = context.read<MyAppState>();
+    if (appState.accessToken != null) {
+      return await SpotifyService().fetchRecommendedTracks(appState.accessToken);
+    }
+    return [];
   }
 
   final pages = [
@@ -534,7 +587,7 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
           ),
         );
-      }
+      },
     );
   }
 }
