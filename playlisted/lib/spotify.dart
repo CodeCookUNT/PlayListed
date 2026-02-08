@@ -118,9 +118,8 @@ class SpotifyService {
     return shuffledTracks;
   }
 
-  Future<void> fetchRecommendedTracks(String? accessToken) async {
+  Future<List<Track>> fetchRecommendedTracks(String? accessToken) async {
     List<Track> recTracks = [];
-    print("RECOMMENDED SONGS");
     //add user's recommended tracks
     final userRecSnapshot = await FirebaseFirestore.instance
         .collection('users')
@@ -129,9 +128,12 @@ class SpotifyService {
         .where('recommend', isEqualTo: true)
         .get();
 
+    
+    print('Loading ${userRecSnapshot.docs.length} recommended tracks from Firestore');
+
     if(userRecSnapshot.docs.isEmpty){
       print("No recommended tracks found for user.");
-      return;
+      return [];
     }
 
     for (var doc in userRecSnapshot.docs) {
@@ -139,9 +141,10 @@ class SpotifyService {
       final track = await recommendations.fetchTrackDetails(doc.id, accessToken); //fetch track, increment score by 15 for bias
       recTracks.add(track);
     }
-    for(Track track in recTracks){
-      print("${track.name} Score: ${track.popularityScore}");
-    }
+    sortRecommendedTracks(recTracks);
+
+    print('Finished loading ${recTracks.length} recommended tracks');    
+    return recTracks; 
   }
       
 
@@ -200,12 +203,11 @@ Future<List<Track>> _searchTracks(String? accessToken, String query, {int limit 
   }
 }
 
-Future<Map<Track,double>> sortRecommendedTracks(Map<Track, double> recommendedSongs) async{
+Future<List<Track>> sortRecommendedTracks(List<Track> recommendedSongs) async{
   // Sort the loaded songs by popularity score in descending order
-  Map<Track, double> sortedSongs = Map.fromEntries(recommendedSongs.entries.toList()..sort((a,b)=>b.value.compareTo(a.value)));
-  for (var track in sortedSongs.entries.map((e) => e.key)){
-    print("Track Name ${track.name}, Popularity Score: ${track.popularityScore}");
-  }
+  final sortedSongs = recommendedSongs.toList()
+    ..sort((a, b) => b.popularityScore!.compareTo(a.popularityScore!));
+
   return sortedSongs;
 }
 

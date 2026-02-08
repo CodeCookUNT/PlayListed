@@ -186,6 +186,7 @@ class MyAppState extends ChangeNotifier {
   //optional access token (fetched at app startup)
   String? accessToken;
   List<Track>? tracks = [];
+  List <Track> recTracks = [];
   List<String> _tempLikedTracks = [];
   List<String> _deltracks= []; 
   Timer? _deleteTimer;
@@ -239,6 +240,13 @@ class MyAppState extends ChangeNotifier {
       print('Finished loading ${likedOrRated.length} ratings');
     } catch (e) {
       print('Error loading user ratings: $e');
+    }
+  }
+
+  Future<void> loadRecommendations() async {
+    recTracks = await SpotifyService().fetchRecommendedTracks(accessToken);
+    for(Track track in recTracks){
+      print("Recommended Track: ${track.name} by ${track.artists} Score: ${track.popularityScore}");
     }
   }
 
@@ -336,19 +344,15 @@ class MyAppState extends ChangeNotifier {
       //update track counter
       setTrackCounter(nextIndex);
       //generate new recommendation every 5 tracks
-      if(_trackCounter % 5 == 0){
-        generateRecommendation();
-      }
       print('Current track index: $_trackCounter');
-      for(var track in _tempLikedTracks){
-        print('Temp liked track: $track');
-      }
       //update co-liked tracks every 10 tracks
       //! UNCOMMENT TO ENABLE CO-LIKED UPDATES
       //! Warning: May cause slower performance due to batch writes
-      if(_trackCounter % 10 == 0){
+      if(_trackCounter % 5 == 0){
         print('Updating co-liked tracks...');
         _updateCoLiked(_tempLikedTracks, _likedOrRatedIDs);
+        generateRecommendation();
+        _tempLikedTracks.clear();
       }
     } else {
       current = null;
@@ -428,7 +432,7 @@ class MyAppState extends ChangeNotifier {
       return;
     }
     else{
-      await recommendService.getRec(_likedOrRatedIDs, accessToken);
+      await recommendService.getRec(_tempLikedTracks, accessToken);
     }
     notifyListeners();
   }
@@ -465,8 +469,6 @@ class MyAppState extends ChangeNotifier {
       existingLikedSongs: likedOrRatedIDs,
       existingPairIds: existingPairIds,
     );
-
-    tempLikedTracks.clear();
 }
 
   void toggleDarkMode(bool enabled) {
@@ -493,16 +495,18 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
     // Load user's previous ratings from Firestore after login
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<MyAppState>().loadUserRatings();
       _fetchRecommendedTracksAfterLogin();
+      context.read<MyAppState>().loadUserRatings();
+      context.read<MyAppState>().loadRecommendations();
     });
   }
 
-  Future<void> _fetchRecommendedTracksAfterLogin() async {
+  Future<List<Track>> _fetchRecommendedTracksAfterLogin() async {
     final appState = context.read<MyAppState>();
     if (appState.accessToken != null) {
-      await SpotifyService().fetchRecommendedTracks(appState.accessToken);
+      return await SpotifyService().fetchRecommendedTracks(appState.accessToken);
     }
+    return [];
   }
 
   final pages = [

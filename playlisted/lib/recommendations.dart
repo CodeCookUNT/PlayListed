@@ -30,6 +30,7 @@ class Recommendations {
   //Future: Function to get liked songs, then find patterns in the user's liked songs
   //! Recomendation algorithm goes here!
 Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
+  print("Generating recommendations based on liked/rated tracks: $likedOrRatedIDs");
   final recTrackIds = <String, Map<String, dynamic>>{}; // trackId -> {track, sources}
 
   try {
