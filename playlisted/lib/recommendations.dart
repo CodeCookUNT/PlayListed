@@ -30,7 +30,6 @@ class Recommendations {
   //Future: Function to get liked songs, then find patterns in the user's liked songs
   //! Recomendation algorithm goes here!
 Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
-  print("Generating recommendations based on liked/rated tracks: $likedOrRatedIDs");
   final recTrackIds = <String, Map<String, dynamic>>{}; // trackId -> {track, sources}
 
   try {
@@ -101,9 +100,6 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
   for (final entry in recTrackIds.entries) {
     final track = entry.value['track'] as Track;
     final sources = entry.value['sources'] as Set<String>;
-    
-    print('Recommended Track: ${track.name} by ${track.artists}');
-    print('Sources: $sources');
     
     await setRecommended(
       trackId: track.id!,
@@ -223,7 +219,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
       artistId: (json['artists'] != null && (json['artists'] as List).isNotEmpty)
           ? json['artists'][0]['id']
           : null,
-      popularityScore: (json['popularity'] + 15.0 > 100) ? 100 : json['popularity'] + 15.0, //inc score by 15, cap to 100
+      popularityScore: (json['popularity'] + 10.0 > 100) ? 100 : json['popularity'] + 15.0, //inc score by 10, cap to 100
     );
   }
 

@@ -246,9 +246,6 @@ class MyAppState extends ChangeNotifier {
 
   Future<void> loadRecommendations() async {
     recTracks = await SpotifyService().fetchRecommendedTracks(accessToken);
-    for(Track track in recTracks){
-      print("Recommended Track: ${track.name} by ${track.artists} Score: ${track.popularityScore}");
-    }
   }
 
   void setTrackCounter(int value){
@@ -286,12 +283,13 @@ class MyAppState extends ChangeNotifier {
     if (r <= 0) {
       likedOrRated.remove(k);
       favorites.removeWhere((x) => keyOf(x) == k);
-      
+      _likedOrRatedIDs.remove(t.id!);
+      _tempLikedTracks.remove(current!.id!);
+      Recommendations.instance.removeOneSongFromSource(current!.id!);
       // Remove from global ratings if track has an ID
       if (t.id != null) {
         final userId = FirebaseAuth.instance.currentUser?.uid;
         if (userId != null) {
-          Recommendations.instance.removeOneSongFromSource(current!.id!);
           GlobalRatings.instance.removeRating(
             trackId: t.id!,
             userId: userId,
@@ -303,6 +301,7 @@ class MyAppState extends ChangeNotifier {
     } else {
       likedOrRated[k] = r;
       _likedOrRatedIDs.add(t.id!);
+      _tempLikedTracks.add(current!.id!);
       if (!favorites.any((x) => keyOf(x) == k)) {
         favorites.add(t);
       }
@@ -346,7 +345,7 @@ class MyAppState extends ChangeNotifier {
       setTrackCounter(nextIndex);
       //generate new recommendation every 5 tracks
       print('Current track index: $_trackCounter');
-      //update co-liked tracks every 10 tracks
+      //update co-liked tracks every 5 tracks
       //! UNCOMMENT TO ENABLE CO-LIKED UPDATES
       //! Warning: May cause slower performance due to batch writes
       if(_trackCounter % 5 == 0){
@@ -445,7 +444,10 @@ class MyAppState extends ChangeNotifier {
 
   // update coliked tracks in batches to speedup process
   Future<void> _updateCoLiked(List<String> tempLikedTracks, List<String> likedOrRatedIDs) async {
-    if (tempLikedTracks.isEmpty) return;
+    //prevents clearing from MyAppState after call, since its async
+    final newTracks = List<String>.from(tempLikedTracks);
+
+    if (newTracks.isEmpty) return;
 
     //fetch user's existing co_liked pair IDs once to avoid per-pair queries
     final userId = FirebaseAuth.instance.currentUser?.uid;
@@ -463,10 +465,10 @@ class MyAppState extends ChangeNotifier {
       }
     }
 
-    print('Updating co-liked for ${tempLikedTracks.length} new songs');
+    print('Updating co-liked for ${newTracks.length} new songs');
     //use the new batch-optimized function
     await colikeService.updateCoLikedBatch(
-      newSongIds: List.from(tempLikedTracks),
+      newSongIds: List.from(newTracks),
       existingLikedSongs: likedOrRatedIDs,
       existingPairIds: existingPairIds,
     );
