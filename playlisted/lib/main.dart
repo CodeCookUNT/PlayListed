@@ -1179,7 +1179,7 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
     // Slide animation starts
     _slideAnimation = Tween<double>(
       begin: 0.0,
-      end: 132.0,
+      end: 103.0,
     ).animate(CurvedAnimation(
       parent: _animationController,
       curve: const Interval(0.25, 1.0, curve: Curves.easeOutCubic),
@@ -1227,11 +1227,11 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
     if (rating >= 4.8) {
       return const Color.fromARGB(255, 167, 228, 227); // Platium
     } else if (rating >= 4.0) {
-      return const Color.fromARGB(255, 193, 190, 60); // Gold
+      return const Color.fromARGB(255, 207, 204, 58); // Gold
     } else if (rating >= 3.0) {
-      return const Color.fromARGB(255, 135, 147, 147); // Silver
+      return const Color.fromARGB(255, 154, 168, 168); // Silver
     } else if (rating >= 2.0) {
-      return const Color.fromARGB(255, 153, 105, 1); // Bronze 
+      return const Color.fromARGB(255, 176, 141, 65); // Bronze 
     } else {
       return Colors.black;
     }
@@ -1246,14 +1246,14 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
     final artistStyle = theme.textTheme.titleMedium!.copyWith(
       color: theme.colorScheme.primary.withOpacity(0.8),
     );
-
+    
+    // Vinyl and jacket display
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Vinyl and jacket display
         if (widget.track.albumImageUrl != null)
           Padding(
-            padding: const EdgeInsets.only(bottom: 16.0),
+            padding: const EdgeInsets.only(bottom: 1.0),
             child: AnimatedBuilder(
               animation: _slideAnimation,
               builder: (context, child) {
@@ -1265,8 +1265,8 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
                       offset: Offset(_slideAnimation.value, 0),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
-                        width: 230,
-                        height: 230,
+                        width: 190,
+                        height: 190,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: _currentVinylColor,
@@ -1284,8 +1284,8 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
                             // Vinyl grooves
                             for (int i = 1; i <= 6; i++)
                               Container(
-                                width: 280 - (i * 30.0),
-                                height: 280 - (i * 30.0),
+                                width: 180 - (i * 30.0),
+                                height: 180 - (i * 30.0),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   border: Border.all(
@@ -1297,8 +1297,8 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
 
                             // Center label
                             Container(
-                              width: 80,
-                              height: 80,
+                              width: 60,
+                              height: 60,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: theme.colorScheme.primary,
@@ -1312,8 +1312,8 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
 
                             // Center hole
                             Container(
-                              width: 20,
-                              height: 20,
+                              width: 15,
+                              height: 15,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: Colors.black,
@@ -1326,8 +1326,8 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
                    
                     // Gray box that appear when image is loading and will be covered by the album image
                     Container(
-                      width: 250,
-                      height: 250,
+                      width: 200,
+                      height: 200,
                       decoration: BoxDecoration(
                         color: Colors.grey,
                       ),
@@ -1335,8 +1335,8 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
                     
                     // Album jacket/cover
                     Container(
-                      width: 250,
-                      height: 250,
+                      width: 200,
+                      height: 200,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(4.0),
                         boxShadow: [
@@ -1352,8 +1352,8 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
                         borderRadius: BorderRadius.circular(4.0),
                         child: Image.network(
                           widget.track.albumImageUrl!,
-                          width: 250,
-                          height: 250,
+                          width: 200,
+                          height: 200,
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) {
                             return Container(
