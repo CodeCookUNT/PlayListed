@@ -335,6 +335,12 @@ class MyAppState extends ChangeNotifier {
   }
 
   Track? current; ////Changed to Track? instead of dynamic
+
+  void setCurrentTrack(Track track) {
+    current = track;
+    notifyListeners();
+  }
+
   void getNext() {
     if (tracks != null && tracks!.isNotEmpty) {
       //cycle to next track
