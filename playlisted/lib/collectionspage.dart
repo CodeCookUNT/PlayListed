@@ -182,7 +182,7 @@ class _CollectionRowState extends State<_CollectionRow> {
 
   @override
   void dispose() {
-    _scrollController.dispose();   // <-- goes here
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -284,7 +284,7 @@ class _AlbumCover extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 140,
+        width: 180,
         clipBehavior: Clip.hardEdge,
         decoration: BoxDecoration(
           color: Colors.grey.shade800,
