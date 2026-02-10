@@ -272,15 +272,24 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
       }
 
 
-      if (ExplicitContentFilter.containsExplicitContent(uname) ||
-          ExplicitContentFilter.containsExplicitContent(fname) ||
-          ExplicitContentFilter.containsExplicitContent(lname) ||
-          ExplicitContentFilter.containsExplicitContent(mail)) {
+      final explicitInfo = <String>[];
+      if (ExplicitContentFilter.containsExplicitContent(fname)) {
+       explicitInfo.add('First Name');
+      }
+      if (ExplicitContentFilter.containsExplicitContent(lname)) {
+        explicitInfo.add('Last Name');
+      }
+      if (ExplicitContentFilter.containsExplicitContent(mail)) {
+        explicitInfo.add('Email');
+      }
+      
+      if (explicitInfo.isNotEmpty) {
         if (mounted) setState(() => busy = false);
+        final fields = explicitInfo.join(', ');
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content:
-                  Text('Password Must Follow Requirements Guideline.')),
+          SnackBar(
+              content: Text ('Please change or remove the explicit langauge from $fields.' )
+          ),
         );
         return;
       }
