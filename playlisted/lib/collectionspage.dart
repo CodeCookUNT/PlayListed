@@ -3,6 +3,34 @@ import 'package:provider/provider.dart';
 import 'main.dart' show MyAppState;
 import 'spotify.dart';
 
+//cache so the data stays loaded when switching pages
+class SpotifyCache {
+  static final SpotifyCache _instance = SpotifyCache._internal();
+  factory SpotifyCache() => _instance;
+  SpotifyCache._internal();
+
+  final Map<String, List<Track>> decadeTracks = {
+    'Popular Now': [],
+    '2020s': [],
+    '2010s': [],
+    '2000s': [],
+    '90s': [],
+    '80s': [],
+    '70s': [],
+    '60s': [],
+    '50s': [],
+  };
+
+  bool isLoaded = false;
+
+  void clear() {
+    for (var key in decadeTracks.keys) {
+      decadeTracks[key] = [];
+    }
+    isLoaded = false;
+  }
+}
+
 class CollectionsPage extends StatefulWidget {
   const CollectionsPage({super.key});
 
@@ -12,20 +40,11 @@ class CollectionsPage extends StatefulWidget {
 
 class _CollectionsPageState extends State<CollectionsPage> {
   final SpotifyService _spotifyService = SpotifyService();
+  final SpotifyCache _cache = SpotifyCache();
 
   String? _accessToken;
   bool _loading = true;
   String? _selectedTrackId;
-
-  final Map<String, List<Track>> decadeTracks = {
-    '60s': [],
-    '70s': [],
-    '80s': [],
-    '90s': [],
-    '2000s': [],
-    '2010s': [],
-    '2020s': [],
-  };
 
   @override
   void initState() {
@@ -34,33 +53,52 @@ class _CollectionsPageState extends State<CollectionsPage> {
   }
 
   Future<void> _loadSpotifyData() async {
+    if (_cache.isLoaded) {
+      setState(() {
+        _loading = false;
+      });
+      return;
+    }
+
     try {
       _accessToken = await _spotifyService.getAccessToken();
+      final futures = <Future<void>>[];
 
-      // Fetch 50 songs for each decade
+      futures.add(
+        _spotifyService
+            .fetchTopSongs(_accessToken, limit: 50)
+            .then((tracks) {
+          _cache.decadeTracks['Popular Now'] = tracks;
+        }),
+      );
+      // fetch 50 songs for each decade
       final decades = {
-        '60s': '1960-1969',
-        '70s': '1970-1979',
-        '80s': '1980-1989',
-        '90s': '1990-1999',
-        '2000s': '2000-2009',
-        '2010s': '2010-2019',
         '2020s': '2020-2029',
+        '2010s': '2010-2019',
+        '2000s': '2000-2009',
+        '90s': '1990-1999',
+        '80s': '1980-1989',
+        '70s': '1970-1979',
+        '60s': '1960-1969',
+        '50s': '1950-1959',
       };
 
       for (var entry in decades.entries) {
-        try {
-          final tracks = await _spotifyService.fetchTopSongs(
+        futures.add(
+          _spotifyService
+              .fetchTopSongs(
             _accessToken,
             yearRange: entry.value,
             limit: 50,
-          );
-          decadeTracks[entry.key] = tracks;
-          debugPrint('${entry.key}: Fetched ${tracks.length} tracks');
-        } catch (e) {
-          debugPrint('Error fetching ${entry.key}: $e');
-        }
+          )
+              .then((tracks) {
+            _cache.decadeTracks[entry.key] = tracks;
+          }),
+        );
       }
+
+      await Future.wait(futures);
+      _cache.isLoaded = true;
 
       setState(() {
         _loading = false;
@@ -75,11 +113,8 @@ class _CollectionsPageState extends State<CollectionsPage> {
 
   void _onTrackTapped(String? trackId) {
     setState(() {
-      if (_selectedTrackId == trackId) {
-        _selectedTrackId = null;
-      } else {
-        _selectedTrackId = trackId;
-      }
+      _selectedTrackId =
+          _selectedTrackId == trackId ? null : trackId;
     });
   }
 
@@ -94,7 +129,7 @@ class _CollectionsPageState extends State<CollectionsPage> {
             ? const Center(child: CircularProgressIndicator())
             : ListView(
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                children: decadeTracks.entries.map((entry) {
+                children: _cache.decadeTracks.entries.map((entry) {
                   return _CollectionRow(
                     title: entry.key,
                     tracks: entry.value,
@@ -108,7 +143,8 @@ class _CollectionsPageState extends State<CollectionsPage> {
   }
 }
 
-class _CollectionRow extends StatelessWidget {
+// Displays a horizontal list of album covers for a decade/category
+class _CollectionRow extends StatefulWidget {
   final String title;
   final List<Track> tracks;
   final String? selectedTrackId;
@@ -122,36 +158,108 @@ class _CollectionRow extends StatelessWidget {
   });
 
   @override
+  State<_CollectionRow> createState() => _CollectionRowState();
+}
+
+class _CollectionRowState extends State<_CollectionRow> {
+  final ScrollController _scrollController = ScrollController();
+
+  void _scrollLeft() {
+    _scrollController.animateTo(
+      _scrollController.offset - 300,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  }
+
+  void _scrollRight() {
+    _scrollController.animateTo(
+      _scrollController.offset + 300,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();   // <-- goes here
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (tracks.isEmpty) return const SizedBox.shrink();
+    if (widget.tracks.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              fontSize: 20,
-            ),
+            widget.title,
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                ),
           ),
         ),
         SizedBox(
           height: 180,
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            scrollDirection: Axis.horizontal,
-            itemCount: tracks.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
-            itemBuilder: (context, index) {
-              return _AlbumCover(
-                track: tracks[index],
-                isSelected: selectedTrackId == tracks[index].id,
-                onTap: () => onTrackTapped(tracks[index].id),
-              );
-            },
+          child: Stack(
+            children: [
+              ListView.separated(
+                controller: _scrollController,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 40),
+                scrollDirection: Axis.horizontal,
+                itemCount: widget.tracks.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  return _AlbumCover(
+                    track: widget.tracks[index],
+                    isSelected: widget.selectedTrackId ==
+                        widget.tracks[index].id,
+                    onTap: () => widget
+                        .onTrackTapped(widget.tracks[index].id),
+                  );
+                },
+              ),
+
+              // Left Arrow
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: IconButton(
+                    icon: const Icon(Icons.chevron_left,
+                        size: 32),
+                    color: Colors.black,
+                    onPressed: _scrollLeft,
+                  ),
+                ),
+              ),
+
+              // Right Arrow
+              Positioned(
+                right: 0,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: IconButton(
+                    icon: const Icon(Icons.chevron_right,
+                        size: 32),
+                    color: Colors.black,
+                    onPressed: _scrollRight,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 16),
@@ -181,13 +289,6 @@ class _AlbumCover extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.grey.shade800,
           borderRadius: BorderRadius.circular(6),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.4),
-              blurRadius: 8,
-              offset: const Offset(4, 4),
-            ),
-          ],
         ),
         child: Stack(
           children: [
@@ -224,51 +325,42 @@ class _AlbumCover extends StatelessWidget {
                       },
                     )
                   : const Center(
-                      child: Icon(
-                        Icons.album,
-                        size: 48,
-                        color: Colors.white54,
-                      ),
+                      child: Icon(Icons.album,
+                          size: 48,
+                          color: Colors.white54),
                     ),
             ),
             // Overlay with song info
             if (isSelected)
               Positioned.fill(
                 child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withOpacity(0.7),
-                        Colors.black.withOpacity(0.9),
-                      ],
-                    ),
-                  ),
+                  color: Colors.black.withOpacity(0.8),
                   padding: const EdgeInsets.all(12),
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment:
+                        MainAxisAlignment.center,
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
                     children: [
                       Text(
                         track.name,
                         style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white),
                         maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
+                        overflow:
+                            TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 8),
                       Text(
                         track.artists,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade300,
-                        ),
+                        style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.white70),
                         maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                        overflow:
+                            TextOverflow.ellipsis,
                       ),
                     ],
                   ),

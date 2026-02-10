@@ -201,6 +201,12 @@ class MyAppState extends ChangeNotifier {
   double ratingFor(Track t) => likedOrRated[keyOf(t)] ?? 0;
 
   var favorites = List<Track>.empty(growable: true);
+    void logout() {
+    accessToken = null;
+    //clears cached collections data so refreshes on next lpgin
+    SpotifyCache().clear();
+    notifyListeners();
+  }
 
 
   // Load user's likedOrRated from Firestore when app starts
@@ -1442,6 +1448,7 @@ void _openSettings(BuildContext context) {
             ElevatedButton(
               child: Text('Logout'),
               onPressed: () async {
+                context.read<MyAppState>().logout();
                 await FirebaseAuth.instance.signOut();
                 Navigator.of(context).pop();
               },
