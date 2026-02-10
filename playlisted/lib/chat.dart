@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'content_filter.dart';
 
 class ChatPage extends StatefulWidget {
   final String friendUid;
@@ -52,6 +53,14 @@ class _ChatPageState extends State<ChatPage> {
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
+
+    // Checking for explicit language when sending messages between users
+    if (ExplicitContentFilter.containsExplicitContent(text)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please remove explicit content from your message.')),
+      );
+      return;
+    }
 
     _controller.clear();
 

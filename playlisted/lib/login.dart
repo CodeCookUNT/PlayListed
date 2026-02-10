@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'resetPasswordPage.dart';
+import 'content_filter.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -9,19 +11,46 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => LoginPageState();
 }
 
-class LoginPageState extends State<LoginPage> {
+class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixin {
   final emailOrUsername = TextEditingController();
   final pass = TextEditingController();
   bool passwordVisible = false;
   bool busy = false;
+  
+  // Add these two animation variables
+  late AnimationController _colorAnimationController;
+  late Animation<Color?> _colorAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    _colorAnimationController = AnimationController(
+      duration: const Duration(seconds: 8),
+      vsync: this,
+    )..repeat(reverse: true);
+    
+    // Create color tween animation
+    _colorAnimation = ColorTween(
+      begin: const Color(0xFF1583B7),
+      end: const Color(0xFF6B48FF),
+    ).animate(_colorAnimationController);
+  }
 
   Future<void> _login() async {
     setState(() => busy = true);
 
     final input = emailOrUsername.text.trim();
+    final password = pass.text;
     String? emailToUse;
 
     try {
+      if (input.isEmpty || password.isEmpty) {
+        throw FirebaseAuthException(
+            code: 'empty-fields',
+            message: 'Please enter both email/username and password.');
+      }
+
       final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
       final isEmail = emailRegex.hasMatch(input);
 
@@ -56,38 +85,9 @@ class LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<void> resetPassword() async {
-    final input = emailOrUsername.text.trim();
-
-    if (input.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter your email first')),
-      );
-      return;
-    }
-
-    final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
-    if (!emailRegex.hasMatch(input)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid email address')),
-      );
-      return;
-    }
-
-    try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: input);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Password reset email sent to $input')),
-      );
-    } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? 'Failed to send reset email')),
-      );
-    }
-  }
-
   @override
   void dispose() {
+    _colorAnimationController.dispose();
     emailOrUsername.dispose();
     pass.dispose();
     super.dispose();
@@ -95,75 +95,106 @@ class LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Login')),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Card(
-            elevation: 8,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 400),
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: emailOrUsername,
-                    decoration:
-                        const InputDecoration(labelText: 'Username or Email'),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: pass,
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      suffixIcon: IconButton(
-                        icon: Icon(passwordVisible
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined),
-                        onPressed: () =>
-                            setState(() => passwordVisible = !passwordVisible),
-                      ),
-                    ),
-                    obscureText: !passwordVisible,
-                  ),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: busy ? null : _login,
-                    child: busy
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(),
-                          )
-                        : const Text('Login'),
-                  ),
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const SignUpPage()),
-                    ),
-                    child: const Text('Create an account'),
-                  ),
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                    onPressed: resetPassword,
-                    child: const Text('Forgot Password?'),
-                  ),
+    return AnimatedBuilder(
+      animation: _colorAnimation,
+      builder: (context, child) {
+        return Scaffold(
+          appBar: AppBar(title: const Text('Login')),
+          body: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  _colorAnimation.value ?? const Color(0xFF1583B7),
+                  (_colorAnimation.value ?? const Color(0xFF1583B7))
+                      .withOpacity(0.7),
+                  Colors.white,
                 ],
+              ),
+            ),
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Card(
+                  elevation: 8,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 400),
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextField(
+                          controller: emailOrUsername,
+                          decoration: const InputDecoration(
+                            labelText: 'Username or Email',
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: pass,
+                          decoration: InputDecoration(
+                            labelText: 'Password',
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                passwordVisible
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                              ),
+                              onPressed: () => setState(
+                                () => passwordVisible = !passwordVisible,
+                              ),
+                            ),
+                          ),
+                          obscureText: !passwordVisible,
+                        ),
+                        const SizedBox(height: 24),
+                        ElevatedButton(
+                          onPressed: busy ? null : _login,
+                          child: busy
+                              ? const SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(),
+                                )
+                              : const Text('Login'),
+                        ),
+                        const SizedBox(height: 12),
+                        ElevatedButton(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const SignUpPage(),
+                            ),
+                          ),
+                          child: const Text('Create an account'),
+                        ),
+                        const SizedBox(height: 12),
+                        ElevatedButton(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ResetPasswordPage(),
+                            ),
+                          ),
+                          child: const Text('Forgot Password?'),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
         ),
-      ),
-    );
-  }
+      );
+    },
+  );
 }
+}
+
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -172,7 +203,7 @@ class SignUpPage extends StatefulWidget {
   State<SignUpPage> createState() => SignUpPageState();
 }
 
-class SignUpPageState extends State<SignUpPage> {
+class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMixin {
   final firstName = TextEditingController();
   final lastName = TextEditingController();
   final username = TextEditingController();
@@ -182,6 +213,26 @@ class SignUpPageState extends State<SignUpPage> {
   bool passwordVisible = false;
   bool confirmPasswordVisible = false;
   bool busy = false;
+  bool usernameError = false;
+  
+  late AnimationController _colorAnimationController;
+  late Animation<Color?> _colorAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    _colorAnimationController = AnimationController(
+      duration: const Duration(seconds: 8),
+      vsync: this,
+    )..repeat(reverse: true);
+    
+    // Create color tween animation
+    _colorAnimation = ColorTween(
+      begin: const Color(0xFF1583B7),
+      end: const Color(0xFF6B48FF),
+    ).animate(_colorAnimationController);
+  }
 
   bool strongPassCheck(String password) {
     final hasUppercase = RegExp(r'[A-Z]').hasMatch(password);
@@ -203,12 +254,42 @@ class SignUpPageState extends State<SignUpPage> {
       final mail = email.text.trim();
       final password = pass.text;
 
-      if (!strongPassCheck(password)) {
+      if (ExplicitContentFilter.containsExplicitContent(uname)) {
+        if (mounted) { setState(() {busy = false; usernameError = true;}); }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Username contains explicit content.')),);
+        return; 
+      }
+      if (mounted) setState(() => usernameError = false);
+
+      // Checking if user made username when making account containt any sort of explicit language, denying account creation if true until corrected.
+      if (ExplicitContentFilter.containsExplicitContent(uname)) {
         if (mounted) setState(() => busy = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content:
-                  Text('Password Must Follow Requirements Guideline.')),
+          const SnackBar(content: Text('Username contains explicit content.')),
+        );
+        return;
+      }
+
+
+      final explicitInfo = <String>[];
+      if (ExplicitContentFilter.containsExplicitContent(fname)) {
+       explicitInfo.add('First Name');
+      }
+      if (ExplicitContentFilter.containsExplicitContent(lname)) {
+        explicitInfo.add('Last Name');
+      }
+      if (ExplicitContentFilter.containsExplicitContent(mail)) {
+        explicitInfo.add('Email');
+      }
+      
+      if (explicitInfo.isNotEmpty) {
+        if (mounted) setState(() => busy = false);
+        final fields = explicitInfo.join(', ');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text ('Please change or remove the explicit langauge from $fields.' )
+          ),
         );
         return;
       }
@@ -268,6 +349,7 @@ class SignUpPageState extends State<SignUpPage> {
 
   @override
   void dispose() {
+    _colorAnimationController.dispose();
     firstName.dispose();
     lastName.dispose();
     username.dispose();
@@ -279,76 +361,107 @@ class SignUpPageState extends State<SignUpPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Create account')),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Card(
-            elevation: 8,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 400),
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(controller: username, decoration: const InputDecoration(labelText: 'User Name')),
-                  const SizedBox(height: 12),
-                  TextField(controller: firstName, decoration: const InputDecoration(labelText: 'First Name')),
-                  const SizedBox(height: 12),
-                  TextField(controller: lastName, decoration: const InputDecoration(labelText: 'Last Name')),
-                  const SizedBox(height: 12),
-                  TextField(controller: email, decoration: const InputDecoration(labelText: 'Email'), keyboardType: TextInputType.emailAddress),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: pass,
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      helperText: 'At Least 8 Characters, One Uppercase Letter, Number, and Special Symbol.',
-                      suffixIcon: IconButton(
-                        icon: Icon(passwordVisible
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined),
-                        onPressed: () => setState(() =>
-                            passwordVisible = !passwordVisible),
-                      ),
-                    ),
-                    obscureText: !passwordVisible,
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: confirmPass,
-                    decoration: InputDecoration(
-                      labelText: 'Confirm Password',
-                      suffixIcon: IconButton(
-                        icon: Icon(confirmPasswordVisible
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined),
-                        onPressed: () => setState(() =>
-                            confirmPasswordVisible =
-                                !confirmPasswordVisible),
-                      ),
-                    ),
-                    obscureText: !confirmPasswordVisible,
-                  ),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: busy ? null : _create,
-                    child: busy
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator())
-                        : const Text('Finish'),
-                  ),
+    return AnimatedBuilder(
+      animation: _colorAnimation,
+      builder: (context, child) {
+        return Scaffold(
+          appBar: AppBar(title: const Text('Create account')),
+          body: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  _colorAnimation.value ?? const Color(0xFF1583B7),
+                  _colorAnimation.value?.withOpacity(0.7) ?? const Color(0xFF1583B7).withOpacity(0.7),
+                  Colors.white,
                 ],
               ),
             ),
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Card(
+                  elevation: 8,
+                  shape:
+                      RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 473),
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextField(
+                          controller: username,
+                          decoration: InputDecoration(
+                            labelText: 'Username',
+                            errorText: usernameError ? 'Username contains explicit content.' : null,
+                          ),
+                          onChanged: (value) {
+                            final trimmed = value.trim();
+                            final hasExplicit = ExplicitContentFilter.containsExplicitContent(trimmed);
+                            setState(() {
+                              usernameError = hasExplicit;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(controller: firstName, decoration: const InputDecoration(labelText: 'First Name')),
+                        const SizedBox(height: 12),
+                        TextField(controller: lastName, decoration: const InputDecoration(labelText: 'Last Name')),
+                        const SizedBox(height: 12),
+                        TextField(controller: email, decoration: const InputDecoration(labelText: 'Email'), keyboardType: TextInputType.emailAddress),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: pass,
+                          decoration: InputDecoration(
+                            labelText: 'Password',
+                            helperText: 'At Least 8 Characters, One Uppercase Letter, Number, and Special Symbol.',
+                            suffixIcon: IconButton(
+                              icon: Icon(passwordVisible
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined),
+                              onPressed: () => setState(() =>
+                                  passwordVisible = !passwordVisible),
+                            ),
+                          ),
+                          obscureText: !passwordVisible,
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: confirmPass,
+                          decoration: InputDecoration(
+                            labelText: 'Confirm Password',
+                            suffixIcon: IconButton(
+                              icon: Icon(confirmPasswordVisible
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined),
+                              onPressed: () => setState(() =>
+                                  confirmPasswordVisible =
+                                      !confirmPasswordVisible),
+                            ),
+                          ),
+                          obscureText: !confirmPasswordVisible,
+                        ),
+                        const SizedBox(height: 24),
+                        ElevatedButton(
+                          onPressed: busy ? null : _create,
+                          child: busy
+                              ? const SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator())
+                              : const Text('Finish'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

@@ -33,11 +33,11 @@ class _FriendsPageState extends State<FriendsPage> {
     });
 
     try {
-      await FriendsService.instance.addFriendByEmail(email.toLowerCase());
+      await FriendsService.instance.sendFriendRequest(email);
       _emailController.clear();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Friend added!')),
+        const SnackBar(content: Text('Friend request sent!')),
       );
     } catch (e) {
       setState(() {
@@ -64,7 +64,7 @@ class _FriendsPageState extends State<FriendsPage> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
-                    labelText: 'Add friend by Username or email',
+                    labelText: 'Send Request by Username or email',
                     border: OutlineInputBorder(),
                   ),
                   onSubmitted: (_) => _addFriend(),
@@ -81,6 +81,15 @@ class _FriendsPageState extends State<FriendsPage> {
                       icon: const Icon(Icons.person_add),
                       onPressed: _addFriend,
                     ),
+                    IconButton(
+                      icon: const Icon(Icons.account_box),
+                      tooltip: 'Friend requests',
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const FriendRequestsPage()),
+                        );
+                     },
+                ),
             ],
           ),
         ),
@@ -148,6 +157,33 @@ class _FriendsPageState extends State<FriendsPage> {
                     ),
                     title: Text(name),
                     subtitle: const Text('Tap to open chat'),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.person_remove, color: Colors.red),
+                      tooltip: 'Remove friend',
+                      onPressed: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          title: const Text('Remove friend?'),
+                          content: Text('Remove $name from your friends list?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const Text('Remove'),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirm == true) {
+                        await FriendsService.instance.removeFriend(friendUid);
+                      }
+                    },
+                    ),
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
@@ -165,6 +201,149 @@ class _FriendsPageState extends State<FriendsPage> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class FriendRequestsPanel extends StatelessWidget {
+  const FriendRequestsPanel({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Friend Requests',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+
+            // ---- Incoming requests ----
+            const Text('Incoming',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            StreamBuilder<List<Map<String, dynamic>>>(
+              stream: FriendsService.instance.incomingRequestsStream(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: CircularProgressIndicator(),
+                  );
+                }
+
+                final incoming = snapshot.data ?? [];
+                if (incoming.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text('No incoming requests'),
+                  );
+                }
+
+                return Column(
+                  children: incoming.map((req) {
+                    final requestId = req['requestId'] as String;
+                    final fromName =
+                        (req['fromName'] as String?) ?? 'Unknown';
+
+                    return ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(fromName),
+                      trailing: Wrap(
+                        spacing: 8,
+                        children: [
+                          TextButton(
+                            onPressed: () {
+                              FriendsService.instance
+                                  .declineRequest(requestId);
+                            },
+                            child: const Text('Decline'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () {
+                              FriendsService.instance
+                                  .acceptRequest(requestId);
+                            },
+                            child: const Text('Accept'),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+
+            const Divider(),
+
+            // ---- Outgoing requests ----
+            const Text('Outgoing',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            StreamBuilder<List<Map<String, dynamic>>>(
+              stream: FriendsService.instance.outgoingRequestsStream(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: CircularProgressIndicator(),
+                  );
+                }
+
+                final outgoing = snapshot.data ?? [];
+                if (outgoing.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text('No outgoing requests'),
+                  );
+                }
+
+                return Column(
+                  children: outgoing.map((req) {
+                    final requestId = req['requestId'] as String;
+                    final toName =
+                        (req['toName'] as String?) ?? 'Unknown';
+
+                    return ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(toName),
+                      subtitle: const Text('Pending'),
+                      trailing: TextButton(
+                        onPressed: () {
+                          FriendsService.instance
+                              .cancelRequest(requestId);
+                        },
+                        child: const Text('Cancel'),
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+class FriendRequestsPage extends StatelessWidget {
+  const FriendRequestsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Friend Requests')),
+      body: ListView(
+        padding: const EdgeInsets.only(top: 12),
+        children: const [
+          FriendRequestsPanel(),
+        ],
+      ),
     );
   }
 }

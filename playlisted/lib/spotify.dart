@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'recommendations.dart';
 
 //Track Class for holding track info
 class Track {
@@ -14,6 +17,7 @@ class Track {
   final String? releaseDate;
   final String? id;
   final String? artistId;
+  final int? popularityScore;
 
   Track({
     required this.name,
@@ -26,6 +30,7 @@ class Track {
     this.releaseDate,
     this.id,
     this.artistId,
+    this.popularityScore,
   });
 }
 
@@ -35,10 +40,13 @@ class Track {
 //! Replace the placeholder with actully numbers from the spotify devloper app or the number on I put in discord   
 
 class SpotifyService {
+
+  String get _uid => FirebaseAuth.instance.currentUser!.uid;
+
   Future<String> getAccessToken() async {
     final clientId = dotenv.env['SPOTIFY_CLIENT_ID']!;
     final clientSecret = dotenv.env['SPOTIFY_CLIENT_SECRET']!;
-    
+
     final credentials = base64Encode(utf8.encode('$clientId:$clientSecret'));
     
     final response = await http.post(
@@ -118,8 +126,10 @@ class SpotifyService {
     for (var track in allTracks) {
       final key = '${track.name}-${track.artists}';
       uniqueTracks[key] = track;
+      print("${track.name} by ${track.artists} SCORE: ${track.popularityScore}");
     }
     
+
     // Shuffle to mix songs from different searches
     final shuffledTracks = uniqueTracks.values.toList()..shuffle();
     
@@ -181,25 +191,13 @@ class SpotifyService {
     }
   }
 
-  Future<List<Track>> fetchRecommendations(String? accessToken,
-      {String seedArtist = '4dpARuHxo51G3z768sgnrY', 
-       String seedGenre = 'pop', 
-       String seedTrack = '3n3Ppam7vgaVa1iaRUc9Lp'}) async {
-    final uri = Uri.https(
-      'api.spotify.com',
-      '/v1/recommendations',
-      {
-        'seed_artists': seedArtist,
-        'seed_genres': seedGenre,
-        'seed_tracks': seedTrack,
-        'limit': '10',
-      },
-    );
+Future<List<Track>> sortRecommendedTracks(List<Track> recommendedSongs) async{
+  // Sort the loaded songs by popularity score in descending order
+  final sortedSongs = recommendedSongs.toList()
+    ..sort((a, b) => b.popularityScore!.compareTo(a.popularityScore!));
 
-    final response = await http.get(
-      uri,
-      headers: {'Authorization': 'Bearer $accessToken'},
-    );
+  return sortedSongs;
+}
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);

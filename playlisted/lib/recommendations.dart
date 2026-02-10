@@ -27,110 +27,94 @@ class Recommendations {
           .doc(_uid)
           .collection('recommendations');
 
-
-  //helper function to parse track json data into Track object
-  Track parseTrack(var data){
-    final artists = (data['artists'] as List)
-        .map((artist) => artist['name'])
-        .join(', ');
-
-    //get album image URL from the track's album
-    String? albumImageUrl;
-    if (data['album'] != null && data['album']['images'] != null) {
-      final images = data['album']['images'] as List;
-      if (images.isNotEmpty) {
-        albumImageUrl = images.length > 1 ? images[1]['url'] : images[0]['url'];
-      }
-    }
-    return Track(
-      name: data['name'],
-      artists: artists,
-      durationMs: data['duration_ms'],
-      albumImageUrl: albumImageUrl,
-      popularity: data['popularity'],
-      url: data['external_urls']['spotify'],
-      explicit: data['explicit'],
-      releaseDate: data['album'] != null ? data['album']['release_date'] : null,
-      id: data['id'],
-      artistId: (data['artists'] != null && (data['artists'] as List).isNotEmpty)
-          ? data['artists'][0]['id']
-          : null,
-    );
-  }
-
-  //helper function to get a tracks stats
-  Future<Track> getArtistPopularTrack(Track track, String? accessToken) async {
-    final Track popularTrack;
-    final uri = Uri.https(
-      'api.spotify.com',
-      '/v1/artists/${track.artistId}/top-tracks',
-      {'market': 'US'},
-    );
-
-    final response = await http.get(
-      uri,
-      headers: {'Authorization': 'Bearer $accessToken'},
-    );
-
-    if(response.statusCode == 200){
-      final data = jsonDecode(response.body);
-      final tracksJson = data['tracks'] as List;
-      if(tracksJson.isNotEmpty && tracksJson[0]['id'] != track.id){
-        //convert the most popular track json to Track object
-        popularTrack = parseTrack(tracksJson[0]);
-      }
-      else if(tracksJson.length > 1){
-        //if the most popular track is the same as the original, take the next popular
-        popularTrack = parseTrack(tracksJson[1]);
-      }
-      else{
-        popularTrack = track; //fallback to the original track if no top tracks found
-      }
-      return popularTrack;
-    }
-    else{
-      throw Exception('Failed to get artist top tracks: ${response.body}');
-    }
-
-  }
-
   //Future: Function to get liked songs, then find patterns in the user's liked songs
   //! Recomendation algorithm goes here!
-  Future<void> getRec(List<String> likedOrRatedIDs) async {
-    //get the liked songs from the user
-    //generate candidate recommendations based on coliked tracks
-    //filter out already liked songs
-    //rank recommendations based on similarity to liked songs
+Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
+  print('Generating new recommendations...');
 
-    final recommendedTrackIds = <String>{};
+  final recTrackIds = <String, Map<String, dynamic>>{}; // trackId -> {track, sources}
 
-    for(final likedId in likedOrRatedIDs){
-      // Get co-liked pairs for this liked song
-      final querySnapshotA = await FirebaseFirestore.instance
+  try {
+    //for each liked or rated track, find co-liked tracks
+    for (final likedId in likedOrRatedIDs) {
+
+      //2 CASES: songA is the likedId or songB is the likedId
+      //Cannot query songA OR songB in a single query, so we do two separate queries
+      
+      //songA == likedId
+      final q1 = await FirebaseFirestore.instance
           .collection('co_liked')
           .where('songA', isEqualTo: likedId)
+          .orderBy('count', descending: true)
+          .limit(3)
           .get();
-      final querySnapshotB = await FirebaseFirestore.instance
+
+      //extract songB from each document
+      for (final doc in q1.docs) {
+        final data = doc.data();
+        final songB = data['songB'];
+        if(hasUserAlreadyLiked(likedOrRatedIDs, songB)){
+          continue; //skip if user has already liked/rated this track
+        }
+        if (songB != null) {
+          final track = await fetchTrackDetails(songB, accessToken);
+          if (!recTrackIds.containsKey(songB)) {
+            recTrackIds[songB] = {
+              'track': track,
+              'sources': <String>{},
+            };
+          }
+          (recTrackIds[songB]!['sources'] as Set<String>).add(likedId);
+        }
+      }
+
+      //songB == likedId
+      final q2 = await FirebaseFirestore.instance
           .collection('co_liked')
           .where('songB', isEqualTo: likedId)
+          .orderBy('count', descending: true)
+          .limit(2)
           .get();
-      
-      final allDocs = [...querySnapshotA.docs, ...querySnapshotB.docs];
-      
-      // Process each co-liked pair
-      for(final doc in allDocs){
+
+      //extract songA from each document
+      for (final doc in q2.docs) {
         final data = doc.data();
-        final pairId = doc.id;  // pairId is the document ID
-        final count = data['count'] as int;
-        if(count < 4){ 
-          continue;
+        final songA = data['songA'];
+        if(hasUserAlreadyLiked(likedOrRatedIDs, songA)){
+          continue; //skip if user has already liked/rated this track
         }
-        print('Colike pairId: $pairId with count: $count');
+        if (songA != null) {
+          final track = await fetchTrackDetails(songA, accessToken);
+          if (!recTrackIds.containsKey(songA)) {
+            recTrackIds[songA] = {
+              'track': track,
+              'sources': <String>{},
+            };
+          }
+          (recTrackIds[songA]!['sources'] as Set<String>).add(likedId);
+        }
       }
     }
-    
-
+    print("Generated ${recTrackIds.length} new recommendations.");
+  } catch (e) {
+    print('Error fetching co-liked tracks: $e');
   }
+  
+  for (final entry in recTrackIds.entries) {
+    final track = entry.value['track'] as Track;
+    final sources = entry.value['sources'] as Set<String>;
+    
+    await setRecommended(
+      trackId: track.id!,
+      name: track.name,
+      artists: track.artists,
+      albumImageUrl: track.albumImageUrl,
+      recommend: true,
+      sourceTrackIds: sources.toList(),
+      score: track.popularityScore ?? 0,
+    );
+  }
+}
 
   //! Firestore functions to save recommended tracks for user
 
@@ -141,14 +125,16 @@ class Recommendations {
     required String artists,
     String? albumImageUrl,
     required bool recommend,
-    required String sourceTrackId, //the track that led to this recommendation
+    required List<String> sourceTrackIds, //the tracks that led to this recommendation
+    required int score,
   }) async {
     await _col.doc(trackId).set({
       'name': name,
       'artists': artists,
       'albumImageUrl': albumImageUrl,
       'recommend': recommend,
-      'sourceTrackId': sourceTrackId,
+      'sourceTrackIds': sourceTrackIds,
+      'score': score,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
@@ -166,7 +152,7 @@ class Recommendations {
     
     //iterate though ids marked for deletion
     for (var sourceTrackId in sourceIdSToDel) {
-      final query = await _col.where('sourceTrackId', isEqualTo: sourceTrackId).get();
+      final query = await _col.where('sourceTrackIds', arrayContains: sourceTrackId).get();
       //iterate through tracks with a matching source id for deletion
       for (var doc in query.docs) {
         batch.delete(_col.doc(doc.id));
@@ -179,21 +165,67 @@ class Recommendations {
   //function called to remove a single song from recommendations based on source track id
   //Called when a user likes, then unlikes a song
   Future<void> removeOneSongFromSource(String sourceIdToDel) async {
-    final query = await _col.where('sourceTrackId', isEqualTo: sourceIdToDel).get();
-      //iterate through tracks with a matching source id for deletion
-      for (var doc in query.docs) {
-        await _col.doc(doc.id).delete();
+    final query = await _col.where('sourceTrackIds', arrayContains: sourceIdToDel).get();
+    //iterate through tracks with a matching source id for deletion
+    for (var doc in query.docs) {
+      final sources = List<String>.from(doc['sourceTrackIds'] ?? []);
+      sources.remove(sourceIdToDel);
+      
+      if (sources.isEmpty) {
+        await _col.doc(doc.id).delete(); //delete if no more sources
+      } else {
+        await _col.doc(doc.id).update({'sourceTrackIds': sources});
       }
+    }
   }
 
-  // Future<void> recDeleteTrack({required String trackId}) async {
-  //   await _col.doc(trackId).delete();
-  // }
-
-
-  void addRecTrackToList(Track recTrack, List<Track>? tracks, int currIndex){
-    //get the appstates list and insert a recommended track
-    tracks?.insert(currIndex+5, recTrack);
+  bool hasUserAlreadyLiked(List<String> likedOrRatedIDs, String trackId) {
+    return likedOrRatedIDs.contains(trackId);
   }
+
+  //Fetch the track details from Spotify API given only the track ID
+  Future<Track> fetchTrackDetails(String trackId, String? accessToken) async {
+    //get the track details from Spotify API
+    final uri = Uri.https(
+      'api.spotify.com',
+      '/v1/tracks/$trackId',
+    );
+
+    final response = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $accessToken'},
+    );
+    if(response.statusCode != 200){
+      throw Exception('Failed to fetch track details: ${response.body}');
+    }
+    final json = jsonDecode(response.body);
+    final artists = (json['artists'] as List)
+        .map((artist) => artist['name'])
+        .join(', ');
+    String? albumImageUrl;
+    if (json['album'] != null &&
+        json['album']['images'] != null &&
+        (json['album']['images'] as List).isNotEmpty) {
+      albumImageUrl = json['album']['images'][0]['url'];
+    }
+    //return Track object
+    return Track(
+      name: json['name'],
+      artists: artists,
+      durationMs: json['duration_ms'],
+      explicit: json['explicit'],
+      url: json['external_urls']['spotify'],
+      albumImageUrl: albumImageUrl,
+      popularity: json['popularity'],
+      releaseDate: json['album'] != null ? json['album']['release_date'] : null,
+      id: json['id'],
+      artistId: (json['artists'] != null && (json['artists'] as List).isNotEmpty)
+          ? json['artists'][0]['id']
+          : null,
+      popularityScore: (json['popularity'] + 10.0 > 100) ? 100 : json['popularity'] + 15.0, //inc score by 10, cap to 100
+    );
+  }
+
+  
 
 }

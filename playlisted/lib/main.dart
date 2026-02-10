@@ -24,6 +24,7 @@ import 'friends.dart';
 import 'chat.dart';
 import 'dart:collection';
 import 'dart:async';
+import 'content_filter.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -188,6 +189,8 @@ class MyAppState extends ChangeNotifier {
   //optional access token (fetched at app startup)
   String? accessToken;
   List<Track>? tracks = [];
+  List <Track> recTracks = [];
+  List<String> _tempLikedTracks = [];
   List<String> _deltracks= []; 
   Timer? _deleteTimer;
   int _trackCounter = 0;
@@ -249,6 +252,10 @@ class MyAppState extends ChangeNotifier {
     }
   }
 
+  Future<void> loadRecommendations() async {
+    recTracks = await SpotifyService().fetchRecommendedTracks(accessToken);
+  }
+
   void setTrackCounter(int value){
     _trackCounter = value;
   }
@@ -284,12 +291,13 @@ class MyAppState extends ChangeNotifier {
     if (r <= 0) {
       likedOrRated.remove(k);
       favorites.removeWhere((x) => keyOf(x) == k);
-      
+      _likedOrRatedIDs.remove(t.id!);
+      _tempLikedTracks.remove(current!.id!);
+      Recommendations.instance.removeOneSongFromSource(current!.id!);
       // Remove from global ratings if track has an ID
       if (t.id != null) {
         final userId = FirebaseAuth.instance.currentUser?.uid;
         if (userId != null) {
-          Recommendations.instance.removeOneSongFromSource(current!.id!);
           GlobalRatings.instance.removeRating(
             trackId: t.id!,
             userId: userId,
@@ -301,6 +309,7 @@ class MyAppState extends ChangeNotifier {
     } else {
       likedOrRated[k] = r;
       _likedOrRatedIDs.add(t.id!);
+      _tempLikedTracks.add(current!.id!);
       if (!favorites.any((x) => keyOf(x) == k)) {
         favorites.add(t);
       }
@@ -333,7 +342,13 @@ class MyAppState extends ChangeNotifier {
     
   }
 
-  Track? current; // Changed to Track? instead of dynamic
+  Track? current; ////Changed to Track? instead of dynamic
+
+  void setCurrentTrack(Track track) {
+    current = track;
+    notifyListeners();
+  }
+
   void getNext() {
     if (tracks != null && tracks!.isNotEmpty) {
       //cycle to next track
@@ -342,9 +357,16 @@ class MyAppState extends ChangeNotifier {
       current = tracks![nextIndex];
       //update track counter
       setTrackCounter(nextIndex);
-      // if(_trackCounter % 5 == 0){
-      //   generateRecommendation();
-      // }
+      //generate new recommendation every 5 tracks
+      //update co-liked tracks every 5 tracks
+      //! UNCOMMENT TO ENABLE CO-LIKED UPDATES
+      //! Warning: May cause slower performance due to batch writes
+      if(_trackCounter % 5 == 0){
+        print('Updating co-liked tracks...');
+        _updateCoLiked(_tempLikedTracks, _likedOrRatedIDs);
+        generateRecommendation();
+        _tempLikedTracks.clear();
+      }
     } else {
       current = null;
     }
@@ -376,15 +398,13 @@ class MyAppState extends ChangeNotifier {
       favorites.add(current!);
       likedOrRated[current!.name] = 0.0; // Auto-rate favorite songs as 0.0
       _likedOrRatedIDs.add(current!.id!);
-      //printLikedOrRatedIDs();
-      // colikeService.updateCoLiked(
-      //   newSongId: current!.id!,
-      //   existingLikedSongs: _likedOrRatedIDs,
-      // );
+      _tempLikedTracks.add(current!.id!);
+      
     } else {
       favorites.removeWhere((t) => t.name == current!.name);
       likedOrRated.remove(current!.name);
       _likedOrRatedIDs.remove(current!.id!);
+      _tempLikedTracks.remove(current!.id!);
       Recommendations.instance.removeOneSongFromSource(current!.id!);
     }
     notifyListeners();
@@ -425,7 +445,7 @@ class MyAppState extends ChangeNotifier {
       return;
     }
     else{
-      await recommendService.getRec(_likedOrRatedIDs);
+      await recommendService.getRec(_tempLikedTracks, accessToken);
     }
     notifyListeners();
   }
@@ -435,6 +455,37 @@ class MyAppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // update coliked tracks in batches to speedup process
+  Future<void> _updateCoLiked(List<String> tempLikedTracks, List<String> likedOrRatedIDs) async {
+    //prevents clearing from MyAppState after call, since its async
+    final newTracks = List<String>.from(tempLikedTracks);
+
+    if (newTracks.isEmpty) return;
+
+    //fetch user's existing co_liked pair IDs once to avoid per-pair queries
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    Set<String>? existingPairIds;
+    if (userId != null) {
+      try {
+        final snap = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .collection('co_liked')
+            .get();
+        existingPairIds = snap.docs.map((d) => d.id).toSet();
+      } catch (e) {
+        print('Error fetching existing user co_likes: $e');
+      }
+    }
+
+    print('Updating co-liked for ${newTracks.length} new songs');
+    //use the new batch-optimized function
+    await colikeService.updateCoLikedBatch(
+      newSongIds: List.from(newTracks),
+      existingLikedSongs: likedOrRatedIDs,
+      existingPairIds: existingPairIds,
+    );
+}
 
   void toggleDarkMode(bool enabled) {
     isDarkMode = enabled;
@@ -460,8 +511,18 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
     // Load user's previous ratings from Firestore after login
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchRecommendedTracksAfterLogin();
       context.read<MyAppState>().loadUserRatings();
+      context.read<MyAppState>().loadRecommendations();
     });
+  }
+
+  Future<List<Track>> _fetchRecommendedTracksAfterLogin() async {
+    final appState = context.read<MyAppState>();
+    if (appState.accessToken != null) {
+      return await SpotifyService().fetchRecommendedTracks(appState.accessToken);
+    }
+    return [];
   }
 
   final pages = [
@@ -542,7 +603,7 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
           ),
         );
-      }
+      },
     );
   }
 }
@@ -989,12 +1050,16 @@ class ReviewDialog extends StatefulWidget {
 
 class _ReviewDialogState extends State<ReviewDialog> {
   static const int maxCharacters = 300;
+  String? reviewExplicitCheck;
+
 
   @override
   void initState() {
     super.initState();
     widget.reviewController.addListener(() {
-      setState(() {}); // Rebuild to update character count
+      setState(() {
+        reviewExplicitCheck = null;
+      }); 
     });
   }
 
@@ -1027,6 +1092,14 @@ class _ReviewDialogState extends State<ReviewDialog> {
               counterText: '$remainingChars characters remaining',
             ),
           ),
+          if (reviewExplicitCheck != null) ...[
+            SizedBox(height: 8),
+            Text(
+              reviewExplicitCheck!,
+              style: 
+                TextStyle(color: Colors.red, fontSize: 12),
+            ),
+          ],
         ],
       ),
       actions: [
@@ -1057,6 +1130,14 @@ class _ReviewDialogState extends State<ReviewDialog> {
             final review = widget.reviewController.text.trim();
             if (review.isEmpty) {
               Navigator.of(context).pop();
+              return;
+            }
+
+            // Check for explicit language when a user is adding a review to a song
+            if (ExplicitContentFilter.containsExplicitContent(review)) {
+              setState(() {
+                reviewExplicitCheck = 'Please remove explicit language from your review.';
+              });
               return;
             }
             
@@ -1114,7 +1195,7 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
     // Slide animation starts
     _slideAnimation = Tween<double>(
       begin: 0.0,
-      end: 132.0,
+      end: 103.0,
     ).animate(CurvedAnimation(
       parent: _animationController,
       curve: const Interval(0.25, 1.0, curve: Curves.easeOutCubic),
@@ -1162,11 +1243,11 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
     if (rating >= 4.8) {
       return const Color.fromARGB(255, 167, 228, 227); // Platium
     } else if (rating >= 4.0) {
-      return const Color.fromARGB(255, 193, 190, 60); // Gold
+      return const Color.fromARGB(255, 207, 204, 58); // Gold
     } else if (rating >= 3.0) {
-      return const Color.fromARGB(255, 135, 147, 147); // Silver
+      return const Color.fromARGB(255, 154, 168, 168); // Silver
     } else if (rating >= 2.0) {
-      return const Color.fromARGB(255, 153, 105, 1); // Bronze 
+      return const Color.fromARGB(255, 176, 141, 65); // Bronze 
     } else {
       return Colors.black;
     }
@@ -1181,14 +1262,14 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
     final artistStyle = theme.textTheme.titleMedium!.copyWith(
       color: theme.colorScheme.primary.withOpacity(0.8),
     );
-
+    
+    // Vinyl and jacket display
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Vinyl and jacket display
         if (widget.track.albumImageUrl != null)
           Padding(
-            padding: const EdgeInsets.only(bottom: 16.0),
+            padding: const EdgeInsets.only(bottom: 1.0),
             child: AnimatedBuilder(
               animation: _slideAnimation,
               builder: (context, child) {
@@ -1200,8 +1281,8 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
                       offset: Offset(_slideAnimation.value, 0),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
-                        width: 230,
-                        height: 230,
+                        width: 190,
+                        height: 190,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: _currentVinylColor,
@@ -1219,8 +1300,8 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
                             // Vinyl grooves
                             for (int i = 1; i <= 6; i++)
                               Container(
-                                width: 280 - (i * 30.0),
-                                height: 280 - (i * 30.0),
+                                width: 180 - (i * 30.0),
+                                height: 180 - (i * 30.0),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   border: Border.all(
@@ -1232,8 +1313,8 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
 
                             // Center label
                             Container(
-                              width: 80,
-                              height: 80,
+                              width: 60,
+                              height: 60,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: theme.colorScheme.primary,
@@ -1247,8 +1328,8 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
 
                             // Center hole
                             Container(
-                              width: 20,
-                              height: 20,
+                              width: 15,
+                              height: 15,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: Colors.black,
@@ -1261,8 +1342,8 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
                    
                     // Gray box that appear when image is loading and will be covered by the album image
                     Container(
-                      width: 250,
-                      height: 250,
+                      width: 200,
+                      height: 200,
                       decoration: BoxDecoration(
                         color: Colors.grey,
                       ),
@@ -1270,8 +1351,8 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
                     
                     // Album jacket/cover
                     Container(
-                      width: 250,
-                      height: 250,
+                      width: 200,
+                      height: 200,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(4.0),
                         boxShadow: [
@@ -1287,8 +1368,8 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
                         borderRadius: BorderRadius.circular(4.0),
                         child: Image.network(
                           widget.track.albumImageUrl!,
-                          width: 250,
-                          height: 250,
+                          width: 200,
+                          height: 200,
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) {
                             return Container(

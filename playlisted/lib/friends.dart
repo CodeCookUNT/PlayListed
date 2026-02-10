@@ -42,34 +42,31 @@ class FriendsService {
         .map((snap) => snap.docs.map((d) => d.data()).toList());
   }
 
-  /// Add a friend by their email (simple v1, no requests, just mutual friendship).
-  Future<void> addFriendByEmail(String email) async {
+    Future<void> sendFriendRequest(String input) async {
     final current = _auth.currentUser;
     if (current == null) {
       throw Exception('You must be logged in to add friends.');
     }
 
-    final input = email.trim().toLowerCase();
-    if (input.isEmpty) {
+    final normalized = input.trim().toLowerCase();
+    if (normalized.isEmpty) {
       throw Exception('Enter a username or email.');
     }
-    if (current.email != null && current.email!.toLowerCase() == input) {
-      throw Exception('You cannot add yourself.');
-    }
 
+    // lookup user by email OR username (same logic as addFriendByEmail)
     QuerySnapshot<Map<String, dynamic>> query;
 
     final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
-    final isEmail = emailRegex.hasMatch(input);
+    final isEmail = emailRegex.hasMatch(normalized);
 
     if (isEmail) {
       query = await _db
           .collection('users')
-          .where('email', isEqualTo: input)
+          .where('email', isEqualTo: normalized)
           .limit(1)
           .get();
     } else {
-      final unameDoc = await _db.collection('usernames').doc(input).get();
+      final unameDoc = await _db.collection('usernames').doc(normalized).get();
       if (!unameDoc.exists) {
         throw Exception('No user found with that username or email.');
       }
@@ -90,47 +87,273 @@ class FriendsService {
     final otherData = otherDoc.data();
     final friendUid = otherDoc.id;
 
+    if (friendUid == current.uid) {
+      throw Exception('You cannot add yourself.');
+    }
+
+    // prevent duplicate requests
+    final existingOutgoing = await _db
+        .collection('users')
+        .doc(current.uid)
+        .collection('outgoing_requests')
+        .doc(friendUid)
+        .get();
+    if (existingOutgoing.exists) return;
+
+    final existingIncoming = await _db
+    .collection('users')
+    .doc(current.uid)
+    .collection('incoming_requests')
+    .doc(friendUid)
+    .get();
+
+    if (existingIncoming.exists) {
+      throw Exception('They already sent you a request — check Incoming requests.');
+    }
+    // prevent requesting someone you're already friends with
+    final existingFriend = await _db
+        .collection('users')
+        .doc(current.uid)
+        .collection('friends')
+        .doc(friendUid)
+        .get();
+    if (existingFriend.exists && existingFriend.data()?['status'] == 'accepted') {
+      return;
+    }
+
     final friendName =
-        (otherData['username'] as String?) ??  // prefer username
+        (otherData['username'] as String?) ??
         (otherData['displayName'] as String?) ??
         (otherData['email'] as String?) ??
         'Friend';
 
     final friendPhotoUrl = otherData['photoUrl'] as String?;
 
+    final myName = current.displayName ??
+        (current.email?.split('@').first ?? 'You');
+
     final now = Timestamp.now();
 
-    final myRef = _db
+    final myOutgoingRef = _db
         .collection('users')
         .doc(current.uid)
-        .collection('friends')
+        .collection('outgoing_requests')
         .doc(friendUid);
 
-    final theirRef = _db
+    final theirIncomingRef = _db
         .collection('users')
         .doc(friendUid)
-        .collection('friends')
+        .collection('incoming_requests')
         .doc(current.uid);
 
     final batch = _db.batch();
 
-    batch.set(myRef, {
-      'friendUid': friendUid,
-      'friendName': friendName,
-      'friendPhotoUrl': friendPhotoUrl,
-      'status': 'accepted',
+    batch.set(myOutgoingRef, {
+      'fromUid': current.uid,
+      'toUid': friendUid,
+      'toName': friendName,
+      'toPhotoUrl': friendPhotoUrl,
+      'status': 'pending',
       'createdAt': now,
-    }, SetOptions(merge: true));
+    });
 
-    batch.set(theirRef, {
-      'friendUid': current.uid,
-      'friendName': current.displayName ??
-          (current.email?.split('@').first ?? 'You'),
-      'friendPhotoUrl': current.photoURL,
-      'status': 'accepted',
+    batch.set(theirIncomingRef, {
+      'fromUid': current.uid,
+      'toUid': friendUid,
+      'fromName': myName,
+      'fromPhotoUrl': current.photoURL,
+      'status': 'pending',
       'createdAt': now,
-    }, SetOptions(merge: true));
+    });
 
     await batch.commit();
   }
+
+  /// Add a friend by their email (simple v1, no requests, just mutual friendship).
+  Future<void> addFriendByEmail(String email) async {
+    await sendFriendRequest(email);
+  }
+
+  // Friend request features to work on
+
+Stream<List<Map<String, dynamic>>> incomingRequestsStream() {
+  final user = _auth.currentUser;
+  if (user == null) return Stream.value([]);
+
+  return _db
+      .collection('users')
+      .doc(_uid)
+      .collection('incoming_requests')
+      .where('status', isEqualTo: 'pending')
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map(
+        (snap) => snap.docs.map((d) {
+          final data = d.data();
+          return {...data, 'requestId': d.id};
+        }).toList(),
+      );
+}
+
+Stream<List<Map<String, dynamic>>> outgoingRequestsStream() {
+  final user = _auth.currentUser;
+  if (user == null) return Stream.value([]);
+
+  return _db
+      .collection('users')
+      .doc(_uid)
+      .collection('outgoing_requests')
+      .where('status', isEqualTo: 'pending')
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map(
+        (snap) => snap.docs.map((d) {
+          final data = d.data();
+          return {...data, 'requestId': d.id};
+        }).toList(),
+      );
+}
+
+Future<void> acceptRequest(String requestId) async {
+  final current = _auth.currentUser;
+  if (current == null) return;
+
+  final otherUid = requestId;
+
+  final incomingRef = _db
+      .collection('users')
+      .doc(current.uid)
+      .collection('incoming_requests')
+      .doc(otherUid);
+
+  final outgoingRef = _db
+      .collection('users')
+      .doc(otherUid)
+      .collection('outgoing_requests')
+      .doc(current.uid);
+
+  final incomingSnap = await incomingRef.get();
+  if (!incomingSnap.exists) return;
+
+  final otherUserSnap =
+      await _db.collection('users').doc(otherUid).get();
+  final otherData = otherUserSnap.data() ?? {};
+
+  final otherName =
+      otherData['username'] ??
+      otherData['displayName'] ??
+      otherData['email'] ??
+      'Friend';
+
+  final myName = current.displayName ??
+      (current.email?.split('@').first ?? 'You');
+
+  final now = Timestamp.now();
+
+  final myFriendRef = _db
+      .collection('users')
+      .doc(current.uid)
+      .collection('friends')
+      .doc(otherUid);
+
+  final theirFriendRef = _db
+      .collection('users')
+      .doc(otherUid)
+      .collection('friends')
+      .doc(current.uid);
+
+  final batch = _db.batch();
+
+  batch.set(myFriendRef, {
+    'friendUid': otherUid,
+    'friendName': otherName,
+    'friendPhotoUrl': otherData['photoUrl'],
+    'status': 'accepted',
+    'createdAt': now,
+  }, SetOptions(merge: true));
+
+  batch.set(theirFriendRef, {
+    'friendUid': current.uid,
+    'friendName': myName,
+    'friendPhotoUrl': current.photoURL,
+    'status': 'accepted',
+    'createdAt': now,
+  }, SetOptions(merge: true));
+
+  batch.delete(incomingRef);
+  batch.delete(outgoingRef);
+
+  await batch.commit();
+}
+
+Future<void> declineRequest(String requestId) async {
+  final current = _auth.currentUser;
+  if (current == null) return;
+
+  final otherUid = requestId;
+
+  final incomingRef = _db
+      .collection('users')
+      .doc(current.uid)
+      .collection('incoming_requests')
+      .doc(otherUid);
+
+  final outgoingRef = _db
+      .collection('users')
+      .doc(otherUid)
+      .collection('outgoing_requests')
+      .doc(current.uid);
+
+  final batch = _db.batch();
+  batch.delete(incomingRef);
+  batch.delete(outgoingRef);
+  await batch.commit();
+}
+
+Future<void> cancelRequest(String requestId) async {
+  final current = _auth.currentUser;
+  if (current == null) return;
+
+  final otherUid = requestId;
+
+  final myOutgoingRef = _db
+      .collection('users')
+      .doc(current.uid)
+      .collection('outgoing_requests')
+      .doc(otherUid);
+
+  final theirIncomingRef = _db
+      .collection('users')
+      .doc(otherUid)
+      .collection('incoming_requests')
+      .doc(current.uid);
+
+  final batch = _db.batch();
+  batch.delete(myOutgoingRef);
+  batch.delete(theirIncomingRef);
+  await batch.commit();
+}
+
+Future<void> removeFriend(String friendUid) async {
+  final current = _auth.currentUser;
+  if (current == null) return;
+
+  final myRef = _db
+      .collection('users')
+      .doc(current.uid)
+      .collection('friends')
+      .doc(friendUid);
+
+  final theirRef = _db
+      .collection('users')
+      .doc(friendUid)
+      .collection('friends')
+      .doc(current.uid);
+
+  final batch = _db.batch();
+  batch.delete(myRef);
+  batch.delete(theirRef);
+
+  await batch.commit();
+}
 }

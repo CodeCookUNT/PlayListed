@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'searchfunctions.dart';
 import 'spotify.dart';
+import 'package:provider/provider.dart';
+import 'main.dart';
+
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -28,7 +31,7 @@ class _SearchPageState extends State<SearchPage> {
 
     try {
       // Try song search first
-      List<Track> songs = await _searchFunctions.searchSongs(query);
+      final songs = await _searchFunctions.searchSongs(query);
 
       if (songs.isNotEmpty) {
         setState(() {
@@ -38,9 +41,7 @@ class _SearchPageState extends State<SearchPage> {
         return;
       }
 
-      // Otherwise try artist search
-      List<Track> artistTracks =
-          await _searchFunctions.searchArtistTopSongs(query);
+      final artistTracks = await _searchFunctions.searchArtistTopSongs(query);
 
       setState(() {
         _results = artistTracks;
@@ -50,8 +51,18 @@ class _SearchPageState extends State<SearchPage> {
       setState(() {
         _isLoading = false;
       });
-      print("Search error: $e");
+      print('Search error: $e');
     }
+  }
+
+void _openSongInteraction(Track track) {
+    context.read<MyAppState>().setCurrentTrack(track);
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SongInteractionPage(),
+      ),
+    );
   }
 
   @override
@@ -64,7 +75,7 @@ class _SearchPageState extends State<SearchPage> {
             TextField(
               controller: _controller,
               decoration: InputDecoration(
-                labelText: "Search for a song or artist",
+                labelText: 'Search for a song or artist',
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.search),
                   onPressed: _doSearch,
@@ -73,8 +84,7 @@ class _SearchPageState extends State<SearchPage> {
             ),
             const SizedBox(height: 20),
 
-            if (_isLoading)
-              const Center(child: CircularProgressIndicator()),
+            if (_isLoading) const Center(child: CircularProgressIndicator()),
 
             if (!_isLoading)
               Expanded(
@@ -83,6 +93,7 @@ class _SearchPageState extends State<SearchPage> {
                   itemBuilder: (context, index) {
                     final track = _results[index];
                     return ListTile(
+                      onTap: () => _openSongInteraction(track),
                       leading: track.albumImageUrl != null
                           ? Image.network(track.albumImageUrl!)
                           : const Icon(Icons.music_note),
@@ -91,7 +102,7 @@ class _SearchPageState extends State<SearchPage> {
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          SizedBox(width: 16),
+                          const SizedBox(width: 16),
                           if (track.url != null)
                             CircleAvatar(
                               radius: 20,
@@ -116,6 +127,21 @@ class _SearchPageState extends State<SearchPage> {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class SongInteractionPage extends StatelessWidget {
+  const SongInteractionPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('PlayListed')),
+      body: Container(
+        color: context.watch<MyAppState>().backgroundColor,
+        child: GeneratorPage(),
       ),
     );
   }
