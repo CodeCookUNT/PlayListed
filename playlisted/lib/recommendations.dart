@@ -30,6 +30,8 @@ class Recommendations {
   //Future: Function to get liked songs, then find patterns in the user's liked songs
   //! Recomendation algorithm goes here!
 Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
+  print('Generating new recommendations...');
+
   final recTrackIds = <String, Map<String, dynamic>>{}; // trackId -> {track, sources}
 
   try {
@@ -71,7 +73,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
           .collection('co_liked')
           .where('songB', isEqualTo: likedId)
           .orderBy('count', descending: true)
-          .limit(3)
+          .limit(2)
           .get();
 
       //extract songA from each document
@@ -93,6 +95,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
         }
       }
     }
+    print("Generated ${recTrackIds.length} new recommendations.");
   } catch (e) {
     print('Error fetching co-liked tracks: $e');
   }

@@ -350,7 +350,6 @@ class MyAppState extends ChangeNotifier {
       //update track counter
       setTrackCounter(nextIndex);
       //generate new recommendation every 5 tracks
-      print('Current track index: $_trackCounter');
       //update co-liked tracks every 5 tracks
       //! UNCOMMENT TO ENABLE CO-LIKED UPDATES
       //! Warning: May cause slower performance due to batch writes
