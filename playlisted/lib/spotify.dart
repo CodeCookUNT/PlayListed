@@ -126,7 +126,8 @@ class SpotifyService {
     for (var track in allTracks) {
       final key = '${track.name}-${track.artists}';
       uniqueTracks[key] = track;
-      print("${track.name} by ${track.artists} SCORE: ${track.popularityScore}");
+      print("${track.name} by ${track.artists} SCORE: ${track.popularityScore}"); 
+      //need to take a look at this to see if we need it printed or not
     }
     
 
@@ -179,6 +180,7 @@ class SpotifyService {
           url: json['external_urls']['spotify'],
           albumImageUrl: albumImageUrl,
           popularity: json['popularity'],
+          popularityScore: json['popularity'],
           releaseDate: json['album'] != null ? json['album']['release_date'] : null,
           id: json['id'],
           artistId: (json['artists'] != null && (json['artists'] as List).isNotEmpty)
@@ -199,23 +201,4 @@ Future<List<Track>> sortRecommendedTracks(List<Track> recommendedSongs) async{
   return sortedSongs;
 }
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final tracksJson = data['tracks'] as List;
-      return tracksJson.map((json) {
-        final artists = (json['artists'] as List)
-            .map((artist) => artist['name'])
-            .join(', ');
-        return Track(
-          name: json['name'],
-          artists: artists,
-          durationMs: json['duration_ms'],
-          explicit: json['explicit'],
-          url: json['external_urls']['spotify'],
-        );
-      }).toList();
-    } else {
-      throw Exception('Failed to fetch recommendations: ${response.body}');
-    }
-  }
 }

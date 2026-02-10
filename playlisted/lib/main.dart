@@ -253,7 +253,7 @@ class MyAppState extends ChangeNotifier {
   }
 
   Future<void> loadRecommendations() async {
-    recTracks = await SpotifyService().fetchRecommendedTracks(accessToken);
+    recTracks = await SpotifyService().fetchTopSongs(accessToken);
   }
 
   void setTrackCounter(int value){
@@ -520,7 +520,7 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<List<Track>> _fetchRecommendedTracksAfterLogin() async {
     final appState = context.read<MyAppState>();
     if (appState.accessToken != null) {
-      return await SpotifyService().fetchRecommendedTracks(appState.accessToken);
+      return await SpotifyService().fetchTopSongs(appState.accessToken);
     }
     return [];
   }
