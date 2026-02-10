@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'main.dart' show MyAppState;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'spotify.dart';
 
 //cache so the data stays loaded when switching pages
@@ -71,6 +72,7 @@ class _CollectionsPageState extends State<CollectionsPage> {
           _cache.decadeTracks['Popular Now'] = tracks;
         }),
       );
+
       // fetch 50 songs for each decade
       final decades = {
         '2020s': '2020-2029',
@@ -113,18 +115,15 @@ class _CollectionsPageState extends State<CollectionsPage> {
 
   void _onTrackTapped(String? trackId) {
     setState(() {
-      _selectedTrackId =
-          _selectedTrackId == trackId ? null : trackId;
+      _selectedTrackId = _selectedTrackId == trackId ? null : trackId;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final appState = context.watch<MyAppState>();
-
     return SafeArea(
       child: Scaffold(
-        backgroundColor: appState.backgroundColor,
+        backgroundColor: Colors.white,
         body: _loading
             ? const Center(child: CircularProgressIndicator())
             : ListView(
@@ -194,8 +193,7 @@ class _CollectionRowState extends State<_CollectionRow> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Text(
             widget.title,
             style: Theme.of(context)
@@ -213,23 +211,18 @@ class _CollectionRowState extends State<_CollectionRow> {
             children: [
               ListView.separated(
                 controller: _scrollController,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 40),
+                padding: const EdgeInsets.symmetric(horizontal: 40),
                 scrollDirection: Axis.horizontal,
                 itemCount: widget.tracks.length,
-                separatorBuilder: (_, __) =>
-                    const SizedBox(width: 12),
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
                 itemBuilder: (context, index) {
                   return _AlbumCover(
                     track: widget.tracks[index],
-                    isSelected: widget.selectedTrackId ==
-                        widget.tracks[index].id,
-                    onTap: () => widget
-                        .onTrackTapped(widget.tracks[index].id),
+                    isSelected: widget.selectedTrackId == widget.tracks[index].id,
+                    onTap: () => widget.onTrackTapped(widget.tracks[index].id),
                   );
                 },
               ),
-
               // Left Arrow
               Positioned(
                 left: 0,
@@ -237,14 +230,12 @@ class _CollectionRowState extends State<_CollectionRow> {
                 bottom: 0,
                 child: Center(
                   child: IconButton(
-                    icon: const Icon(Icons.chevron_left,
-                        size: 32),
+                    icon: const Icon(Icons.chevron_left, size: 32),
                     color: Colors.black,
                     onPressed: _scrollLeft,
                   ),
                 ),
               ),
-
               // Right Arrow
               Positioned(
                 right: 0,
@@ -252,8 +243,7 @@ class _CollectionRowState extends State<_CollectionRow> {
                 bottom: 0,
                 child: Center(
                   child: IconButton(
-                    icon: const Icon(Icons.chevron_right,
-                        size: 32),
+                    icon: const Icon(Icons.chevron_right, size: 32),
                     color: Colors.black,
                     onPressed: _scrollRight,
                   ),
@@ -268,7 +258,7 @@ class _CollectionRowState extends State<_CollectionRow> {
   }
 }
 
-class _AlbumCover extends StatelessWidget {
+class _AlbumCover extends StatefulWidget {
   final Track track;
   final bool isSelected;
   final VoidCallback onTap;
@@ -280,9 +270,163 @@ class _AlbumCover extends StatelessWidget {
   });
 
   @override
+  State<_AlbumCover> createState() => _AlbumCoverState();
+}
+
+class _AlbumCoverState extends State<_AlbumCover> {
+  bool _isFavorite = false;
+  double _userRating = 0.0;
+  String _review = '';
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    final trackId = widget.track.id;
+    if (userId == null || trackId == null) return;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('ratings')
+        .doc(trackId)
+        .get();
+
+    if (!mounted || !doc.exists || doc.data() == null) return;
+
+    final data = doc.data()!;
+    setState(() {
+      _isFavorite = data['favorite'] == true;
+      _userRating = (data['rating'] as num?)?.toDouble() ?? 0.0;
+      _review = data['review'] ?? '';
+    });
+  }
+
+Future<void> _toggleFavorite() async {
+  final userId = FirebaseAuth.instance.currentUser?.uid;
+  final trackId = widget.track.id;
+  if (userId == null || trackId == null || _saving) return;
+
+  setState(() {
+    _saving = true;
+  });
+
+  final nextValue = !_isFavorite;
+
+  await FirebaseFirestore.instance
+      .collection('users')
+      .doc(userId)
+      .collection('ratings')
+      .doc(trackId)
+      .set({
+    'favorite': nextValue,
+    'name': widget.track.name,
+    'artists': widget.track.artists,
+    'albumImageUrl': widget.track.albumImageUrl,
+    'updatedAt': FieldValue.serverTimestamp(), // <-- timestamp added
+  }, SetOptions(merge: true));
+
+  setState(() {
+    _isFavorite = nextValue;
+    _saving = false;
+  });
+}
+
+Future<void> _updateRating(double newRating) async {
+  final userId = FirebaseAuth.instance.currentUser?.uid;
+  final trackId = widget.track.id;
+  if (userId == null || trackId == null || _saving) return;
+
+  setState(() {
+    _userRating = newRating;
+    _saving = true;
+  });
+
+  await FirebaseFirestore.instance
+      .collection('users')
+      .doc(userId)
+      .collection('ratings')
+      .doc(trackId)
+      .set({
+    'rating': newRating,
+    'name': widget.track.name,
+    'artists': widget.track.artists,
+    'albumImageUrl': widget.track.albumImageUrl,
+    'updatedAt': FieldValue.serverTimestamp(),
+  }, SetOptions(merge: true));
+
+  setState(() {
+    _saving = false;
+  });
+}
+
+Future<void> _updateReview(String reviewText) async {
+  final userId = FirebaseAuth.instance.currentUser?.uid;
+  final trackId = widget.track.id;
+  if (userId == null || trackId == null || _saving) return;
+
+  setState(() {
+    _review = reviewText;
+    _saving = true;
+  });
+
+  await FirebaseFirestore.instance
+      .collection('users')
+      .doc(userId)
+      .collection('ratings')
+      .doc(trackId)
+      .set({
+    'review': reviewText,
+    'name': widget.track.name,
+    'artists': widget.track.artists,
+    'albumImageUrl': widget.track.albumImageUrl,
+    'updatedAt': FieldValue.serverTimestamp(),
+  }, SetOptions(merge: true));
+
+  setState(() {
+    _saving = false;
+  });
+}
+
+
+
+  Future<void> _showReviewDialog() async {
+    final controller = TextEditingController(text: _review);
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Write a Review"),
+        content: TextField(
+          controller: controller,
+          maxLines: 4,
+          decoration: const InputDecoration(hintText: "Type your review..."),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () async {
+              await _updateReview(controller.text);
+              Navigator.pop(context);
+            },
+            child: const Text("Submit"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: widget.onTap,
       child: Container(
         width: 180,
         clipBehavior: Clip.hardEdge,
@@ -294,76 +438,86 @@ class _AlbumCover extends StatelessWidget {
           children: [
             // Album Cover Image
             Positioned.fill(
-              child: track.albumImageUrl != null &&
-                      track.albumImageUrl!.isNotEmpty
-                  ? Image.network(
-                      track.albumImageUrl!,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Center(
-                          child: CircularProgressIndicator(
-                            value: loadingProgress.expectedTotalBytes != null
-                                ? loadingProgress.cumulativeBytesLoaded /
-                                    loadingProgress.expectedTotalBytes!
-                                : null,
-                            strokeWidth: 2,
-                            color: Colors.white54,
-                          ),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) {
-                        debugPrint(
-                            'Error loading image for ${track.name}: $error');
-                        return const Center(
-                          child: Icon(
-                            Icons.broken_image,
-                            size: 48,
-                            color: Colors.white54,
-                          ),
-                        );
-                      },
-                    )
+              child: widget.track.albumImageUrl != null &&
+                      widget.track.albumImageUrl!.isNotEmpty
+                  ? Image.network(widget.track.albumImageUrl!, fit: BoxFit.cover)
                   : const Center(
-                      child: Icon(Icons.album,
-                          size: 48,
-                          color: Colors.white54),
+                      child: Icon(Icons.album, size: 48, color: Colors.white54),
                     ),
             ),
             // Overlay with song info
-            if (isSelected)
+            if (widget.isSelected)
               Positioned.fill(
                 child: Container(
-                  color: Colors.black.withOpacity(0.8),
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    mainAxisAlignment:
-                        MainAxisAlignment.center,
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        track.name,
-                        style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white),
-                        maxLines: 3,
-                        overflow:
-                            TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        track.artists,
-                        style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.white70),
-                        maxLines: 2,
-                        overflow:
-                            TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
+                  color: Colors.black.withOpacity(0.85),
+                ),
+              ),
+            if (widget.isSelected)
+              Positioned(
+                top: 12,
+                left: 12,
+                right: 12,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.track.name,
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      widget.track.artists,
+                      style: const TextStyle(fontSize: 12, color: Colors.white70),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: List.generate(5, (index) {
+                        final starValue = index + 1.0;
+                        return IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          icon: Icon(
+                            _userRating >= starValue ? Icons.star : Icons.star_border,
+                            color: Colors.amber,
+                            size: 20,
+                          ),
+                          onPressed: () => _updateRating(starValue),
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          icon: Icon(_isFavorite ? Icons.favorite : Icons.favorite_border,
+                              color: Colors.red, size: 22),
+                          onPressed: _toggleFavorite,
+                        ),
+                        const SizedBox(width: 12),
+                        TextButton(
+                          onPressed: _showReviewDialog,
+                          child: const Text("Review", style: TextStyle(color: Colors.white)),
+                        ),
+                        const SizedBox(width: 12),
+                        if (widget.track.url != null)
+                          IconButton(
+                            icon: const Icon(Icons.open_in_new, color: Colors.white),
+                            onPressed: () async {
+                              final uri = Uri.parse(widget.track.url!);
+                              if (await canLaunch(uri.toString())) {
+                                await launch(uri.toString());
+                              }
+                            },
+                          ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
           ],
