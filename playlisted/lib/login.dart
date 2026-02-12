@@ -433,7 +433,17 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
                           controller: pass,
                           decoration: InputDecoration(
                             labelText: 'Password',
-                            helperText: 'At Least 8 Characters, One Uppercase Letter, Number, and Special Symbol.',
+                            helper: Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Text('At Least 8 Characters'),
+                                  Text('One Uppercase Letter'),
+                                  Text('One Number'),
+                                  Text('One Special Symbol'),
+                                ],
+                              ),
+                            ),
                             suffixIcon: IconButton(
                               icon: Icon(passwordVisible
                                   ? Icons.visibility_outlined
