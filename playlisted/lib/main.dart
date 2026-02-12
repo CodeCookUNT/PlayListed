@@ -610,6 +610,13 @@ class _MyHomePageState extends State<MyHomePage> {
 
 // Bulid the page
 class GeneratorPage extends StatelessWidget {
+
+  final bool showScrollButtons;
+  final bool centerVertically;
+
+  const GeneratorPage({super.key, this.showScrollButtons = true, this.centerVertically = false});
+  
+
   @override
   Widget build(BuildContext context) {
     var appState = context.watch<MyAppState>();
@@ -618,12 +625,17 @@ class GeneratorPage extends StatelessWidget {
     final isLiked = track != null && appState.favorites.any((t) => t.name == track.name);
 
     return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight - 48), // account for vertical padding
+              child: Align(
+                alignment: centerVertically ? Alignment.center : Alignment.topCenter,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
               if (track != null) ...[
                 // Get global average rating to be used later 
                 FutureBuilder<Map<String, dynamic>>(
@@ -711,27 +723,31 @@ class GeneratorPage extends StatelessWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: ElevatedButton(
-                      onPressed: () {
-                        appState.getPrevious();
-                      },
-                      child: const Text('Back'),
+                  if (showScrollButtons) ...[
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: ElevatedButton(
+                        onPressed: () {
+                          appState.getPrevious();
+                        },
+                        child: const Text('Back'),
+                      ),
                     ),
-                  ),
+                  ],
                   LikeButton(
                     track: track,
                     isLiked: isLiked,
                     onToggle: appState.toggleFavorite,
                   ),
-                  const SizedBox(width: 10),
-                  ElevatedButton(
-                    onPressed: () {
-                      appState.getNext();
-                    },
-                    child: const Text('Next'),
-                  ),
+                  if (showScrollButtons) ...[
+                    const SizedBox(width: 10),
+                    ElevatedButton(
+                      onPressed: () {
+                        appState.getNext();
+                      },
+                      child: const Text('Next'),
+                    ),
+                  ],
                 ],
               ),
               
@@ -742,9 +758,12 @@ class GeneratorPage extends StatelessWidget {
               ],
 
               const SizedBox(height: 24), // extra bottom spacing
-            ],
-          ),
-        ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

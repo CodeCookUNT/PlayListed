@@ -141,7 +141,10 @@ class SongInteractionPage extends StatelessWidget {
       appBar: AppBar(title: const Text('PlayListed')),
       body: Container(
         color: context.watch<MyAppState>().backgroundColor,
-        child: GeneratorPage(),
+        child: const GeneratorPage(
+          showScrollButtons: false,
+          centerVertically: true,
+        ),
       ),
     );
   }
