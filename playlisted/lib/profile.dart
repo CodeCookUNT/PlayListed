@@ -106,7 +106,7 @@ class ProfilePage extends StatelessWidget {
                             ),
                             SizedBox(width: 12),
                             Text(
-                              'Total Reviews:',
+                              'Total Songs Rated:',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
