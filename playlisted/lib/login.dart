@@ -214,6 +214,9 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
   bool confirmPasswordVisible = false;
   bool busy = false;
   bool usernameError = false;
+  bool fnameError = false;
+  bool lnameError = false;
+  bool emailError = false;
   
   late AnimationController _colorAnimationController;
   late Animation<Color?> _colorAnimation;
@@ -254,43 +257,20 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
       final mail = email.text.trim();
       final password = pass.text;
 
-      if (ExplicitContentFilter.containsExplicitContent(uname)) {
-        if (mounted) { setState(() {busy = false; usernameError = true;}); }
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Username contains explicit content.')),);
-        return; 
-      }
-      if (mounted) setState(() => usernameError = false);
+      final usernameHasExplicit = ExplicitContentFilter.containsExplicitContent(uname);
+      final fnameHasExplicit = ExplicitContentFilter.containsExplicitContent(fname);
+      final lnameHasExplicit = ExplicitContentFilter.containsExplicitContent(lname);
+      final emailHasExplicit = ExplicitContentFilter.containsExplicitContent(mail);
 
-      // Checking if user made username when making account containt any sort of explicit language, denying account creation if true until corrected.
-      if (ExplicitContentFilter.containsExplicitContent(uname)) {
+      if (mounted) setState(() {
+        usernameError = usernameHasExplicit;
+        fnameError = fnameHasExplicit;
+        lnameError = lnameHasExplicit;
+        emailError = emailHasExplicit;
+      });
+
+      if (usernameHasExplicit || fnameHasExplicit || lnameHasExplicit || emailHasExplicit) {
         if (mounted) setState(() => busy = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Username contains explicit content.')),
-        );
-        return;
-      }
-
-
-      final explicitInfo = <String>[];
-      if (ExplicitContentFilter.containsExplicitContent(fname)) {
-       explicitInfo.add('First Name');
-      }
-      if (ExplicitContentFilter.containsExplicitContent(lname)) {
-        explicitInfo.add('Last Name');
-      }
-      if (ExplicitContentFilter.containsExplicitContent(mail)) {
-        explicitInfo.add('Email');
-      }
-      
-      if (explicitInfo.isNotEmpty) {
-        if (mounted) setState(() => busy = false);
-        final fields = explicitInfo.join(', ');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text ('Please change or remove the explicit langauge from $fields.' )
-          ),
-        );
         return;
       }
 
@@ -406,11 +386,48 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
                           },
                         ),
                         const SizedBox(height: 12),
-                        TextField(controller: firstName, decoration: const InputDecoration(labelText: 'First Name')),
+                        TextField(
+                          controller: firstName,
+                          decoration: InputDecoration(
+                            labelText: 'First Name',
+                            errorText: fnameError ? 'First name contains explicit content.' : null,
+                          ),
+                          onChanged: (value) {
+                            final hasExplicit = ExplicitContentFilter.containsExplicitContent(value.trim());
+                            setState(() {
+                              fnameError = hasExplicit;
+                            });
+                          },
+                        ),
                         const SizedBox(height: 12),
-                        TextField(controller: lastName, decoration: const InputDecoration(labelText: 'Last Name')),
+                        TextField(
+                          controller: lastName,
+                          decoration: InputDecoration(
+                            labelText: 'Last Name',
+                            errorText: lnameError ? 'Last name contains explicit content.' : null,
+                          ),
+                          onChanged: (value) {
+                            final hasExplicit = ExplicitContentFilter.containsExplicitContent(value.trim());
+                            setState(() {
+                              lnameError = hasExplicit;
+                            });
+                          },
+                        ),
                         const SizedBox(height: 12),
-                        TextField(controller: email, decoration: const InputDecoration(labelText: 'Email'), keyboardType: TextInputType.emailAddress),
+                        TextField(
+                          controller: email,
+                          decoration: InputDecoration(
+                            labelText: 'Email',
+                            errorText: emailError ? 'Email contains explicit content.' : null,
+                          ),
+                          keyboardType: TextInputType.emailAddress,
+                          onChanged: (value) {
+                            final hasExplicit = ExplicitContentFilter.containsExplicitContent(value.trim());
+                            setState(() {
+                              emailError = hasExplicit;
+                            });
+                          },
+                        ),
                         const SizedBox(height: 12),
                         TextField(
                           controller: pass,
