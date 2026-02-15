@@ -46,7 +46,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
           .collection('co_liked')
           .where('songA', isEqualTo: likedId)
           .orderBy('count', descending: true)
-          .limit(3)
+          .limit(2)
           .get();
 
       //extract songB from each document
@@ -222,7 +222,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
       artistId: (json['artists'] != null && (json['artists'] as List).isNotEmpty)
           ? json['artists'][0]['id']
           : null,
-      popularityScore: (json['popularity'] + 10.0 > 100) ? 100 : json['popularity'] + 15.0, //inc score by 10, cap to 100
+      popularityScore: (json['popularity'] + 10.0 > 100) ? 100 : json['popularity'] + 10.0, //inc score by 10, cap to 100
     );
   }
 
