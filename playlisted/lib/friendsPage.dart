@@ -204,6 +204,8 @@ class _FriendsPageState extends State<FriendsPage> {
     );
   }
 }
+// TODO Add friend storys feature / a way to view friends favoirtes songs and reviws
+// The friends story and profile view will need a new UI elements to work on the friends page
 
 class FriendRequestsPanel extends StatelessWidget {
   const FriendRequestsPanel({super.key});
