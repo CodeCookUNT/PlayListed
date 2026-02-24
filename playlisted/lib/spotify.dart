@@ -105,11 +105,11 @@ class SpotifyService {
       
       for (String query in searchQueries) {
         try {
-          final tracks = await _searchTracks(accessToken, query, limit: 50);
+          final tracks = await _searchTracks(accessToken, query, limit: 20);
           allTracks.addAll(tracks);
           
           // Stop if we've reached ~500 songs
-          if (allTracks.length >= 500) {
+          if (allTracks.length >= limit) {
             break;
           }
         } catch (e) {

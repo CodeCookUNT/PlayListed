@@ -1,12 +1,9 @@
 // beginning development of recommendations algorithm, making file
-import 'package:flutter/material.dart';
 import 'spotify.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'colike.dart';
-import 'main.dart' show MyAppState;
 
 
 

@@ -20,9 +20,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'globalratings.dart';
 import 'friendsPage.dart';
 import 'collectionspage.dart';
-import 'friends.dart';
-import 'chat.dart';
-import 'dart:collection';
 import 'dart:async';
 import 'content_filter.dart';
 
@@ -57,7 +54,7 @@ Future<void> main() async {
   List<Track> initialTracks = [];
   try {
     //initialTracks = await SpotifyService().fetchTopSongs(initialToken);
-    initialTracks = await SpotifyService().fetchTopSongs(initialToken, limit: 500);
+    initialTracks = await SpotifyService().fetchTopSongs(initialToken, limit: 10);
     print('Fetched ${initialTracks.length} songs');
   } catch (e) {
     print('Failed to fetch top songs: $e');
