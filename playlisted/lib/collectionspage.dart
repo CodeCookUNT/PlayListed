@@ -123,7 +123,9 @@ class _CollectionsPageState extends State<CollectionsPage> {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).brightness == Brightness.dark
+            ? const Color.fromARGB(255, 66, 66, 66)
+            : Colors.white,
         body: _loading
             ? const Center(child: CircularProgressIndicator())
             : ListView(
