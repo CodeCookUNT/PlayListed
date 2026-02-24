@@ -1261,11 +1261,11 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
     if (rating >= 4.8) {
       return const Color.fromARGB(255, 167, 228, 227); // Platium
     } else if (rating >= 4.0) {
-      return const Color.fromARGB(255, 207, 204, 58); // Gold
+      return const Color.fromARGB(255, 207, 205, 51); // Gold
     } else if (rating >= 3.0) {
       return const Color.fromARGB(255, 154, 168, 168); // Silver
     } else if (rating >= 2.0) {
-      return const Color.fromARGB(255, 176, 141, 65); // Bronze 
+      return const Color.fromARGB(255, 168, 125, 39); // Bronze 
     } else {
       return Colors.black;
     }

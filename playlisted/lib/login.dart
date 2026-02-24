@@ -439,10 +439,7 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: const [
-                                  Text('At Least 8 Characters'),
-                                  Text('One Uppercase Letter'),
-                                  Text('One Number'),
-                                  Text('One Special Symbol'),
+                                  Text('At Least 8 Characters, One Uppercase Letter, One Number, and One Special Symbol.', textScaleFactor: 0.8),
                                 ],
                               ),
                             ),
