@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'friends.dart';
 import 'chat.dart';
+import 'profile.dart';
 
 class FriendsPage extends StatefulWidget {
   const FriendsPage({super.key});
@@ -157,26 +158,43 @@ class _FriendsPageState extends State<FriendsPage> {
                     ),
                     title: Text(name),
                     subtitle: const Text('Tap to open chat'),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.person_remove, color: Colors.red),
-                      tooltip: 'Remove friend',
-                      onPressed: () async {
-                      final confirm = await showDialog<bool>(
-                        context: context,
-                        builder: (_) => AlertDialog(
-                          title: const Text('Remove friend?'),
-                          content: Text('Remove $name from your friends list?'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text('Cancel'),
+                    trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.account_box),
+                        tooltip: 'View profile',
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => Scaffold(
+                                appBar: AppBar(title: Text("$name's Profile")),
+                                body: ProfilePage(uid: friendUid),
+                              ),
                             ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              child: const Text('Remove'),
-                            ),
-                          ],
-                        ),
+                          );
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.person_remove, color: Colors.red),
+                        tooltip: 'Remove friend',
+                        onPressed: () async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              title: const Text('Remove friend?'),
+                              content: Text('Remove $name from your friends list?'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context, false),
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context, true),
+                                  child: const Text('Remove'),
+                              ),
+                            ],
+                           ),
                       );
 
                       if (confirm == true) {
@@ -184,6 +202,8 @@ class _FriendsPageState extends State<FriendsPage> {
                       }
                     },
                     ),
+                    ],
+                  ),
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(

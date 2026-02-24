@@ -4,11 +4,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'profilefunctions.dart';
 
 class ProfilePage extends StatelessWidget {
+  final String uid;
+  const ProfilePage({super.key, required this.uid});
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final profileFunctions = ProfileFunctions.instance;
-    
     if (user == null) {
       return Center(
         child: Text('Not logged in'),
@@ -16,7 +17,7 @@ class ProfilePage extends StatelessWidget {
     }
 
     return StreamBuilder<QuerySnapshot>(
-      stream: profileFunctions.ratingsStream(),
+      stream: profileFunctions.ratingsStream(uid: uid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Center(child: CircularProgressIndicator());
@@ -44,34 +45,48 @@ class ProfilePage extends StatelessWidget {
           padding: const EdgeInsets.all(20),
           children: [
             // Profile Picture and Email Section
-            Center(
-              child: Column(
-                children: [
-                  // Profile Picture Circle
-                  CircleAvatar(
-                    radius: 60,
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    child: Text(
-                      profileFunctions.profileInitial,
-                      style: TextStyle(
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance.collection('users').doc(uid).snapshots(),
+              builder: (context, userSnap) {
+                if (!userSnap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final data = userSnap.data!.data() ?? {};
+                final displayName = (data['username'] as String?) ??
+                    (data['displayName'] as String?) ??
+                    (data['email'] as String?) ??
+                    'Unknown';
+
+                final initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : '?';
+
+                return Center(
+                  child: Column(
+                    children: [
+                      CircleAvatar(
+                        radius: 60,
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        child: Text(
+                          initial,
+                          style: const TextStyle(
+                            fontSize: 48,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                      Text(
+                        displayName,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
-                  SizedBox(height: 16),
-                  // Email
-                  Text(
-                    //profileFunctions.userEmail ?? 'No email',
-                    FirebaseAuth.instance.currentUser!.displayName ?? 'No username',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
+                );
+              },
             ),
             
             SizedBox(height: 40),

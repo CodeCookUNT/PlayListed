@@ -532,7 +532,7 @@ class _MyHomePageState extends State<MyHomePage> {
     FriendsPage(),
     CollectionsPage(),
     //RecommendationsPage(), // switches to the favorites page class
-    ProfilePage(),
+    ProfilePage(uid: FirebaseAuth.instance.currentUser!.uid),
   ];
 
   @override

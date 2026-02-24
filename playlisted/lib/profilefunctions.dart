@@ -24,7 +24,8 @@ class ProfileFunctions {
   }
 
   // Stream user's ratings for real-time updates
-  Stream<QuerySnapshot> ratingsStream() {
+  Stream<QuerySnapshot> ratingsStream({String? uid}) {
+    final targetUid = uid ?? _uid;
     if (_uid == null) {
       return Stream.empty();
     }
