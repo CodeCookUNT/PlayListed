@@ -505,16 +505,15 @@ Future<void> _updateReview(String reviewText) async {
                           child: const Text("Review", style: TextStyle(color: Colors.white)),
                         ),
                         const SizedBox(width: 12),
-                        if (widget.track.url != null)
-                          IconButton(
-                            icon: const Icon(Icons.open_in_new, color: Colors.white),
-                            onPressed: () async {
-                              final uri = Uri.parse(widget.track.url!);
-                              if (await canLaunch(uri.toString())) {
-                                await launch(uri.toString());
-                              }
-                            },
-                          ),
+                        IconButton(
+                          icon: const Icon(Icons.open_in_new, color: Colors.white),
+                          onPressed: () async {
+                            final uri = Uri.parse(widget.track.url!);
+                            if (await canLaunch(uri.toString())) {
+                              await launch(uri.toString());
+                            }
+                          },
+                        ),
                       ],
                     ),
                   ],

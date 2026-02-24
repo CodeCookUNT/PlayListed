@@ -54,3 +54,7 @@ app.*.map.json
 
 .env
 playlisted/.env
+
+# Android signing keys
+android/key.properties
+android/*.jks

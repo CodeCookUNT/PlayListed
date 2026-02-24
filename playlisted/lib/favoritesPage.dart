@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'favorites.dart';
 import 'main.dart' show MyAppState, StarRating;
-import 'main.dart' show MyAppState;
 
 class MySongsPage extends StatelessWidget {
   MySongsPage({super.key});

@@ -262,12 +262,14 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
       final lnameHasExplicit = ExplicitContentFilter.containsExplicitContent(lname);
       final emailHasExplicit = ExplicitContentFilter.containsExplicitContent(mail);
 
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         usernameError = usernameHasExplicit;
         fnameError = fnameHasExplicit;
         lnameError = lnameHasExplicit;
         emailError = emailHasExplicit;
       });
+      }
 
       if (usernameHasExplicit || fnameHasExplicit || lnameHasExplicit || emailHasExplicit) {
         if (mounted) setState(() => busy = false);
