@@ -5,3 +5,4 @@ playlisted\linux\flutter\*.cmake
 playlisted\macos\Flutter\GeneratedPluginRegistrant.swift
 playlisted\windows\flutter\generated_plugin_registrant.cc
 playlisted\windows\flutter\generated_plugin_registrant.h
+playlisted\linux\flutter\generated_plugin_registrant.cc
