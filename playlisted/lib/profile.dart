@@ -59,29 +59,34 @@ class ProfilePage extends StatelessWidget {
             ? profileFunctions.getTextReviews(snapshot.data!)
             : <Map<String, dynamic>>[];
 
+        final avatarColorInt =
+            (data['avatarColor'] as int?) ??
+            Theme.of(context).colorScheme.primary.toARGB32();
+
+        final avatarIconKey = data['avatarIcon'] as String?;
+        final avatarIcon = iconFromKey(avatarIconKey);
         return ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            // Profile Picture and Email Section
             Center(
               child: Column(
                 children: [
                   CircleAvatar(
                     radius: 60,
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    child: Text(
-                      initial,
-                      style: const TextStyle(
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+                    backgroundColor: Color(avatarColorInt),
+                    child: Icon(
+                      avatarIcon,
+                      color: Colors.white,
+                      size: 48,
                     ),
                   ),
                   const SizedBox(height: 16),
                   Text(
                     displayName,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ],
               ),
@@ -432,5 +437,28 @@ class ProfilePage extends StatelessWidget {
     );
       },
     );
+  }
+}
+
+IconData iconFromKey(String? key) {
+  switch (key) {
+    case 'music_note':
+      return Icons.music_note;
+    case 'music_note_outlined':
+      return Icons.music_note_outlined;
+    case 'library_music':
+      return Icons.library_music;
+    case 'library_music_outlined':
+      return Icons.library_music_outlined;
+    case 'queue_music':
+      return Icons.queue_music;
+    case 'album':
+      return Icons.album;
+    case 'album_outlined':
+      return Icons.album_outlined;
+    case 'graphic_eq':
+      return Icons.graphic_eq;
+    default:
+      return Icons.music_note;
   }
 }
