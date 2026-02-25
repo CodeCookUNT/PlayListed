@@ -186,7 +186,7 @@ class MyAppState extends ChangeNotifier {
   //optional access token (fetched at app startup)
   String? accessToken;
   List<Track>? tracks = [];
-  List <Track> recTracks = [];
+  Map<Track, double> recTracks = {};
   List<String> _tempLikedTracks = [];
   List<String> _deltracks= []; 
   Timer? _deleteTimer;
@@ -250,7 +250,7 @@ class MyAppState extends ChangeNotifier {
   }
 
   Future<void> loadRecommendations() async {
-    recTracks = await SpotifyService().fetchTopSongs(accessToken);
+    recTracks = await SpotifyService().fetchRecommendedSongs();
   }
 
   void setTrackCounter(int value){

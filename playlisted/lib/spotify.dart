@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 //Track Class for holding track info
 class Track {
@@ -137,6 +138,10 @@ class SpotifyService {
     return shuffledTracks.take(limit).toList();
   }
 
+  // Future<List<Track>> fetchSongs(Map <Track, double> trackScores){
+
+  // }
+
   // Helper method to search for tracks
   Future<List<Track>> _searchTracks(String? accessToken, String query, {int limit = 50}) async {
     final uri = Uri.https(
@@ -192,12 +197,51 @@ class SpotifyService {
     }
   }
 
-Future<List<Track>> sortRecommendedTracks(List<Track> recommendedSongs) async{
-  // Sort the loaded songs by popularity score in descending order
-  final sortedSongs = recommendedSongs.toList()
-    ..sort((a, b) => b.popularityScore!.compareTo(a.popularityScore!));
+  Future<Map<Track, double>> fetchRecommendedSongs() async{
+    // Check if user is authenticated
+  if (FirebaseAuth.instance.currentUser == null) {
+    print("User not authenticated");
+    return {};
+  }
 
-  return sortedSongs;
+    //fetch the recommended songs for the current user from firestore
+    Map<Track, double> recommendedTracks = {};
+
+      final q1 = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_uid)
+          .collection('recommendations')
+          .get();
+
+      if(q1.docs.isEmpty){
+        print("No recommendations found for user $_uid");
+        return {};
+      }
+
+      for(var doc in q1.docs){
+        final track = Track(
+          name: doc['name'] ?? '',
+          artists: doc['artists'] ?? '',
+          durationMs: doc['durationMs'] ?? 0,
+          explicit: doc['explicit'] ?? false,
+          url: doc['url'] ?? '',
+          albumImageUrl: doc['albumImageUrl'],
+          popularityScore: doc['popularityScore'],
+        );
+        final score = (doc['score'] as num?)?.toDouble() ?? 0.0;
+        recommendedTracks[track] = score;
+      }
+
+      print("Fetched ${recommendedTracks.length} recommended tracks for user $_uid");
+      for(var track in recommendedTracks.keys){
+        print("${track.name} by ${track.artists} with score ${recommendedTracks[track]!.toStringAsFixed(2)}");
+      }
+
+      return recommendedTracks;
+
+  }
+
+
+
 }
 
-}

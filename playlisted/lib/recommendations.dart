@@ -43,7 +43,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
           .collection('co_liked')
           .where('songA', isEqualTo: likedId)
           .orderBy('count', descending: true)
-          .limit(2)
+          .limit(8)
           .get();
 
       //extract songB from each document
@@ -74,7 +74,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
           .collection('co_liked')
           .where('songB', isEqualTo: likedId)
           .orderBy('count', descending: true)
-          .limit(2)
+          .limit(8)
           .get();
 
       //extract songA from each document
@@ -158,6 +158,9 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
       trackId: track.id!,
       name: track.name,
       artists: track.artists,
+      durationMs: track.durationMs,
+      explicit: track.explicit,
+      url: track.url,
       albumImageUrl: track.albumImageUrl,
       recommend: true,
       sourceTrackIds: sources.toList(),
@@ -172,6 +175,9 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
   Future<void> setRecommended({
     required String trackId,
     required String name,
+    required int durationMs,
+    required bool explicit,
+    required String url,
     required String artists,
     String? albumImageUrl,
     required bool recommend,
