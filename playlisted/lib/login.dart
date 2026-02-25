@@ -217,6 +217,40 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
   bool fnameError = false;
   bool lnameError = false;
   bool emailError = false;
+
+  // For avatar and background color animation
+  int selectedColorIndex = 0;
+  int selectedIconIndex = 0;
+
+  final List<Color> avatarColors = const [
+    Color(0xFF1583B7),
+    Color(0xFF1DB954),
+    Color(0xFFE53935),
+    Color(0xFFFFB300),
+    Color(0xFF8E24AA),
+  ];
+
+  final List<IconData> avatarIcons = const [
+    Icons.music_note,
+    Icons.music_note_outlined,
+    Icons.library_music,
+    Icons.library_music_outlined,
+    Icons.queue_music,
+    Icons.album,
+    Icons.album_outlined,
+    Icons.graphic_eq,
+  ];
+
+  String _iconKeyFromIndex(int i) => const [
+    'music_note',
+    'music_note_outlined',
+    'library_music',
+    'library_music_outlined',
+    'queue_music',
+    'album',
+    'album_outlined',
+    'graphic_eq',
+  ][i];
   
   late AnimationController _colorAnimationController;
   late Animation<Color?> _colorAnimation;
@@ -305,6 +339,8 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
           'firstName': fname,
           'lastName': lname,
           'email': mail,
+          'avatarColor': avatarColors[selectedColorIndex].toARGB32(),
+          'avatarIcon': _iconKeyFromIndex(selectedIconIndex),
           'createdAt': FieldValue.serverTimestamp(),
         });
 
@@ -429,6 +465,90 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
                               emailError = hasExplicit;
                             });
                           },
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Choose your avatar',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Preview
+                        Center(
+                          child: CircleAvatar(
+                            radius: 28,
+                            backgroundColor: avatarColors[selectedColorIndex],
+                            child: Icon(
+                              avatarIcons[selectedIconIndex],
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        // Color choices (5)
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          alignment: WrapAlignment.center,
+                          children: List.generate(avatarColors.length, (i) {
+                            final selected = i == selectedColorIndex;
+                            return InkWell(
+                              onTap: () => setState(() => selectedColorIndex = i),
+                              borderRadius: BorderRadius.circular(999),
+                              child: Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  color: avatarColors[i],
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: selected ? Colors.black : Colors.transparent,
+                                    width: 2,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        // Icon choices (8)
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          alignment: WrapAlignment.center,
+                          children: List.generate(avatarIcons.length, (i) {
+                            final selected = i == selectedIconIndex;
+                            return InkWell(
+                              onTap: () => setState(() => selectedIconIndex = i),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                width: 46,
+                                height: 46,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: selected ? Theme.of(context).colorScheme.primary : Colors.black26,
+                                    width: selected ? 2 : 1,
+                                  ),
+                                  color: selected ? Theme.of(context).colorScheme.primary.withOpacity(0.08) : Colors.transparent,
+                                ),
+                                child: Icon(
+                                  avatarIcons[i],
+                                  size: 24,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                            );
+                          }),
                         ),
                         const SizedBox(height: 12),
                         TextField(
