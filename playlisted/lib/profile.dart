@@ -10,21 +10,39 @@ class ProfilePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final profileFunctions = ProfileFunctions.instance;
+    final isMe = FirebaseAuth.instance.currentUser?.uid == uid;
     if (user == null) {
       return Center(
         child: Text('Not logged in'),
       );
     }
 
-    return StreamBuilder<QuerySnapshot>(
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance.collection('users').doc(uid).snapshots(),
+      builder: (context, userSnap) {
+        if (userSnap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (userSnap.hasError) {
+          return Center(child: Text('Error loading user: ${userSnap.error}'));
+        }
+
+        final data = userSnap.data?.data() ?? {};
+        final displayName = (data['username'] as String?) ??
+            (data['displayName'] as String?) ??
+            (data['email'] as String?) ??
+            'Unknown';
+        final initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : '?';
+        final statsTitle = isMe ? 'Your Statistics' : "$displayName's Statistics";
+
+        return StreamBuilder<QuerySnapshot>(
       stream: profileFunctions.ratingsStream(uid: uid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(child: CircularProgressIndicator());
+          return const Center(child: CircularProgressIndicator());
         }
-
         if (snapshot.hasError) {
-          return Center(child: Text('Error loading profile'));
+          return Center(child: Text('Error loading profile: ${snapshot.error}'));
         }
 
         // Get user stats from ProfileFunctions
@@ -45,48 +63,28 @@ class ProfilePage extends StatelessWidget {
           padding: const EdgeInsets.all(20),
           children: [
             // Profile Picture and Email Section
-            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              stream: FirebaseFirestore.instance.collection('users').doc(uid).snapshots(),
-              builder: (context, userSnap) {
-                if (!userSnap.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                final data = userSnap.data!.data() ?? {};
-                final displayName = (data['username'] as String?) ??
-                    (data['displayName'] as String?) ??
-                    (data['email'] as String?) ??
-                    'Unknown';
-
-                final initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : '?';
-
-                return Center(
-                  child: Column(
-                    children: [
-                      CircleAvatar(
-                        radius: 60,
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                        child: Text(
-                          initial,
-                          style: const TextStyle(
-                            fontSize: 48,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
+            Center(
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    radius: 60,
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    child: Text(
+                      initial,
+                      style: const TextStyle(
+                        fontSize: 48,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
-                      const SizedBox(height: 16),
-                      Text(
-                        displayName,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                );
-              },
+                  const SizedBox(height: 16),
+                  Text(
+                    displayName,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
             ),
             
             SizedBox(height: 40),
@@ -100,7 +98,7 @@ class ProfilePage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Your Statistics',
+                      statsTitle,
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -231,7 +229,7 @@ class ProfilePage extends StatelessWidget {
                           
                           SizedBox(width: 8),
                           Text(
-                            'Your Favorite Songs:',
+                            isMe ? 'Your Favorite Songs:' : "$displayName's Favorite Songs:",
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
@@ -329,7 +327,7 @@ class ProfilePage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Your Reviews:',
+                        isMe ? 'Your Reviews:' : "$displayName's Reviews:",
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -428,8 +426,10 @@ class ProfilePage extends StatelessWidget {
                 ),
               ),
             ],
-          ],
-        );
+            ],
+          );
+      },
+    );
       },
     );
   }
