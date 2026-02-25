@@ -103,22 +103,21 @@ void _openSongInteraction(Track track) {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const SizedBox(width: 16),
-                          if (track.url != null)
-                            CircleAvatar(
-                              radius: 20,
-                              backgroundColor: const Color(0xFF1DB954),
-                              child: IconButton(
-                                icon: const Icon(Icons.open_in_new, color: Colors.white),
-                                onPressed: () async {
-                                  final uri = Uri.parse(track.url!);
-                                  if (await canLaunchUrl(uri)) {
-                                    await launchUrl(uri);
-                                  } else {
-                                    print('Could not launch ${track.url}');
-                                  }
-                                },
-                              ),
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor: const Color(0xFF1DB954),
+                            child: IconButton(
+                              icon: const Icon(Icons.open_in_new, color: Colors.white),
+                              onPressed: () async {
+                                final uri = Uri.parse(track.url!);
+                                if (await canLaunchUrl(uri)) {
+                                  await launchUrl(uri);
+                                } else {
+                                  print('Could not launch ${track.url}');
+                                }
+                              },
                             ),
+                          ),
                         ],
                       ),
                     );

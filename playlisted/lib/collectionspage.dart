@@ -123,7 +123,9 @@ class _CollectionsPageState extends State<CollectionsPage> {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).brightness == Brightness.dark
+            ? const Color.fromARGB(255, 66, 66, 66)
+            : Colors.white,
         body: _loading
             ? const Center(child: CircularProgressIndicator())
             : ListView(
@@ -505,16 +507,15 @@ Future<void> _updateReview(String reviewText) async {
                           child: const Text("Review", style: TextStyle(color: Colors.white)),
                         ),
                         const SizedBox(width: 12),
-                        if (widget.track.url != null)
-                          IconButton(
-                            icon: const Icon(Icons.open_in_new, color: Colors.white),
-                            onPressed: () async {
-                              final uri = Uri.parse(widget.track.url!);
-                              if (await canLaunch(uri.toString())) {
-                                await launch(uri.toString());
-                              }
-                            },
-                          ),
+                        IconButton(
+                          icon: const Icon(Icons.open_in_new, color: Colors.white),
+                          onPressed: () async {
+                            final uri = Uri.parse(widget.track.url!);
+                            if (await canLaunch(uri.toString())) {
+                              await launch(uri.toString());
+                            }
+                          },
+                        ),
                       ],
                     ),
                   ],

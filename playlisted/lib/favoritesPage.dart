@@ -1,9 +1,9 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'favorites.dart';
 import 'main.dart' show MyAppState, StarRating;
-import 'main.dart' show MyAppState;
 
 class MySongsPage extends StatelessWidget {
   MySongsPage({super.key});
@@ -75,7 +75,7 @@ class SongsList extends StatelessWidget {
                   width: 200,
                   height: 200,
                   child: TweenAnimationBuilder(
-                    duration: const Duration(seconds: 2),
+                    duration: const Duration(seconds: 4),
                     tween: Tween(begin: 0.0, end: 1.0),
                     curve: Curves.linear,
                     builder: (context, value, child) {
@@ -102,7 +102,7 @@ class SongsList extends StatelessWidget {
                         alignment: Alignment.center,
                         children: [
                           // Vinyl grooves
-                          for (int i = 1; i <= 6; i++)
+                          for (int i = 1; i <= 5; i++)
                             Container(
                               width: 200 - (i * 20.0),
                               height: 200 - (i * 20.0),
@@ -114,7 +114,7 @@ class SongsList extends StatelessWidget {
                                 ),
                               ),
                             ),
-                          // Center label
+                          // Center label with rotating text
                           Container(
                             width: 60,
                             height: 60,
@@ -137,6 +137,8 @@ class SongsList extends StatelessWidget {
                               color: Colors.black,
                             ),
                           ),
+                          // Curved text around the outer groove of the vinyl
+                          _VinylText(),
                         ],
                       ),
                     ),
@@ -189,6 +191,54 @@ class SongsList extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+// Draws " NOW LOADING YOUR SONGS " curved around the vinyl groove.
+class _VinylText extends StatelessWidget {
+  const _VinylText();
+
+  @override
+  Widget build(BuildContext context) {
+    const String label = ' NOW LOADING YOUR SONGS ';
+    const double radius = 85.0;
+    const double fontSize = 8.5;
+    const double anglePerChar = 0.15; // space between each character
+
+    final characters = label.characters.toList();
+    final int charCount = characters.length;
+
+    // Center the text arc at the top of the circle
+    final double totalAngle = anglePerChar * (charCount - 1);
+    final double startAngle = -math.pi / 2 - totalAngle / 2;
+
+    return SizedBox(
+      width: 200,
+      height: 200,
+      child: Stack(
+        alignment: Alignment.center,
+        children: List.generate(charCount, (i) {
+          final double angle = startAngle + anglePerChar * i;
+          final double x = radius * math.cos(angle);
+          final double y = radius * math.sin(angle);
+
+          return Transform.translate(
+            offset: Offset(x, y),
+            child: Transform.rotate(
+              angle: angle + math.pi / 2,
+              child: Text(
+                characters[i],
+                style: TextStyle(
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white.withOpacity(0.75),
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
     );
   }
 }
@@ -301,7 +351,9 @@ class _SlidableListItemState extends State<SlidableListItem> {
                 transform: Matrix4.translationValues(_slideOffset, 0, 0),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? const Color.fromARGB(255, 66, 66, 66)
+                        : Colors.white,
                     border: Border(
                       bottom: BorderSide(
                         color: Theme.of(context).dividerColor.withOpacity(0.1),
@@ -346,35 +398,6 @@ class _SlidableListItemState extends State<SlidableListItem> {
                         ),
                       ],
                     ),
-                  
-                    trailing: !widget.showFavoriteIcon
-                        ? IconButton(
-                            icon: const Icon(Icons.delete_outline),
-                            tooltip: 'Delete',
-                            onPressed: () async {
-                              //remove from favorites and ratings
-                              try {
-                                await Favorites.instance.deleteTrack(
-                                  trackId: widget.doc['id'],
-                                );
-                                widget.appState.markSongsForDeletion(widget.doc['id']);
-                                widget.appState.removeFromLikedOrRated(widget.doc['id']);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                        'Unliked "${widget.doc['name']}"'),
-                                  ),
-                                );
-                              } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Error, Couldn\'t Delete Favorited List: $e'),
-                                  ),
-                                );
-                              }
-                            },
-                          )
-                        : null, 
                   ),
                 ),
               ),

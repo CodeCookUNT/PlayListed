@@ -672,22 +672,21 @@ class GeneratorPage extends StatelessWidget {
                       },
                     ),
                     const SizedBox(width: 16),
-                    if (track.url != null)
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundColor: const Color(0xFF1DB954),
-                        child: IconButton(
-                          icon: const Icon(Icons.open_in_new, color: Colors.white),
-                          onPressed: () async {
-                            final uri = Uri.parse(track.url!);
-                            if (await canLaunchUrl(uri)) {
-                              await launchUrl(uri);
-                            } else {
-                              print('Could not launch ${track.url}');
-                            }
-                          },
-                        ),
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: const Color(0xFF1DB954),
+                      child: IconButton(
+                        icon: const Icon(Icons.open_in_new, color: Colors.white),
+                        onPressed: () async {
+                          final uri = Uri.parse(track.url!);
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri);
+                          } else {
+                            print('Could not launch ${track.url}');
+                          }
+                        },
                       ),
+                    ),
                   ],
                 ),
               ] else
@@ -699,7 +698,7 @@ class GeneratorPage extends StatelessWidget {
               if (track != null && track.id != null) ...[
                 Row(
                   mainAxisSize: MainAxisSize.min,
-                  children: [
+                  children: [  
                     ElevatedButton.icon(
                       onPressed: () {
                         _showReviewDialog(context, track);
@@ -884,7 +883,7 @@ void _showAllReviewsDialog(BuildContext context, Track track) async {
           ),
         ],
       ),
-      content: Container(
+      content: SizedBox(
         width: double.maxFinite,
         height: 400,
         child: FutureBuilder<QuerySnapshot>(
@@ -1093,7 +1092,7 @@ class _ReviewDialogState extends State<ReviewDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '${widget.track.name}',
+            widget.track.name,
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           Text(
@@ -1262,11 +1261,11 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
     if (rating >= 4.8) {
       return const Color.fromARGB(255, 167, 228, 227); // Platium
     } else if (rating >= 4.0) {
-      return const Color.fromARGB(255, 207, 204, 58); // Gold
+      return const Color.fromARGB(255, 207, 205, 51); // Gold
     } else if (rating >= 3.0) {
       return const Color.fromARGB(255, 154, 168, 168); // Silver
     } else if (rating >= 2.0) {
-      return const Color.fromARGB(255, 176, 141, 65); // Bronze 
+      return const Color.fromARGB(255, 168, 125, 39); // Bronze 
     } else {
       return Colors.black;
     }
@@ -1517,7 +1516,7 @@ class GlobalRatingDisplay extends StatelessWidget {
                   '${averageRating.toStringAsFixed(1)} ($totalRatings)',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Theme.of(context).colorScheme.onBackground.withOpacity(0.7),
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                   ),
                 ),
               ],

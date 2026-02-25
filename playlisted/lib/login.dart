@@ -262,12 +262,14 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
       final lnameHasExplicit = ExplicitContentFilter.containsExplicitContent(lname);
       final emailHasExplicit = ExplicitContentFilter.containsExplicitContent(mail);
 
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         usernameError = usernameHasExplicit;
         fnameError = fnameHasExplicit;
         lnameError = lnameHasExplicit;
         emailError = emailHasExplicit;
       });
+      }
 
       if (usernameHasExplicit || fnameHasExplicit || lnameHasExplicit || emailHasExplicit) {
         if (mounted) setState(() => busy = false);
@@ -437,10 +439,7 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: const [
-                                  Text('At Least 8 Characters'),
-                                  Text('One Uppercase Letter'),
-                                  Text('One Number'),
-                                  Text('One Special Symbol'),
+                                  Text('At Least 8 Characters, One Uppercase Letter, One Number, and One Special Symbol.', textScaleFactor: 0.8),
                                 ],
                               ),
                             ),

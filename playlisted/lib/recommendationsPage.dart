@@ -6,7 +6,7 @@ import 'spotify.dart' show Track;
 import 'favorites.dart';
 
 class RecommendationsPage extends StatefulWidget {
-  const RecommendationsPage({Key? key}) : super(key: key);
+  const RecommendationsPage({super.key});
 
   @override
   State<RecommendationsPage> createState() => _RecommendationsPageState();

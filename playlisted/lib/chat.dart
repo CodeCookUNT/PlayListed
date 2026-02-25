@@ -130,7 +130,7 @@ class _ChatPageState extends State<ChatPage> {
                                   .primaryContainer
                               : Theme.of(context)
                                   .colorScheme
-                                  .surfaceVariant,
+                                  .surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(text),
