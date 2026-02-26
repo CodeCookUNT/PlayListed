@@ -149,7 +149,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
     }
     final friendScore = friendUids.isEmpty ? 0.0 : (friendLikes / friendUids.length);
 
-    final popularityNorm = track.popularityScore != null ? (track.popularityScore! / 100) : 0.0;
+    final popularityNorm = track.score != null ? (track.score! / 100) : 0.0;
 
     //final weighted score: 0.6 * colike + 0.2 * friend + 0.2 * popularity
     final double score = 0.6 * colikeNorm + 0.2 * friendScore + 0.2 * popularityNorm;
@@ -187,6 +187,9 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
     await _col.doc(trackId).set({
       'name': name,
       'artists': artists,
+      'durationMs': durationMs,
+      'explicit': explicit,
+      'url': url,
       'albumImageUrl': albumImageUrl,
       'recommend': recommend,
       'sourceTrackIds': sourceTrackIds,
@@ -268,8 +271,8 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
     return Track(
       name: json['name'],
       artists: artists,
-      durationMs: json['duration_ms'],
-      explicit: json['explicit'],
+      durationMs: json['duration_ms'] ?? 0,
+      explicit: json['explicit'] ?? false,
       url: json['external_urls']['spotify'],
       albumImageUrl: albumImageUrl,
       popularity: json['popularity'],
@@ -278,8 +281,9 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
       artistId: (json['artists'] != null && (json['artists'] as List).isNotEmpty)
           ? json['artists'][0]['id']
           : null,
-      popularityScore: json['popularity'] != null ? (json['popularity']) : 0,
+      score: json['popularity'] != null ? (json['popularity']) : 0,
     );
+
   }
 
   

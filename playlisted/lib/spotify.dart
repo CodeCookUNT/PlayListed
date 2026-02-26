@@ -16,7 +16,7 @@ class Track {
   final String? releaseDate;
   final String? id;
   final String? artistId;
-  final int? popularityScore;
+  final double? score;
 
   Track({
     required this.name,
@@ -29,7 +29,7 @@ class Track {
     this.releaseDate,
     this.id,
     this.artistId,
-    this.popularityScore,
+    this.score,
   });
 }
 
@@ -123,10 +123,9 @@ class SpotifyService {
     // Remove duplicates based on track name and artist
     final uniqueTracks = <String, Track>{};
     for (var track in allTracks) {
-      double score = track.popularityScore != null ? (track.popularityScore! / 100) : 0; // Use popularity as score, default to 0 if null
+      double score = track.score != null ? track.score! / 100 : 0; // Use score as score, default to 0 if null
       final key = '${track.name}-${track.artists}';
       uniqueTracks[key] = track;
-      print("${track.name} by ${track.artists} SCORE: ${score.toStringAsFixed(2)}"); 
       //need to take a look at this to see if we need it printed or not
     }
     
@@ -184,7 +183,7 @@ class SpotifyService {
           url: json['external_urls']['spotify'],
           albumImageUrl: albumImageUrl,
           popularity: json['popularity'],
-          popularityScore: json['popularity'],
+          score: json['popularity'],
           releaseDate: json['album'] != null ? json['album']['release_date'] : null,
           id: json['id'],
           artistId: (json['artists'] != null && (json['artists'] as List).isNotEmpty)
@@ -207,13 +206,14 @@ class SpotifyService {
     //fetch the recommended songs for the current user from firestore
     Map<Track, double> recommendedTracks = {};
 
+    try {
       final q1 = await FirebaseFirestore.instance
           .collection('users')
           .doc(_uid)
           .collection('recommendations')
           .get();
-
-      if(q1.docs.isEmpty){
+    
+    if(q1.docs.isEmpty){
         print("No recommendations found for user $_uid");
         return {};
       }
@@ -226,7 +226,7 @@ class SpotifyService {
           explicit: doc['explicit'] ?? false,
           url: doc['url'] ?? '',
           albumImageUrl: doc['albumImageUrl'],
-          popularityScore: doc['popularityScore'],
+          score: doc['score'] != null ? (doc['score'] as num).toDouble() : 0.0,
         );
         final score = (doc['score'] as num?)?.toDouble() ?? 0.0;
         recommendedTracks[track] = score;
@@ -236,12 +236,11 @@ class SpotifyService {
       for(var track in recommendedTracks.keys){
         print("${track.name} by ${track.artists} with score ${recommendedTracks[track]!.toStringAsFixed(2)}");
       }
-
-      return recommendedTracks;
-
+    } catch (e) {
+      print("Error fetching recommendations for user $_uid: $e");
+    }
+    return recommendedTracks;
   }
-
-
 
 }
 
