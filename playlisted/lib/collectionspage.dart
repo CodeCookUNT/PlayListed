@@ -3,6 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'spotify.dart';
+import 'package:provider/provider.dart';
+import 'main.dart';
+import 'search.dart';
 
 //cache so the data stays loaded when switching pages
 class SpotifyCache {
@@ -309,93 +312,91 @@ class _AlbumCoverState extends State<_AlbumCover> {
     });
   }
 
-Future<void> _toggleFavorite() async {
-  final userId = FirebaseAuth.instance.currentUser?.uid;
-  final trackId = widget.track.id;
-  if (userId == null || trackId == null || _saving) return;
+  Future<void> _toggleFavorite() async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    final trackId = widget.track.id;
+    if (userId == null || trackId == null || _saving) return;
 
-  setState(() {
-    _saving = true;
-  });
+    setState(() {
+      _saving = true;
+    });
 
-  final nextValue = !_isFavorite;
+    final nextValue = !_isFavorite;
 
-  await FirebaseFirestore.instance
-      .collection('users')
-      .doc(userId)
-      .collection('ratings')
-      .doc(trackId)
-      .set({
-    'favorite': nextValue,
-    'name': widget.track.name,
-    'artists': widget.track.artists,
-    'albumImageUrl': widget.track.albumImageUrl,
-    'updatedAt': FieldValue.serverTimestamp(), // <-- timestamp added
-  }, SetOptions(merge: true));
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('ratings')
+        .doc(trackId)
+        .set({
+      'favorite': nextValue,
+      'name': widget.track.name,
+      'artists': widget.track.artists,
+      'albumImageUrl': widget.track.albumImageUrl,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
 
-  setState(() {
-    _isFavorite = nextValue;
-    _saving = false;
-  });
-}
+    setState(() {
+      _isFavorite = nextValue;
+      _saving = false;
+    });
+  }
 
-Future<void> _updateRating(double newRating) async {
-  final userId = FirebaseAuth.instance.currentUser?.uid;
-  final trackId = widget.track.id;
-  if (userId == null || trackId == null || _saving) return;
+  Future<void> _updateRating(double newRating) async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    final trackId = widget.track.id;
+    if (userId == null || trackId == null || _saving) return;
 
-  setState(() {
-    _userRating = newRating;
-    _saving = true;
-  });
+    setState(() {
+      _userRating = newRating;
+      _saving = true;
+    });
 
-  await FirebaseFirestore.instance
-      .collection('users')
-      .doc(userId)
-      .collection('ratings')
-      .doc(trackId)
-      .set({
-    'rating': newRating,
-    'name': widget.track.name,
-    'artists': widget.track.artists,
-    'albumImageUrl': widget.track.albumImageUrl,
-    'updatedAt': FieldValue.serverTimestamp(),
-  }, SetOptions(merge: true));
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('ratings')
+        .doc(trackId)
+        .set({
+      'rating': newRating,
+      'name': widget.track.name,
+      'artists': widget.track.artists,
+      'albumImageUrl': widget.track.albumImageUrl,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
 
-  setState(() {
-    _saving = false;
-  });
-}
+    setState(() {
+      _saving = false;
+    });
+  }
 
-Future<void> _updateReview(String reviewText) async {
-  final userId = FirebaseAuth.instance.currentUser?.uid;
-  final trackId = widget.track.id;
-  if (userId == null || trackId == null || _saving) return;
+  Future<void> _updateReview(String reviewText) async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    final trackId = widget.track.id;
+    if (userId == null || trackId == null || _saving) return;
 
-  setState(() {
-    _review = reviewText;
-    _saving = true;
-  });
+    setState(() {
+      _review = reviewText;
+      _saving = true;
+    });
 
-  await FirebaseFirestore.instance
-      .collection('users')
-      .doc(userId)
-      .collection('ratings')
-      .doc(trackId)
-      .set({
-    'review': reviewText,
-    'name': widget.track.name,
-    'artists': widget.track.artists,
-    'albumImageUrl': widget.track.albumImageUrl,
-    'updatedAt': FieldValue.serverTimestamp(),
-  }, SetOptions(merge: true));
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('ratings')
+        .doc(trackId)
+        .set({
+      'review': reviewText,
+      'name': widget.track.name,
+      'artists': widget.track.artists,
+      'albumImageUrl': widget.track.albumImageUrl,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
 
-  setState(() {
-    _saving = false;
-  });
-}
-
-
+    setState(() {
+      _saving = false;
+    });
+  }
 
   Future<void> _showReviewDialog() async {
     final controller = TextEditingController(text: _review);
@@ -428,7 +429,15 @@ Future<void> _updateReview(String reviewText) async {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: widget.onTap,
+      onTap: () {
+        context.read<MyAppState>().setCurrentTrack(widget.track);
+
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const SongInteractionPage(),
+          ),
+        );
+      },
       child: Container(
         width: 180,
         clipBehavior: Clip.hardEdge,
@@ -447,7 +456,55 @@ Future<void> _updateReview(String reviewText) async {
                       child: Icon(Icons.album, size: 48, color: Colors.white54),
                     ),
             ),
+
+            //shows song name and artist info at the bottom of a song
+            if (!widget.isSelected)
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        Colors.black.withOpacity(0.75),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        widget.track.name,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        widget.track.artists,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.white70,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
             // Overlay with song info
+            //currently unused, keeping if we pivot back to on album review method
             if (widget.isSelected)
               Positioned.fill(
                 child: Container(

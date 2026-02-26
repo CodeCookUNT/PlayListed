@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'searchfunctions.dart';
 import 'spotify.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'main.dart';
 
 
@@ -137,7 +138,17 @@ class SongInteractionPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('PlayListed')),
+      appBar: AppBar(
+        title: Text(
+          'Playlistd',
+          style: GoogleFonts.montserrat(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+            letterSpacing: 0.5,
+          ),
+        ),
+      ),
       body: Container(
         color: context.watch<MyAppState>().backgroundColor,
         child: const GeneratorPage(
