@@ -88,6 +88,21 @@ class ProfilePage extends StatelessWidget {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
+                if (isMe) ...[
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      _showEditAvatarSheet(
+                        context,
+                        uid: uid,
+                        currentColorInt: avatarColorInt,
+                        currentIconKey: avatarIconKey,
+                      );
+                    },
+                    icon: const Icon(Icons.edit),
+                    label: const Text('Edit avatar'),
+                  ),
+                ],
                 ],
               ),
             ),
@@ -438,6 +453,175 @@ class ProfilePage extends StatelessWidget {
       },
     );
   }
+  Future<void> _showEditAvatarSheet(
+    BuildContext context, {
+    required String uid,
+    required int currentColorInt,
+    required String? currentIconKey,
+  }) async {
+    int selectedColorIndex = _colorIndexFromInt(currentColorInt);
+    int selectedIconIndex = _iconIndexFromKey(currentIconKey);
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            final previewColor = kAvatarColors[selectedColorIndex];
+            final previewIconKey = kAvatarIconKeys[selectedIconIndex];
+            final previewIcon = iconFromKey(previewIconKey);
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 12,
+                bottom: 16 + MediaQuery.of(ctx).viewInsets.bottom,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Edit avatar',
+                    style: Theme.of(ctx).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 12),
+
+                  CircleAvatar(
+                    radius: 34,
+                    backgroundColor: previewColor,
+                    child: Icon(previewIcon, color: Colors.white, size: 34),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Color',
+                      style: Theme.of(ctx).textTheme.titleSmall,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    alignment: WrapAlignment.center,
+                    children: List.generate(kAvatarColors.length, (i) {
+                      final selected = i == selectedColorIndex;
+                      return InkWell(
+                        onTap: () => setModalState(() => selectedColorIndex = i),
+                        borderRadius: BorderRadius.circular(999),
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: kAvatarColors[i],
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: selected ? Colors.black : Colors.transparent,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Icon',
+                      style: Theme.of(ctx).textTheme.titleSmall,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: List.generate(kAvatarIconKeys.length, (i) {
+                        final selected = i == selectedIconIndex;
+                        final icon = iconFromKey(kAvatarIconKeys[i]);
+
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 10),
+                          child: InkWell(
+                            onTap: () => setModalState(() => selectedIconIndex = i),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              width: 46,
+                              height: 46,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: selected
+                                      ? Theme.of(ctx).colorScheme.primary
+                                      : Colors.black26,
+                                  width: selected ? 2 : 1,
+                                ),
+                                color: selected
+                                    ? Theme.of(ctx)
+                                        .colorScheme
+                                        .primary
+                                        .withOpacity(0.08)
+                                    : Colors.transparent,
+                              ),
+                              child: Icon(
+                                icon,
+                                size: 24,
+                                color: Theme.of(ctx).colorScheme.primary,
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            final colorInt = kAvatarColors[selectedColorIndex].toARGB32();
+                            final iconKey = kAvatarIconKeys[selectedIconIndex];
+
+                            await FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(uid)
+                                .set({
+                              'avatarColor': colorInt,
+                              'avatarIcon': iconKey,
+                            }, SetOptions(merge: true));
+
+                            if (ctx.mounted) Navigator.pop(ctx);
+                          },
+                          child: const Text('Save'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 }
 
 IconData iconFromKey(String? key) {
@@ -461,4 +645,33 @@ IconData iconFromKey(String? key) {
     default:
       return Icons.music_note;
   }
+}
+
+const List<Color> kAvatarColors = [
+  Color(0xFF1583B7),
+  Color(0xFF1DB954),
+  Color(0xFFE53935),
+  Color(0xFFFFB300),
+  Color(0xFF8E24AA),
+];
+
+const List<String> kAvatarIconKeys = [
+  'music_note',
+  'music_note_outlined',
+  'library_music',
+  'library_music_outlined',
+  'queue_music',
+  'album',
+  'album_outlined',
+  'graphic_eq',
+];
+
+int _colorIndexFromInt(int colorInt) {
+  final idx = kAvatarColors.indexWhere((c) => c.toARGB32() == colorInt);
+  return idx >= 0 ? idx : 0;
+}
+
+int _iconIndexFromKey(String? key) {
+  final idx = kAvatarIconKeys.indexWhere((k) => k == key);
+  return idx >= 0 ? idx : 0;
 }
