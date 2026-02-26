@@ -20,7 +20,7 @@ if (keystorePropertiesFile.exists()) {
 
 
 android {
-    namespace = "com.codecook.playlisted"
+    namespace = "com.example.playlisted"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -40,7 +40,7 @@ android {
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
 
-        applicationId = "com.codecook.playlisted"
+        applicationId = "com.example.playlisted"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
