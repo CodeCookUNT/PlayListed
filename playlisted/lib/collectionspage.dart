@@ -69,9 +69,7 @@ class _CollectionsPageState extends State<CollectionsPage> {
       final futures = <Future<void>>[];
 
       futures.add(
-        _spotifyService
-            .fetchTopSongs(_accessToken, limit: 50)
-            .then((tracks) {
+        _spotifyService.fetchTopSongs(_accessToken, limit: 50).then((tracks) {
           _cache.decadeTracks['Popular Now'] = tracks;
         }),
       );
@@ -92,24 +90,31 @@ class _CollectionsPageState extends State<CollectionsPage> {
         futures.add(
           _spotifyService
               .fetchTopSongs(
-            _accessToken,
-            yearRange: entry.value,
-            limit: 50,
-          )
+                _accessToken,
+                yearRange: entry.value,
+                limit: 50,
+              )
               .then((tracks) {
             _cache.decadeTracks[entry.key] = tracks;
           }),
         );
       }
 
-      await Future.wait(futures);
+      //await Future.wait(futures);
+      for (final future in futures) {
+        await future;
+        await Future.delayed(const Duration(milliseconds: 250));
+    }
       _cache.isLoaded = true;
 
+      if (!mounted) return;
       setState(() {
         _loading = false;
       });
     } catch (e) {
       debugPrint('Spotify load error: $e');
+
+      if (!mounted) return;
       setState(() {
         _loading = false;
       });
@@ -201,10 +206,7 @@ class _CollectionRowState extends State<_CollectionRow> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Text(
             widget.title,
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   fontSize: 20,
                 ),
@@ -223,8 +225,10 @@ class _CollectionRowState extends State<_CollectionRow> {
                 itemBuilder: (context, index) {
                   return _AlbumCover(
                     track: widget.tracks[index],
-                    isSelected: widget.selectedTrackId == widget.tracks[index].id,
-                    onTap: () => widget.onTrackTapped(widget.tracks[index].id),
+                    isSelected:
+                        widget.selectedTrackId == widget.tracks[index].id,
+                    onTap: () =>
+                        widget.onTrackTapped(widget.tracks[index].id),
                   );
                 },
               ),
@@ -263,7 +267,7 @@ class _CollectionRowState extends State<_CollectionRow> {
   }
 }
 
-class _AlbumCover extends StatefulWidget {
+class _AlbumCover extends StatelessWidget {
   final Track track;
   final bool isSelected;
   final VoidCallback onTap;
@@ -275,162 +279,10 @@ class _AlbumCover extends StatefulWidget {
   });
 
   @override
-  State<_AlbumCover> createState() => _AlbumCoverState();
-}
-
-class _AlbumCoverState extends State<_AlbumCover> {
-  bool _isFavorite = false;
-  double _userRating = 0.0;
-  String _review = '';
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadUserData();
-  }
-
-  Future<void> _loadUserData() async {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-    final trackId = widget.track.id;
-    if (userId == null || trackId == null) return;
-
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .collection('ratings')
-        .doc(trackId)
-        .get();
-
-    if (!mounted || !doc.exists || doc.data() == null) return;
-
-    final data = doc.data()!;
-    setState(() {
-      _isFavorite = data['favorite'] == true;
-      _userRating = (data['rating'] as num?)?.toDouble() ?? 0.0;
-      _review = data['review'] ?? '';
-    });
-  }
-
-  Future<void> _toggleFavorite() async {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-    final trackId = widget.track.id;
-    if (userId == null || trackId == null || _saving) return;
-
-    setState(() {
-      _saving = true;
-    });
-
-    final nextValue = !_isFavorite;
-
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .collection('ratings')
-        .doc(trackId)
-        .set({
-      'favorite': nextValue,
-      'name': widget.track.name,
-      'artists': widget.track.artists,
-      'albumImageUrl': widget.track.albumImageUrl,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
-    setState(() {
-      _isFavorite = nextValue;
-      _saving = false;
-    });
-  }
-
-  Future<void> _updateRating(double newRating) async {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-    final trackId = widget.track.id;
-    if (userId == null || trackId == null || _saving) return;
-
-    setState(() {
-      _userRating = newRating;
-      _saving = true;
-    });
-
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .collection('ratings')
-        .doc(trackId)
-        .set({
-      'rating': newRating,
-      'name': widget.track.name,
-      'artists': widget.track.artists,
-      'albumImageUrl': widget.track.albumImageUrl,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
-    setState(() {
-      _saving = false;
-    });
-  }
-
-  Future<void> _updateReview(String reviewText) async {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-    final trackId = widget.track.id;
-    if (userId == null || trackId == null || _saving) return;
-
-    setState(() {
-      _review = reviewText;
-      _saving = true;
-    });
-
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .collection('ratings')
-        .doc(trackId)
-        .set({
-      'review': reviewText,
-      'name': widget.track.name,
-      'artists': widget.track.artists,
-      'albumImageUrl': widget.track.albumImageUrl,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
-    setState(() {
-      _saving = false;
-    });
-  }
-
-  Future<void> _showReviewDialog() async {
-    final controller = TextEditingController(text: _review);
-    await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Write a Review"),
-        content: TextField(
-          controller: controller,
-          maxLines: 4,
-          decoration: const InputDecoration(hintText: "Type your review..."),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          TextButton(
-            onPressed: () async {
-              await _updateReview(controller.text);
-              Navigator.pop(context);
-            },
-            child: const Text("Submit"),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        context.read<MyAppState>().setCurrentTrack(widget.track);
+        context.read<MyAppState>().setCurrentTrack(track);
 
         Navigator.of(context).push(
           MaterialPageRoute(
@@ -447,137 +299,63 @@ class _AlbumCoverState extends State<_AlbumCover> {
         ),
         child: Stack(
           children: [
-            // Album Cover Image
+            // Album image
             Positioned.fill(
-              child: widget.track.albumImageUrl != null &&
-                      widget.track.albumImageUrl!.isNotEmpty
-                  ? Image.network(widget.track.albumImageUrl!, fit: BoxFit.cover)
+              child: track.albumImageUrl != null &&
+                      track.albumImageUrl!.isNotEmpty
+                  ? Image.network(track.albumImageUrl!,
+                      fit: BoxFit.cover)
                   : const Center(
-                      child: Icon(Icons.album, size: 48, color: Colors.white54),
+                      child: Icon(Icons.album,
+                          size: 48, color: Colors.white54),
                     ),
             ),
 
-            //shows song name and artist info at the bottom of a song
-            if (!widget.isSelected)
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [
-                        Colors.black.withOpacity(0.75),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        widget.track.name,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        widget.track.artists,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.white70,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+            // Title overlay
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      Colors.black.withOpacity(0.75),
+                      Colors.transparent,
                     ],
                   ),
                 ),
-              ),
-
-            // Overlay with song info
-            //currently unused, keeping if we pivot back to on album review method
-            if (widget.isSelected)
-              Positioned.fill(
-                child: Container(
-                  color: Colors.black.withOpacity(0.85),
-                ),
-              ),
-            if (widget.isSelected)
-              Positioned(
-                top: 12,
-                left: 12,
-                right: 12,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      widget.track.name,
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      widget.track.artists,
-                      style: const TextStyle(fontSize: 12, color: Colors.white70),
+                      track.name,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: List.generate(5, (index) {
-                        final starValue = index + 1.0;
-                        return IconButton(
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          icon: Icon(
-                            _userRating >= starValue ? Icons.star : Icons.star_border,
-                            color: Colors.amber,
-                            size: 20,
-                          ),
-                          onPressed: () => _updateRating(starValue),
-                        );
-                      }),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        IconButton(
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          icon: Icon(_isFavorite ? Icons.favorite : Icons.favorite_border,
-                              color: Colors.red, size: 22),
-                          onPressed: _toggleFavorite,
-                        ),
-                        const SizedBox(width: 12),
-                        TextButton(
-                          onPressed: _showReviewDialog,
-                          child: const Text("Review", style: TextStyle(color: Colors.white)),
-                        ),
-                        const SizedBox(width: 12),
-                        IconButton(
-                          icon: const Icon(Icons.open_in_new, color: Colors.white),
-                          onPressed: () async {
-                            final uri = Uri.parse(widget.track.url!);
-                            if (await canLaunch(uri.toString())) {
-                              await launch(uri.toString());
-                            }
-                          },
-                        ),
-                      ],
+                    Text(
+                      track.artists,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.white70,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
+            ),
           ],
         ),
       ),
