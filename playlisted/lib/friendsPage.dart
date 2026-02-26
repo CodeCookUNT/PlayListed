@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'friends.dart';
 import 'chat.dart';
 import 'profile.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class FriendsPage extends StatefulWidget {
   const FriendsPage({super.key});
@@ -147,14 +149,43 @@ class _FriendsPageState extends State<FriendsPage> {
                   final friend = friends[index];
                   final friendUid = friend['friendUid'] as String;
                   final name = friend['friendName'] as String? ?? 'Unknown';
-                  final photoUrl = friend['friendPhotoUrl'] as String?;
 
                   return ListTile(
-                    leading: CircleAvatar(
-                      backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
-                      child: photoUrl == null
-                          ? Text(name.isNotEmpty ? name[0] : '?')
-                          : null,
+                    leading: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                      stream: FirebaseFirestore.instance.collection('users').doc(friendUid).snapshots(),
+                      builder: (context, snap) {
+                        final u = snap.data?.data();
+
+                        final int? cachedColor = friend['friendAvatarColor'] as int?;
+                        final String? cachedIconKey = friend['friendAvatarIcon'] as String?;
+
+                        final int avatarColorInt =
+                            cachedColor ??
+                            (u?['avatarColor'] as int?) ??
+                            Theme.of(context).colorScheme.primary.toARGB32();
+
+                        final String? avatarIconKey =
+                            cachedIconKey ?? (u?['avatarIcon'] as String?);
+
+                        final avatarIcon = iconFromKey(avatarIconKey);
+
+                        if (cachedColor == null && u != null && u['avatarColor'] != null) {
+                          FirebaseFirestore.instance
+                              .collection('users')
+                              .doc(FirebaseAuth.instance.currentUser!.uid)
+                              .collection('friends')
+                              .doc(friendUid)
+                              .set({
+                            'friendAvatarColor': u['avatarColor'],
+                            'friendAvatarIcon': u['avatarIcon'],
+                          }, SetOptions(merge: true));
+                        }
+
+                        return CircleAvatar(
+                          backgroundColor: Color(avatarColorInt),
+                          child: Icon(avatarIcon, color: Colors.white),
+                        );
+                      },
                     ),
                     title: Text(name),
                     subtitle: const Text('Tap to open chat'),
@@ -367,5 +398,28 @@ class FriendRequestsPage extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+IconData iconFromKey(String? key) {
+  switch (key) {
+    case 'music_note':
+      return Icons.music_note;
+    case 'music_note_outlined':
+      return Icons.music_note_outlined;
+    case 'library_music':
+      return Icons.library_music;
+    case 'library_music_outlined':
+      return Icons.library_music_outlined;
+    case 'queue_music':
+      return Icons.queue_music;
+    case 'album':
+      return Icons.album;
+    case 'album_outlined':
+      return Icons.album_outlined;
+    case 'graphic_eq':
+      return Icons.graphic_eq;
+    default:
+      return Icons.music_note;
   }
 }
