@@ -132,8 +132,8 @@ class _CollectionsPageState extends State<CollectionsPage> {
     return SafeArea(
       child: Scaffold(
         backgroundColor: Theme.of(context).brightness == Brightness.dark
-            ? const Color.fromARGB(255, 66, 66, 66)
-            : Colors.white,
+            ? const Color(0xFF101417)
+            : const Color(0xFFF6FAFE),
         body: _loading
             ? const Center(child: CircularProgressIndicator())
             : ListView(

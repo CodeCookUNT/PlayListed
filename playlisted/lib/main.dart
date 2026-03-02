@@ -80,8 +80,6 @@ class MyApp extends StatelessWidget {
         title: 'Playlist\'d',
 
         //Theme Data
-
-        //Light theme
         theme: ThemeData(
           brightness: Brightness.light,
           colorScheme: ColorScheme.fromSeed(
@@ -143,25 +141,22 @@ class AuthGate extends StatelessWidget {
           );
         }
         if (snap.hasData) {
-          // user is signed in
-          return MyHomePage(); // remove const if MyHomePage isn't const
+          return MyHomePage();
         }
-        // user is signed out
         return const LoginPage();
       },
     );
   }
 }
 
-
+// Toggle button for dark mode
+// Other toggle buttons can be added here later
 class ToggleButtonManager extends StatefulWidget {
   const ToggleButtonManager({super.key});
   @override
   State<ToggleButtonManager> createState() => _ToggleButtonManagerState();
 }
 
-// Toggle button for dark mode
-//Other toggle buttons can be added here later
 class _ToggleButtonManagerState extends State<ToggleButtonManager> {
 
   @override
@@ -186,7 +181,6 @@ class _ToggleButtonManagerState extends State<ToggleButtonManager> {
 
 class MyAppState extends ChangeNotifier {
   bool isDarkMode = false;
-  //optional access token (fetched at app startup)
   String? accessToken;
   List<Track>? tracks = [];
   List <Track> recTracks = [];
@@ -196,7 +190,6 @@ class MyAppState extends ChangeNotifier {
   int _trackCounter = 0;
   Recommendations recommendService = Recommendations.instance;
   Colikes colikeService = Colikes.instance;
-  //map for song ratings
   final Map<String, double> likedOrRated = {};
   final List<String> _likedOrRatedIDs = [];
   String keyOf(Track t) => t.name;
@@ -204,15 +197,24 @@ class MyAppState extends ChangeNotifier {
   double ratingFor(Track t) => likedOrRated[keyOf(t)] ?? 0;
 
   var favorites = List<Track>.empty(growable: true);
-    void logout() {
+
+  //Vinyl gradient color
+  Color vinylColor = Colors.black;
+
+  void setVinylColor(Color color) {
+    if (vinylColor != color) {
+      vinylColor = color;
+      notifyListeners();
+    }
+  }
+
+  void logout() {
     accessToken = null;
-    //clears cached collections data so refreshes on next lpgin
+    vinylColor = Colors.black;
     SpotifyCache().clear();
     notifyListeners();
   }
 
-
-  // Load user's likedOrRated from Firestore when app starts
   Future<void> loadUserRatings() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) {
@@ -221,7 +223,6 @@ class MyAppState extends ChangeNotifier {
     }
 
     try {
-      // Load from user's personal ratings collection
       final snapshot = await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
@@ -229,17 +230,12 @@ class MyAppState extends ChangeNotifier {
           .get();
 
       print('Loading ${snapshot.docs.length} ratings from Firestore');
-      //final trackId = snapshot.docs[0].id;
 
       for (var doc in snapshot.docs) {
         final data = doc.data();
-        
-        //push ID into _list
         _likedOrRatedIDs.add(doc.id);
-
         final trackName = data['name'] as String?;
         final rating = data['rating'] as double?;
-        
         if (trackName != null) {
           likedOrRated[trackName] = rating ?? 0.0;
         }
@@ -260,17 +256,14 @@ class MyAppState extends ChangeNotifier {
     _trackCounter = value;
   }
 
-  //add tracks to 
   void markSongsForDeletion(String songID){
     _deltracks.add(songID);
-
     _deleteTimer?.cancel();
-
-      _deleteTimer = Timer(const Duration(seconds: 2), () async {
-        final todelete = List<String>.from(_deltracks);
-        _deltracks.clear();
-        await Recommendations.instance.removeRecommendationsFromSource(todelete);
-      });
+    _deleteTimer = Timer(const Duration(seconds: 2), () async {
+      final todelete = List<String>.from(_deltracks);
+      _deltracks.clear();
+      await Recommendations.instance.removeRecommendationsFromSource(todelete);
+    });
   }
   
   void printLikedOrRatedIDs(){
@@ -294,7 +287,6 @@ class MyAppState extends ChangeNotifier {
       _likedOrRatedIDs.remove(t.id!);
       _tempLikedTracks.remove(current!.id!);
       Recommendations.instance.removeOneSongFromSource(current!.id!);
-      // Remove from global ratings if track has an ID
       if (t.id != null) {
         final userId = FirebaseAuth.instance.currentUser?.uid;
         if (userId != null) {
@@ -313,8 +305,6 @@ class MyAppState extends ChangeNotifier {
       if (!favorites.any((x) => keyOf(x) == k)) {
         favorites.add(t);
       }
-      
-      // Submit to global ratings if track has an ID
       if (t.id != null) {
         final userId = FirebaseAuth.instance.currentUser?.uid;
         if (userId != null) {
@@ -333,16 +323,14 @@ class MyAppState extends ChangeNotifier {
   
 
   MyAppState({this.accessToken, this.tracks}) {
-    // Initialize current safely
     if (tracks != null && tracks!.isNotEmpty) {
       current = tracks![0];
     } else {
       current = null;
     }
-    
   }
 
-  Track? current; ////Changed to Track? instead of dynamic
+  Track? current;
 
   void setCurrentTrack(Track track) {
     current = track;
@@ -351,16 +339,10 @@ class MyAppState extends ChangeNotifier {
 
   void getNext() {
     if (tracks != null && tracks!.isNotEmpty) {
-      //cycle to next track
       int currentIndex = tracks!.indexWhere((track) => track.name == current?.name);
       int nextIndex = (currentIndex + 1) % tracks!.length;
       current = tracks![nextIndex];
-      //update track counter
       setTrackCounter(nextIndex);
-      //generate new recommendation every 5 tracks
-      //update co-liked tracks every 5 tracks
-      //! UNCOMMENT TO ENABLE CO-LIKED UPDATES
-      //! Warning: May cause slower performance due to batch writes
       if(_trackCounter % 5 == 0){
         print('Updating co-liked tracks...');
         _updateCoLiked(_tempLikedTracks, _likedOrRatedIDs);
@@ -372,13 +354,12 @@ class MyAppState extends ChangeNotifier {
     }
     notifyListeners();
   }
+
   void getPrevious() {
     if (tracks != null && tracks!.isNotEmpty) {
-      //cycle to previous track
       int currentIndex = tracks!.indexWhere((track) => track.name == current?.name);
       int nextIndex = (currentIndex - 1) % tracks!.length;
       current = tracks![nextIndex];
-      //update track counter
       setTrackCounter(nextIndex);
     } else {
       current = null;
@@ -386,9 +367,7 @@ class MyAppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  
-  
-
+  // Keep backgroundColor for any legacy usages (e.g. SongInteractionPage)
   Color backgroundColor = Colors.white;
 
   void toggleFavorite() {
@@ -396,10 +375,9 @@ class MyAppState extends ChangeNotifier {
     final isFavNow = !favorites.any((t) => t.name == current!.name);
     if (isFavNow) {
       favorites.add(current!);
-      likedOrRated[current!.name] = 0.0; // Auto-rate favorite songs as 0.0
+      likedOrRated[current!.name] = 0.0;
       _likedOrRatedIDs.add(current!.id!);
       _tempLikedTracks.add(current!.id!);
-      
     } else {
       favorites.removeWhere((t) => t.name == current!.name);
       likedOrRated.remove(current!.name);
@@ -409,7 +387,7 @@ class MyAppState extends ChangeNotifier {
     }
     notifyListeners();
     try {
-        Favorites.instance.setFavorite(
+      Favorites.instance.setFavorite(
         trackId: current!.id!,
         name: current!.name,
         artists: current!.artists,
@@ -428,7 +406,6 @@ class MyAppState extends ChangeNotifier {
 
   void removeFromLikedOrRated(String idToRemove) {
     _likedOrRatedIDs.remove(idToRemove);
-
     final index = favorites.indexWhere((fav) => fav.id == idToRemove);
     if (index != -1) {
       final trackToRemove = favorites[index];
@@ -438,13 +415,11 @@ class MyAppState extends ChangeNotifier {
     notifyListeners();
   }
 
-
   Future<void> generateRecommendation() async {
     if (current == null || accessToken == null) {
       print('No liked track available for recommendations.');
       return;
-    }
-    else{
+    } else {
       await recommendService.getRec(_tempLikedTracks, accessToken);
     }
     notifyListeners();
@@ -455,14 +430,10 @@ class MyAppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // update coliked tracks in batches to speedup process
   Future<void> _updateCoLiked(List<String> tempLikedTracks, List<String> likedOrRatedIDs) async {
-    //prevents clearing from MyAppState after call, since its async
     final newTracks = List<String>.from(tempLikedTracks);
-
     if (newTracks.isEmpty) return;
 
-    //fetch user's existing co_liked pair IDs once to avoid per-pair queries
     final userId = FirebaseAuth.instance.currentUser?.uid;
     Set<String>? existingPairIds;
     if (userId != null) {
@@ -479,21 +450,15 @@ class MyAppState extends ChangeNotifier {
     }
 
     print('Updating co-liked for ${newTracks.length} new songs');
-    //use the new batch-optimized function
     await colikeService.updateCoLikedBatch(
       newSongIds: List.from(newTracks),
       existingLikedSongs: likedOrRatedIDs,
       existingPairIds: existingPairIds,
     );
-}
+  }
 
   void toggleDarkMode(bool enabled) {
     isDarkMode = enabled;
-    if(isDarkMode){
-      backgroundColor = Colors.grey.shade800;
-    } else {
-      backgroundColor = Colors.white;
-    }
     notifyListeners();
   }
 }
@@ -509,7 +474,6 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
-    // Load user's previous ratings from Firestore after login
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchRecommendedTracksAfterLogin();
       context.read<MyAppState>().loadUserRatings();
@@ -536,65 +500,70 @@ class _MyHomePageState extends State<MyHomePage> {
   ];
 
   @override
-  Widget build(BuildContext context) { 
+  Widget build(BuildContext context) {
+    final appState = context.watch<MyAppState>();
+    final isDark = appState.isDarkMode;
+    final vinyl = appState.vinylColor;
+
+    // Build gradient colors based on vinyl color + theme
+    final gradientTop = isDark
+        ? Color.alphaBlend(vinyl.withOpacity(0.40), const Color(0xFF0A1628))
+        : Color.alphaBlend(vinyl.withOpacity(0.50), Colors.white);
+    final gradientBottom = isDark
+        ? const Color(0xFF0A1628)
+        : Colors.white;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         return Scaffold(
           appBar: AppBar(
             leading: IconButton(
-              icon: Icon(Icons.settings),
+              icon: const Icon(Icons.settings),
               onPressed: () => _openSettings(context),
             ),
-          title: Text(
-          'Playlist\'d',
-            style: GoogleFonts.montserrat(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-              letterSpacing: 0.5,
+            title: Text(
+              'Playlist\'d',
+              style: GoogleFonts.montserrat(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+                letterSpacing: 0.5,
               ),
-            ),  
+            ),
           ),
-          body: Container(
-            color: context.watch<MyAppState>().backgroundColor,
-            child: pages[selectedIndex],
-          ),
+          //Vinyl gradient 
+          body: selectedIndex == 0
+              ? AnimatedContainer(
+                  duration: const Duration(milliseconds: 900),
+                  curve: Curves.easeInOut,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [gradientTop, gradientBottom],
+                    ),
+                  ),
+                  child: pages[selectedIndex],
+                )
+              : pages[selectedIndex],
           bottomNavigationBar: Container(
             decoration: BoxDecoration(
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.5),
                   blurRadius: 10,
-                  offset: Offset(0, -3),
+                  offset: const Offset(0, -3),
                 ),
               ],
             ),
             child: NavigationBar(
               destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.home),
-                  label: 'Home',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.library_music),
-                  label: 'Songs',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.search_rounded),
-                  label: 'Search',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.people),
-                  label: 'Friends',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.library_music_outlined),
-                  label: 'Collections',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.person),
-                  label: 'Profile',
-                ),
+                NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
+                NavigationDestination(icon: Icon(Icons.library_music), label: 'Songs'),
+                NavigationDestination(icon: Icon(Icons.search_rounded), label: 'Search'),
+                NavigationDestination(icon: Icon(Icons.people), label: 'Friends'),
+                NavigationDestination(icon: Icon(Icons.library_music_outlined), label: 'Collections'),
+                NavigationDestination(icon: Icon(Icons.person), label: 'Profile'),
               ],
               selectedIndex: selectedIndex,
               onDestinationSelected: (index) {
@@ -608,14 +577,11 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
-// Bulid the page
 class GeneratorPage extends StatelessWidget {
-
   final bool showScrollButtons;
   final bool centerVertically;
 
   const GeneratorPage({super.key, this.showScrollButtons = true, this.centerVertically = false});
-  
 
   @override
   Widget build(BuildContext context) {
@@ -630,133 +596,120 @@ class GeneratorPage extends StatelessWidget {
           return SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
             child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight - 48), // account for vertical padding
+              constraints: BoxConstraints(minHeight: constraints.maxHeight - 48),
               child: Align(
                 alignment: centerVertically ? Alignment.center : Alignment.topCenter,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-              if (track != null) ...[
-                // Get global average rating to be used later 
-                FutureBuilder<Map<String, dynamic>>(
-                  future: track.id != null 
-                    ? GlobalRatings.instance.getAverageRating(track.id!)
-                    : Future.value({'averageRating': 0.0, 'totalRatings': 0}),
-                  builder: (context, snapshot) {
-                    final globalRating = snapshot.hasData 
-                      ? (snapshot.data!['averageRating'] as num?)?.toDouble() ?? 0.0
-                      : 0.0;
-                    
-                    return BigCard(
-                      track: track,
-                      globalRating: globalRating,
-                    );
-                  },
-                ),
-
-                // star rating and open song button section
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    StarRating(
-                      rating: appState.ratingFor(track),
-                      onChanged: (r) async {
-                        appState.setRating(track, r);
-                        await Favorites.instance.setRating(
-                          trackId: track.id!,
-                          name: track.name,
-                          artists: track.artists,
-                          albumImageUrl: track.albumImageUrl,
-                          rating: r,
-                        );
-                      },
-                    ),
-                    const SizedBox(width: 16),
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: const Color(0xFF1DB954),
-                      child: IconButton(
-                        icon: const Icon(Icons.open_in_new, color: Colors.white),
-                        onPressed: () async {
-                          final uri = Uri.parse(track.url!);
-                          if (await canLaunchUrl(uri)) {
-                            await launchUrl(uri);
-                          } else {
-                            print('Could not launch ${track.url}');
-                          }
+                    if (track != null) ...[
+                      FutureBuilder<Map<String, dynamic>>(
+                        future: track.id != null 
+                          ? GlobalRatings.instance.getAverageRating(track.id!)
+                          : Future.value({'averageRating': 0.0, 'totalRatings': 0}),
+                        builder: (context, snapshot) {
+                          final globalRating = snapshot.hasData 
+                            ? (snapshot.data!['averageRating'] as num?)?.toDouble() ?? 0.0
+                            : 0.0;
+                          
+                          return BigCard(
+                            track: track,
+                            globalRating: globalRating,
+                          );
                         },
                       ),
-                    ),
-                  ],
-                ),
-              ] else
-                const Text('Failed to fetch track'),
-
-              const SizedBox(height: 10),
-              
-              // Add Review and View Reviews Buttons
-              if (track != null && track.id != null) ...[
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [  
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        _showReviewDialog(context, track);
-                      },
-                      icon: const Icon(Icons.rate_review),
-                      label: const Text('Write Review'),
-                    ),
-                    const SizedBox(width: 10),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        _showAllReviewsDialog(context, track);
-                      },
-                      icon: const Icon(Icons.reviews),
-                      label: const Text('Reviews'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-              ],
-              
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (showScrollButtons) ...[
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: ElevatedButton(
-                        onPressed: () {
-                          appState.getPrevious();
-                        },
-                        child: const Text('Back'),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          StarRating(
+                            rating: appState.ratingFor(track),
+                            onChanged: (r) async {
+                              appState.setRating(track, r);
+                              await Favorites.instance.setRating(
+                                trackId: track.id!,
+                                name: track.name,
+                                artists: track.artists,
+                                albumImageUrl: track.albumImageUrl,
+                                rating: r,
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 16),
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor: const Color(0xFF1DB954),
+                            child: IconButton(
+                              icon: const Icon(Icons.open_in_new, color: Colors.white),
+                              onPressed: () async {
+                                final uri = Uri.parse(track.url!);
+                                if (await canLaunchUrl(uri)) {
+                                  await launchUrl(uri);
+                                } else {
+                                  print('Could not launch ${track.url}');
+                                }
+                              },
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
-                  LikeButton(
-                    track: track,
-                    isLiked: isLiked,
-                    onToggle: appState.toggleFavorite,
-                  ),
-                  if (showScrollButtons) ...[
-                    const SizedBox(width: 10),
-                    ElevatedButton(
-                      onPressed: () {
-                        appState.getNext();
-                      },
-                      child: const Text('Next'),
-                    ),
-                  ],
-                ],
-              ),
-              
-              // Global Average Rating Section
-              if (track != null && track.id != null) ...[
-                const SizedBox(height: 10),
-                GlobalRatingDisplay(trackId: track.id!),
-              ],
+                    ] else
+                      const Text('Failed to fetch track'),
 
-              const SizedBox(height: 24), // extra bottom spacing
+                    const SizedBox(height: 10),
+
+                    if (track != null && track.id != null) ...[
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: () => _showReviewDialog(context, track),
+                            icon: const Icon(Icons.rate_review),
+                            label: const Text('Write Review'),
+                          ),
+                          const SizedBox(width: 10),
+                          ElevatedButton.icon(
+                            onPressed: () => _showAllReviewsDialog(context, track),
+                            icon: const Icon(Icons.reviews),
+                            label: const Text('Reviews'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (showScrollButtons) ...[
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: ElevatedButton(
+                              onPressed: () => appState.getPrevious(),
+                              child: const Text('Back'),
+                            ),
+                          ),
+                        ],
+                        LikeButton(
+                          track: track,
+                          isLiked: isLiked,
+                          onToggle: appState.toggleFavorite,
+                        ),
+                        if (showScrollButtons) ...[
+                          const SizedBox(width: 10),
+                          ElevatedButton(
+                            onPressed: () => appState.getNext(),
+                            child: const Text('Next'),
+                          ),
+                        ],
+                      ],
+                    ),
+
+                    if (track != null && track.id != null) ...[
+                      const SizedBox(height: 10),
+                      GlobalRatingDisplay(trackId: track.id!),
+                    ],
+
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
@@ -816,12 +769,10 @@ class LikeButtonState extends State<LikeButton> {
   }
 }
 
-// Dialog to write/edit review
 void _showReviewDialog(BuildContext context, Track track) async {
   final userId = FirebaseAuth.instance.currentUser?.uid;
   if (userId == null) return;
 
-  // Load existing review if any
   String existingReview = '';
   try {
     final doc = await FirebaseFirestore.instance
@@ -830,7 +781,6 @@ void _showReviewDialog(BuildContext context, Track track) async {
         .collection('ratings')
         .doc(track.id)
         .get();
-    
     if (doc.exists && doc.data() != null) {
       existingReview = doc.data()!['review'] ?? '';
     }
@@ -839,21 +789,14 @@ void _showReviewDialog(BuildContext context, Track track) async {
   }
 
   final TextEditingController reviewController = TextEditingController(text: existingReview);
-  
   showDialog(
     context: context,
-    builder: (context) => ReviewDialog(
-      track: track,
-      reviewController: reviewController,
-    ),
+    builder: (context) => ReviewDialog(track: track, reviewController: reviewController),
   );
 }
 
-// Dialog to show all reviews for a song
 void _showAllReviewsDialog(BuildContext context, Track track) async {
-  // First check if any reviews exist
   print('Checking for reviews for trackId: ${track.id}');
-  
   try {
     final testQuery = await FirebaseFirestore.instance
         .collection('song_reviews')
@@ -863,7 +806,7 @@ void _showAllReviewsDialog(BuildContext context, Track track) async {
   } catch (e) {
     print('Error testing query: $e');
   }
-  
+
   showDialog(
     context: context,
     builder: (context) => AlertDialog(
@@ -871,16 +814,10 @@ void _showAllReviewsDialog(BuildContext context, Track track) async {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('Reviews'),
-          SizedBox(height: 4),
-          Text(
-            track.name,
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-          Text(
-            'by ${track.artists}',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
-          ),
+          const Text('Reviews'),
+          const SizedBox(height: 4),
+          Text(track.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          Text('by ${track.artists}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
         ],
       ),
       content: SizedBox(
@@ -893,24 +830,20 @@ void _showAllReviewsDialog(BuildContext context, Track track) async {
               .get(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return Center(child: CircularProgressIndicator());
+              return const Center(child: CircularProgressIndicator());
             }
-
             if (snapshot.hasError) {
-              print('Error loading reviews: ${snapshot.error}');
               return Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('Error loading reviews'),
-                    SizedBox(height: 8),
-                    Text('${snapshot.error}', style: TextStyle(fontSize: 10)),
-                    SizedBox(height: 16),
+                    const Text('Error loading reviews'),
+                    const SizedBox(height: 8),
+                    Text('${snapshot.error}', style: const TextStyle(fontSize: 10)),
+                    const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      child: Text('Close'),
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Close'),
                     ),
                   ],
                 ),
@@ -921,35 +854,26 @@ void _showAllReviewsDialog(BuildContext context, Track track) async {
             print('Loaded ${reviews.length} reviews');
 
             if (reviews.isEmpty) {
-              return Center(
+              return const Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(Icons.reviews_outlined, size: 64, color: Colors.grey),
                     SizedBox(height: 16),
-                    Text(
-                      'No reviews yet',
-                      style: TextStyle(color: Colors.grey),
-                    ),
+                    Text('No reviews yet', style: TextStyle(color: Colors.grey)),
                     SizedBox(height: 8),
-                    Text(
-                      'Be the first to review!',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
+                    Text('Be the first to review!', style: TextStyle(fontSize: 12, color: Colors.grey)),
                   ],
                 ),
               );
             }
 
-            // Sort by most recent
             reviews.sort((a, b) {
               final aTime = (a.data() as Map<String, dynamic>)['updatedAt'] as Timestamp?;
               final bTime = (b.data() as Map<String, dynamic>)['updatedAt'] as Timestamp?;
-              
               if (aTime == null && bTime == null) return 0;
               if (aTime == null) return 1;
               if (bTime == null) return -1;
-              
               return bTime.compareTo(aTime);
             });
 
@@ -961,13 +885,12 @@ void _showAllReviewsDialog(BuildContext context, Track track) async {
                 final rating = reviewData['rating'] as double?;
                 final timestamp = reviewData['updatedAt'] as Timestamp?;
                 final username = reviewData['username'] as String? ?? 'Anonymous';
-                // Format timestamp
+
                 String timeAgo = 'Recently';
                 if (timestamp != null) {
                   final date = timestamp.toDate();
                   final now = DateTime.now();
                   final difference = now.difference(date);
-                  
                   if (difference.inDays > 30) {
                     timeAgo = '${(difference.inDays / 30).floor()} month${(difference.inDays / 30).floor() > 1 ? 's' : ''} ago';
                   } else if (difference.inDays > 0) {
@@ -982,7 +905,7 @@ void _showAllReviewsDialog(BuildContext context, Track track) async {
                 }
 
                 return Card(
-                  margin: EdgeInsets.only(bottom: 12),
+                  margin: const EdgeInsets.only(bottom: 12),
                   child: Padding(
                     padding: const EdgeInsets.all(12.0),
                     child: Column(
@@ -995,22 +918,19 @@ void _showAllReviewsDialog(BuildContext context, Track track) async {
                               backgroundColor: Theme.of(context).colorScheme.primary,
                               child: Text(
                                 username.isNotEmpty ? username[0].toUpperCase() : '?',
-                                style: TextStyle(color: Colors.white, fontSize: 14),
+                                style: const TextStyle(color: Colors.white, fontSize: 14),
                               ),
                             ),
-                            SizedBox(width: 8),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     username.length > 20 ? '${username.substring(0, 20)}...' : username,
-                                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                                   ),
-                                  Text(
-                                    timeAgo,
-                                    style: TextStyle(fontSize: 11, color: Colors.grey),
-                                  ),
+                                  Text(timeAgo, style: const TextStyle(fontSize: 11, color: Colors.grey)),
                                 ],
                               ),
                             ),
@@ -1018,20 +938,17 @@ void _showAllReviewsDialog(BuildContext context, Track track) async {
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.star, color: Colors.amber, size: 16),
+                                  const Icon(Icons.star, color: Colors.amber, size: 16),
                                   Text(
                                     rating.toStringAsFixed(1),
-                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                                   ),
                                 ],
                               ),
                           ],
                         ),
-                        SizedBox(height: 8),
-                        Text(
-                          review,
-                          style: TextStyle(fontSize: 14),
-                        ),
+                        const SizedBox(height: 8),
+                        Text(review, style: const TextStyle(fontSize: 14)),
                       ],
                     ),
                   ),
@@ -1044,23 +961,18 @@ void _showAllReviewsDialog(BuildContext context, Track track) async {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: Text('Close'),
+          child: const Text('Close'),
         ),
       ],
     ),
   );
 }
 
-// Stateful dialog widget for character counter
 class ReviewDialog extends StatefulWidget {
   final Track track;
   final TextEditingController reviewController;
 
-  const ReviewDialog({
-    super.key,
-    required this.track,
-    required this.reviewController,
-  });
+  const ReviewDialog({super.key, required this.track, required this.reviewController});
 
   @override
   State<ReviewDialog> createState() => _ReviewDialogState();
@@ -1070,65 +982,50 @@ class _ReviewDialogState extends State<ReviewDialog> {
   static const int maxCharacters = 300;
   String? reviewExplicitCheck;
 
-
   @override
   void initState() {
     super.initState();
     widget.reviewController.addListener(() {
-      setState(() {
-        reviewExplicitCheck = null;
-      }); 
+      setState(() => reviewExplicitCheck = null);
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final remainingChars = maxCharacters - widget.reviewController.text.length;
-    
     return AlertDialog(
-      title: Text('Write a Review'),
+      title: const Text('Write a Review'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            widget.track.name,
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          Text(
-            'by ${widget.track.artists}',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
-          ),
-          SizedBox(height: 16),
+          Text(widget.track.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text('by ${widget.track.artists}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          const SizedBox(height: 16),
           TextField(
             controller: widget.reviewController,
             maxLength: maxCharacters,
             maxLines: 5,
             decoration: InputDecoration(
               hintText: 'Share your thoughts about this song...',
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
               counterText: '$remainingChars characters remaining',
             ),
           ),
           if (reviewExplicitCheck != null) ...[
-            SizedBox(height: 8),
-            Text(
-              reviewExplicitCheck!,
-              style: 
-                TextStyle(color: Colors.red, fontSize: 12),
-            ),
+            const SizedBox(height: 8),
+            Text(reviewExplicitCheck!, style: const TextStyle(color: Colors.red, fontSize: 12)),
           ],
         ],
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: Text('Cancel'),
+          child: const Text('Cancel'),
         ),
         if (widget.reviewController.text.isNotEmpty)
           TextButton(
             onPressed: () async {
-              // Delete review
               await Favorites.instance.setReview(
                 trackId: widget.track.id!,
                 name: widget.track.name,
@@ -1138,10 +1035,10 @@ class _ReviewDialogState extends State<ReviewDialog> {
               );
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Review deleted')),
+                const SnackBar(content: Text('Review deleted')),
               );
             },
-            child: Text('Delete', style: TextStyle(color: Colors.red)),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ElevatedButton(
           onPressed: () async {
@@ -1150,16 +1047,12 @@ class _ReviewDialogState extends State<ReviewDialog> {
               Navigator.of(context).pop();
               return;
             }
-
-            // Check for explicit language when a user is adding a review to a song
             if (ExplicitContentFilter.containsExplicitContent(review)) {
               setState(() {
                 reviewExplicitCheck = 'Please remove explicit language from your review.';
               });
               return;
             }
-            
-            // Save review to Firestore
             await Favorites.instance.setReview(
               trackId: widget.track.id!,
               name: widget.track.name,
@@ -1167,26 +1060,20 @@ class _ReviewDialogState extends State<ReviewDialog> {
               albumImageUrl: widget.track.albumImageUrl,
               review: review,
             );
-            
             Navigator.of(context).pop();
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Review saved!')),
+              const SnackBar(content: Text('Review saved!')),
             );
           },
-          child: Text('Save Review'),
+          child: const Text('Save Review'),
         ),
       ],
     );
   }
 }
 
-//Card that is about the viynl and jacket
-class BigCard extends StatefulWidget { //made the card to stateful to do movement 
-  const BigCard({
-    super.key,
-    required this.track,
-    this.globalRating = 0.0,
-  });
+class BigCard extends StatefulWidget {
+  const BigCard({super.key, required this.track, this.globalRating = 0.0});
 
   final Track track;
   final double globalRating;
@@ -1209,43 +1096,53 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
       duration: const Duration(milliseconds: 1200),
       vsync: this,
     );
-
-    // Slide animation starts
-    _slideAnimation = Tween<double>(
-      begin: 0.0,
-      end: 103.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: const Interval(0.25, 1.0, curve: Curves.easeOutCubic),
-    ));
-
+    _slideAnimation = Tween<double>(begin: 0.0, end: 103.0).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: const Interval(0.25, 1.0, curve: Curves.easeOutCubic),
+      ),
+    );
     _previousTrack = widget.track;
     _previousRating = widget.globalRating;
     _currentVinylColor = _getVinylColor(widget.globalRating);
     _animationController.forward();
+
+    // Push initial vinyl color to app state
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<MyAppState>().setVinylColor(_currentVinylColor);
+      }
+    });
   }
 
   @override
   void didUpdateWidget(BigCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    
-    // Check if track changed
+
     if (oldWidget.track.id != widget.track.id) {
       _previousTrack = oldWidget.track;
       _previousRating = oldWidget.globalRating;
-      
-      // Update color immediately
       setState(() {
         _currentVinylColor = _getVinylColor(widget.globalRating);
       });
-      
-      // Reset and play animation
       _animationController.reset();
       _animationController.forward();
+
+      // Notify app state of new vinyl color
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          context.read<MyAppState>().setVinylColor(_currentVinylColor);
+        }
+      });
     } else if (oldWidget.globalRating != widget.globalRating) {
-      // If only rating changed, update color
       setState(() {
         _currentVinylColor = _getVinylColor(widget.globalRating);
+      });
+      // Notify app state when rating changes color
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          context.read<MyAppState>().setVinylColor(_currentVinylColor);
+        }
       });
     }
   }
@@ -1256,16 +1153,15 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
     super.dispose();
   }
 
-  // Function to determine vinyl color based on rating
   Color _getVinylColor(double rating) {
     if (rating >= 4.8) {
-      return const Color.fromARGB(255, 167, 228, 227); // Platium
+      return const Color.fromARGB(255, 167, 228, 227); // Platinum
     } else if (rating >= 4.0) {
-      return const Color.fromARGB(255, 207, 205, 51); // Gold
+      return const Color.fromARGB(255, 207, 205, 51);  // Gold
     } else if (rating >= 3.0) {
       return const Color.fromARGB(255, 154, 168, 168); // Silver
     } else if (rating >= 2.0) {
-      return const Color.fromARGB(255, 168, 125, 39); // Bronze 
+      return const Color.fromARGB(255, 168, 125, 39);  // Bronze
     } else {
       return Colors.black;
     }
@@ -1274,14 +1170,11 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final style = theme.textTheme.titleLarge!.copyWith(
-      color: theme.colorScheme.primary,
-    );
+    final style = theme.textTheme.titleLarge!.copyWith(color: theme.colorScheme.primary);
     final artistStyle = theme.textTheme.titleMedium!.copyWith(
       color: theme.colorScheme.primary.withOpacity(0.8),
     );
-    
-    // Vinyl and jacket display
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1294,7 +1187,7 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
                 return Stack(
                   alignment: Alignment.centerLeft,
                   children: [
-                    // Vinyl record with slide animation
+                    // Vinyl record
                     Transform.translate(
                       offset: Offset(_slideAnimation.value, 0),
                       child: AnimatedContainer(
@@ -1315,7 +1208,6 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
                         child: Stack(
                           alignment: Alignment.center,
                           children: [
-                            // Vinyl grooves
                             for (int i = 1; i <= 6; i++)
                               Container(
                                 width: 180 - (i * 30.0),
@@ -1328,8 +1220,6 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
                                   ),
                                 ),
                               ),
-
-                            // Center label
                             Container(
                               width: 60,
                               height: 60,
@@ -1337,37 +1227,18 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
                                 shape: BoxShape.circle,
                                 color: theme.colorScheme.primary,
                               ),
-                              child: Icon(
-                                Icons.album,
-                                color: theme.colorScheme.onPrimary,
-                                size: 40,
-                              ),
+                              child: Icon(Icons.album, color: theme.colorScheme.onPrimary, size: 40),
                             ),
-
-                            // Center hole
                             Container(
                               width: 15,
                               height: 15,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.black,
-                              ),
+                              decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.black),
                             ),
                           ],
                         ),
                       ),
                     ),
-                   
-                    // Gray box that appear when image is loading and will be covered by the album image
-                    Container(
-                      width: 200,
-                      height: 200,
-                      decoration: BoxDecoration(
-                        color: Colors.grey,
-                      ),
-                    ),
-                    
-                    // Album jacket/cover
+                    Container(width: 200, height: 200, decoration: const BoxDecoration(color: Colors.grey)),
                     Container(
                       width: 200,
                       height: 200,
@@ -1378,7 +1249,7 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
                             color: Colors.black.withOpacity(0.5),
                             blurRadius: 15,
                             spreadRadius: 2,
-                            offset: Offset(5, 5),
+                            offset: const Offset(5, 5),
                           ),
                         ],
                       ),
@@ -1389,14 +1260,12 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
                           width: 200,
                           height: 200,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              width: 300,
-                              height: 300,
-                              color: Colors.grey,
-                              child: Icon(Icons.album, size: 100, color: Colors.white),
-                            );
-                          },
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            width: 300,
+                            height: 300,
+                            color: Colors.grey,
+                            child: const Icon(Icons.album, size: 100, color: Colors.white),
+                          ),
                         ),
                       ),
                     ),
@@ -1405,7 +1274,6 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
               },
             ),
           ),
-        // Track info card
         Card(
           color: theme.colorScheme.primary,
           child: Padding(
@@ -1419,7 +1287,7 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
                   textAlign: TextAlign.center,
                   semanticsLabel: widget.track.name,
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 Text(
                   widget.track.artists,
                   style: artistStyle.copyWith(color: theme.colorScheme.onPrimary.withOpacity(0.8)),
@@ -1435,14 +1303,9 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
   }
 }
 
-// Widget to display global average rating
 class GlobalRatingDisplay extends StatelessWidget {
   final String trackId;
-
-  const GlobalRatingDisplay({
-    super.key,
-    required this.trackId,
-  });
+  const GlobalRatingDisplay({super.key, required this.trackId});
 
   @override
   Widget build(BuildContext context) {
@@ -1460,18 +1323,13 @@ class GlobalRatingDisplay extends StatelessWidget {
                   color: Theme.of(context).colorScheme.primary,
                 ),
               ),
-              SizedBox(height: 4),
-              SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
+              const SizedBox(height: 4),
+              const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
             ],
           );
         }
 
         final data = snapshot.data ?? {'averageRating': 0.0, 'totalRatings': 0};
-        //final averageRating = data['averageRating'] as double; causes bug
         final averageRating = (data['averageRating'] as num?)?.toDouble() ?? 0.0;
         final totalRatings = data['totalRatings'] as int;
 
@@ -1485,17 +1343,15 @@ class GlobalRatingDisplay extends StatelessWidget {
                 color: Theme.of(context).colorScheme.primary,
               ),
             ),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Display stars for global rating (read-only)
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: List.generate(5, (index) {
                     final starValue = index + 1;
                     IconData icon;
-
                     if (averageRating >= starValue) {
                       icon = Icons.star;
                     } else if (averageRating >= starValue - 0.5) {
@@ -1503,15 +1359,10 @@ class GlobalRatingDisplay extends StatelessWidget {
                     } else {
                       icon = Icons.star_border;
                     }
-
-                    return Icon(
-                      icon,
-                      size: 24,
-                      color: Colors.amber,
-                    );
+                    return Icon(icon, size: 24, color: Colors.amber);
                   }),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Text(
                   '${averageRating.toStringAsFixed(1)} ($totalRatings)',
                   style: TextStyle(
@@ -1539,13 +1390,10 @@ void _openSettings(BuildContext context) {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '    Settings    ',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
+            const Text('    Settings    ', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             ElevatedButton(
-              child: Text('Logout'),
+              child: const Text('Logout'),
               onPressed: () async {
                 context.read<MyAppState>().logout();
                 await FirebaseAuth.instance.signOut();
@@ -1561,7 +1409,7 @@ void _openSettings(BuildContext context) {
 }
 
 class StarRating extends StatelessWidget {
-  final double rating; // 0.0–5.0, supports halves
+  final double rating;
   final ValueChanged<double> onChanged;
   final double size;
   final double spacing;
@@ -1576,15 +1424,12 @@ class StarRating extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Use theme color for consistency
     final starColor = Theme.of(context).colorScheme.secondary;
-
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: List.generate(5, (index) {
         final starValue = index + 1;
         IconData icon;
-
         if (rating >= starValue) {
           icon = Icons.star;
         } else if (rating >= starValue - 0.5) {
@@ -1592,7 +1437,6 @@ class StarRating extends StatelessWidget {
         } else {
           icon = Icons.star_border;
         }
-
         return GestureDetector(
           onTap: () {
             if (rating >= starValue) {
@@ -1610,6 +1454,3 @@ class StarRating extends StatelessWidget {
     );
   }
 }
-
-
-
