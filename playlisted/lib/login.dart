@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'resetPasswordPage.dart';
 import 'content_filter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -217,6 +218,10 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
   bool fnameError = false;
   bool lnameError = false;
   bool emailError = false;
+  bool agreedToPolicies = false;
+
+  static final Uri _privacyPolicyUri = Uri.parse('https://app.termly.io/policy-viewer/policy.html?policyUUID=7a1f4d91-810f-4320-8c36-02649b44370b');
+  static final Uri _termsUri = Uri.parse('https://app.termly.io/policy-viewer/policy.html?policyUUID=2eb0c776-e4cf-4f8e-b659-12a73734aef1');
   
   late AnimationController _colorAnimationController;
   late Animation<Color?> _colorAnimation;
@@ -235,6 +240,16 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
       begin: const Color(0xFF1583B7),
       end: const Color(0xFF6B48FF),
     ).animate(_colorAnimationController);
+  }
+
+  Future<void> _launchUrl(Uri url) async {
+    final ok = await launchUrl(url, mode: LaunchMode.platformDefault);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open link.')),
+      );
+    }
+
   }
 
   bool strongPassCheck(String password) {
@@ -276,6 +291,14 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
         return;
       }
 
+      if (!agreedToPolicies) {
+        if (mounted) setState(() => busy = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You must agree to the Privacy Policy and Terms and Conditions.')),
+        );
+        return;
+      }
+
       if (password != confirmPass.text) {
         if (mounted) setState(() => busy = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -305,6 +328,9 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
           'firstName': fname,
           'lastName': lname,
           'email': mail,
+          'agreedPrivacyPolicy': agreedToPolicies,
+          'agreedTerms': agreedToPolicies,
+          'policiesAgreementDate': FieldValue.serverTimestamp(),
           'createdAt': FieldValue.serverTimestamp(),
         });
 
@@ -470,8 +496,32 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
                           obscureText: !confirmPasswordVisible,
                         ),
                         const SizedBox(height: 24),
+                        CheckboxListTile(
+                          value: agreedToPolicies,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          onChanged:(value) {
+                            setState(() {
+                              agreedToPolicies = value ?? false;
+                            });
+                          },
+                          title: const Text('I agree to the Privacy Policy and Terms and Conditions.'),
+                          subtitle: Wrap(
+                            spacing: 4,
+                            children: [
+                              TextButton(
+                                onPressed: () => _launchUrl(_privacyPolicyUri),
+                                child: const Text('View Privacy Policy'),
+                              ),
+                              TextButton(
+                                  onPressed: () => _launchUrl(_termsUri),
+                                  child: const Text('View Terms of Service'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        const SizedBox(height: 12),
                         ElevatedButton(
-                          onPressed: busy ? null : _create,
+                          onPressed: (busy || !agreedToPolicies ? null : _create),
                           child: busy
                               ? const SizedBox(
                                   height: 18,

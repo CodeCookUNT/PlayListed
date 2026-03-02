@@ -77,7 +77,7 @@ class MyApp extends StatelessWidget {
       child: Consumer<MyAppState>(
         builder: (context, appState, _) {
         return MaterialApp(
-        title: 'Playlistd',
+        title: 'Playlist\'d',
 
         //Theme Data
 
@@ -546,7 +546,7 @@ class _MyHomePageState extends State<MyHomePage> {
               onPressed: () => _openSettings(context),
             ),
           title: Text(
-          'Playlistd',
+          'Playlist\'d',
             style: GoogleFonts.montserrat(
               fontSize: 22,
               fontWeight: FontWeight.w700,
