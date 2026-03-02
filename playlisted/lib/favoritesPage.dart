@@ -352,8 +352,8 @@ class _SlidableListItemState extends State<SlidableListItem> {
                 child: Container(
                   decoration: BoxDecoration(
                     color: Theme.of(context).brightness == Brightness.dark
-                        ? const Color.fromARGB(255, 66, 66, 66)
-                        : Colors.white,
+                        ? const Color(0xFF101417)
+                        : const Color(0xFFF6FAFE),
                     border: Border(
                       bottom: BorderSide(
                         color: Theme.of(context).dividerColor.withOpacity(0.1),
