@@ -286,6 +286,11 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
 
   }
 
+  //Delete recommendation
+  Future<void> deleteRecommendation(String trackId) async {
+    await _col.doc(trackId).delete();
+  }
+
   
 
 }

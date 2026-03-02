@@ -65,6 +65,21 @@ class SpotifyService {
     }
   }
 
+  // Future<List<Track>> fetchSongs(String accessToken, Map<Track, double> recTracks, {String? yearRange, int limit = 10}) async{
+  //   List<Track> feed = [];
+
+  //   //sort the tracks by score and take the top 5
+  //     final sortedTracks = recTracks.entries.toList()
+  //       ..sort((a, b) => b.value.compareTo(a.value));
+  //     feed = sortedTracks.take(6).map((e) => e.key).toList();
+
+
+    
+  // }
+  
+
+
+  
   Future<List<Track>> fetchTopSongs(String? accessToken, {String? yearRange, int limit = 500}) async {
     List<Track> allTracks = [];
     
