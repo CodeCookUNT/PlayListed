@@ -43,7 +43,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
           .collection('co_liked')
           .where('songA', isEqualTo: likedId)
           .orderBy('count', descending: true)
-          .limit(8)
+          .limit(6)
           .get();
 
       //extract songB from each document
@@ -74,7 +74,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
           .collection('co_liked')
           .where('songB', isEqualTo: likedId)
           .orderBy('count', descending: true)
-          .limit(8)
+          .limit(6)
           .get();
 
       //extract songA from each document

@@ -11,7 +11,7 @@ import 'package:flutter/foundation.dart';
 import 'favorites.dart';
 import 'favoritesPage.dart';
 import 'recommendations.dart';
-import 'recommendationsPage.dart';
+// recommendationsPage.dart is no longer referenced in main.dart
 import 'search.dart';
 import 'profile.dart';
 import 'colike.dart';
@@ -40,37 +40,20 @@ Future<void> main() async {
   //load environment variables (.env) so SpotifyService can read client id/secret
   await dotenv.load(fileName: '.env');
 
-  //get our initial token, ? means our token can be null if fetch fails
-  String? initialToken;
-  try {
-    initialToken = await SpotifyService().getAccessToken();
-    print('Initial Spotify token fetched');
-  } catch (e) {
-    initialToken = null;
-    print('Failed to fetch initial token: $e');
-  }
-
-  //get tracks by searching popular genres and years
-  List<Track> initialTracks = [];
-  try {
-    //initialTracks = await SpotifyService().fetchTopSongs(initialToken);
-    initialTracks = await SpotifyService().fetchTopSongs(initialToken, limit: 10);
-    print('Fetched ${initialTracks.length} songs');
-  } catch (e) {
-    print('Failed to fetch top songs: $e');
-  }
-  
-  runApp(MyApp(initialAccessToken: initialToken, intialAccessTracks: initialTracks));
+  // Note: we no longer fetch a token or tracks here.  Instead the
+  // application will request both after the user has successfully
+  // logged in.  This keeps the login flow fast and ensures the feed is
+  // refreshed on every sign‑in.
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  final String? initialAccessToken;
-  final List<Track>? intialAccessTracks;
-  const MyApp({super.key, this.initialAccessToken, this.intialAccessTracks});  
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (context) => MyAppState(accessToken: initialAccessToken,tracks: intialAccessTracks),
+      create: (context) => MyAppState(),
       child: Consumer<MyAppState>(
         builder: (context, appState, _) {
         return MaterialApp(
@@ -196,6 +179,11 @@ class MyAppState extends ChangeNotifier {
   //map for song ratings
   final Map<String, double> likedOrRated = {};
   final List<String> _likedOrRatedIDs = [];
+  
+  //track which tracks have been seen to avoid serving them again
+  final Set<String> _seenTrackIds = <String>{};
+  final Set<String> _seenTrackNameArtist = <String>{};
+  
   String keyOf(Track t) => t.name;
 
   double ratingFor(Track t) => likedOrRated[keyOf(t)] ?? 0;
@@ -251,6 +239,107 @@ class MyAppState extends ChangeNotifier {
 
   Future<void> loadRecommendations() async {
     recTracks = await SpotifyService().fetchRecommendedSongs();
+    print('loadRecommendations completed: ${recTracks.length} tracks loaded');
+  }
+
+  /// Fetch the feed that will back the generator page.
+  ///
+  /// This method ensures we have a valid access token (refreshing it if
+  /// necessary), also guarantees that recommendations have been loaded so
+  /// they can be mixed into the feed.  Once the call completes the
+  /// `tracks` list and `current` track are updated and listeners are
+  /// notified.
+  Future<void> loadFeed({String? yearRange}) async {
+    // grab token if we don't already have one
+    if (accessToken == null) {
+      try {
+        accessToken = await SpotifyService().getAccessToken();
+        print('Spotify token obtained in loadFeed');
+      } catch (e) {
+        print('Unable to acquire Spotify token: $e');
+        return;
+      }
+    }
+
+    // ensure recommendations are fetched
+    if (recTracks.isEmpty) {
+      print('loadFeed: recTracks is empty, fetching recommendations...');
+      await loadRecommendations();
+      print('loadFeed: after loadRecommendations, recTracks has ${recTracks.length} items');
+    }
+
+    try {
+      print('loadFeed: calling fetchSongs with ${recTracks.length} recommendation tracks');
+      final newTracks = await SpotifyService().fetchSongs(
+        accessToken!,
+        recTracks,
+        yearRange: yearRange,
+        limit: 10,
+      );
+
+      tracks = newTracks;
+      if (tracks != null && tracks!.isNotEmpty) {
+        current = tracks![0];
+        
+        // track all returned tracks so we don't serve them again
+        _seenTrackIds.clear();
+        _seenTrackNameArtist.clear();
+        for (final track in tracks!) {
+          if (track.id != null && track.id!.isNotEmpty) {
+            _seenTrackIds.add(track.id!);
+          }
+          _seenTrackNameArtist.add('${track.name}|${track.artists}'.toLowerCase());
+        }
+      }
+      notifyListeners();
+      print('Loaded ${tracks?.length ?? 0} feed tracks');
+    } catch (e) {
+      print('Error fetching feed songs: $e');
+    }
+  }
+
+  /// Fetch additional tracks and append them to the current feed.
+  ///
+  /// This is called when the user scrolls near the end to populate the
+  /// rest of the feed with tracks they haven't seen. Uses the same
+  /// recommendation/popular/random mix as loadFeed but excludes already
+  /// loaded tracks.
+  Future<void> loadMoreTracks({String? yearRange}) async {
+    if (accessToken == null) {
+      print('loadMoreTracks: no access token, skipping');
+      return;
+    }
+
+    try {
+      print('loadMoreTracks: fetching more tracks (excluding ${_seenTrackIds.length} seen)');
+      final moreTracks = await SpotifyService().fetchSongs(
+        accessToken!,
+        recTracks,
+        yearRange: yearRange,
+        limit: 10,
+        excludeIds: _seenTrackIds,
+        excludeNameArtist: _seenTrackNameArtist,
+      );
+
+      if (moreTracks.isNotEmpty) {
+        tracks!.addAll(moreTracks);
+        
+        // track these new tracks
+        for (final track in moreTracks) {
+          if (track.id != null && track.id!.isNotEmpty) {
+            _seenTrackIds.add(track.id!);
+          }
+          _seenTrackNameArtist.add('${track.name}|${track.artists}'.toLowerCase());
+        }
+        
+        notifyListeners();
+        print('loadMoreTracks: added ${moreTracks.length} new tracks, total now ${tracks!.length}');
+      } else {
+        print('loadMoreTracks: no new tracks available');
+      }
+    } catch (e) {
+      print('Error loading more tracks: $e');
+    }
   }
 
   void setTrackCounter(int value){
@@ -330,13 +419,14 @@ class MyAppState extends ChangeNotifier {
   
 
   MyAppState({this.accessToken, this.tracks}) {
-    // Initialize current safely
+    // we keep this constructor for backwards compatibility, but the
+    // startup fetch logic no longer passes any values in.  current is set
+    // when loadFeed() completes later.
     if (tracks != null && tracks!.isNotEmpty) {
       current = tracks![0];
     } else {
       current = null;
     }
-    
   }
 
   Track? current; ////Changed to Track? instead of dynamic
@@ -354,11 +444,18 @@ class MyAppState extends ChangeNotifier {
       current = tracks![nextIndex];
       //update track counter
       setTrackCounter(nextIndex);
+      print("Track Counter: $_trackCounter\nTrack Length: ${tracks!.length}");
+      //if approaching the end, load more tracks in the background
+      if (nextIndex >= tracks!.length - 5) {
+        print('getNext: near end of feed (index $nextIndex/${tracks!.length}), loading more...');
+        loadMoreTracks(); //helper function to call fetchSongs and update feed dynamically
+      }
+      
       //generate new recommendation every 5 tracks
       //update co-liked tracks every 5 tracks
       //! UNCOMMENT TO ENABLE CO-LIKED UPDATES
       //! Warning: May cause slower performance due to batch writes
-      if(_trackCounter % 5 == 0){
+      if(_trackCounter % 3 == 0){
         print('Updating co-liked tracks...');
         _updateCoLiked(_tempLikedTracks, _likedOrRatedIDs);
         generateRecommendation();
@@ -506,21 +603,19 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
-    // Load user's previous ratings from Firestore after login
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _fetchRecommendedTracksAfterLogin();
-      context.read<MyAppState>().loadUserRatings();
-      context.read<MyAppState>().loadRecommendations();
+    //Load user's previous ratings and build the feed once they're signed
+    //in. We fetch recommendations first, then ask SpotifyService for a
+    //batch of songs using the new `fetchSongs` helper.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final appState = context.read<MyAppState>();
+      await appState.loadUserRatings();
+      await appState.loadRecommendations();
+      await appState.loadFeed();
     });
   }
 
-  Future<List<Track>> _fetchRecommendedTracksAfterLogin() async {
-    final appState = context.read<MyAppState>();
-    if (appState.accessToken != null) {
-      return await SpotifyService().fetchTopSongs(appState.accessToken);
-    }
-    return [];
-  }
+  //this helper is no longer needed, we now use loadFeed() on the
+  //app state which wraps token acquisition and calls fetchSongs.
 
   final pages = [
     GeneratorPage(),

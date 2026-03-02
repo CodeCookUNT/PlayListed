@@ -65,17 +65,116 @@ class SpotifyService {
     }
   }
 
-  // Future<List<Track>> fetchSongs(String accessToken, Map<Track, double> recTracks, {String? yearRange, int limit = 10}) async{
-  //   List<Track> feed = [];
-
-  //   //sort the tracks by score and take the top 5
-  //     final sortedTracks = recTracks.entries.toList()
-  //       ..sort((a, b) => b.value.compareTo(a.value));
-  //     feed = sortedTracks.take(6).map((e) => e.key).toList();
-
-
+  //fetch 6 rec songs, 3 popular songs, and 1 random popular song, ensures the same track is not seen twice
+  Future<List<Track>> fetchSongs(String accessToken, Map<Track, double> recTracks, {String? yearRange, int limit = 10, Set<String>? excludeIds, Set<String>? excludeNameArtist}) async{
+    print('fetchSongs: Starting with ${recTracks.length} recommendation tracks, limit=$limit');
     
-  // }
+    // Track seen songs by ID and name+artist to avoid duplicates
+    final seenIds = <String>{...(excludeIds ?? {})}; // include pre-existing exclusions
+    final seenNameArtist = <String>{...(excludeNameArtist ?? {})};
+    final feed = <Track>[];
+
+    void _addUnique(Track track) {
+      final key = '${track.name}|${track.artists}'.toLowerCase();
+      
+      //check by ID first if available
+      if (track.id != null && track.id!.isNotEmpty) {
+        if (seenIds.contains(track.id)) {
+          print('  skipping duplicate (by ID): ${track.name}');
+          return;
+        }
+        seenIds.add(track.id!);
+
+      }
+      
+      //also check by name+artist
+      if (seenNameArtist.contains(key)) {
+        print('  skipping duplicate (by name): ${track.name}');
+        return;
+      }
+      seenNameArtist.add(key);
+      
+      feed.add(track);
+    }
+    //ignore any recommendation entries that lack an ID; without it we
+    //can't show ratings/reviews and they could later trigger null
+    //assertion errors when we try to reference `.id`.
+    final validRec = recTracks.entries
+        .where((e) => e.key.id != null && e.key.id!.isNotEmpty)
+        .toList();
+  
+
+    // 1. take up to six of the highest-scoring recommended tracks
+    final sortedTracks = validRec..sort((a, b) => b.value.compareTo(a.value));
+    for (final entry in sortedTracks.take(6)) {
+      _addUnique(entry.key);
+    }
+    //if recommendations were sparse, top up with some fresh songs
+    if (feed.length < 8) {
+      final more = await fetchTopSongs(accessToken, yearRange: yearRange, limit: 8);
+      for (final track in more) {
+        if (feed.length >= 8) break;
+        _addUnique(track);
+      }
+    }
+    //three popular songs
+    print('fetchSongs: Fetching 3 popular tracks...');
+    final popular = await fetchTopSongs(accessToken, yearRange: yearRange, limit: 10);
+    int addedPopular = 0;
+    for (final track in popular) {
+      if (addedPopular >= 3) break;
+      final oldLen = feed.length;
+      _addUnique(track);
+      if (feed.length > oldLen) addedPopular++;
+    }
+    print('fetchSongs: Added $addedPopular popular tracks, total now ${feed.length}');
+  
+    //get more recommended tracks if the length is low
+    if(feed.length < 6){
+      print('fetchSongs: Only ${feed.length} tracks after popular additions, fetching more recommendations...');
+      final moreRecs = await fetchRecommendedSongs();
+      final sortedMoreRecs = moreRecs.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+      for (final entry in sortedMoreRecs) {
+        if (feed.length >= 8) break;
+        _addUnique(entry.key);
+      }
+      print('fetchSongs: Added ${feed.length - 8} more recommended tracks, total now ${feed.length}');
+    }
+
+    //one additional randomly chosen popular track to drive variety
+    print('fetchSongs: Fetching random tracks...');
+    final randomTracks = await fetchTopSongs(accessToken, yearRange: yearRange, limit: 10);
+    randomTracks.shuffle();
+    for (final track in randomTracks) {
+      final oldLen = feed.length;
+      _addUnique(track);
+      if (feed.length > oldLen) {
+        print('fetchSongs: Added 1 random track, total now ${feed.length}');
+        break;
+      }
+    }
+
+    //make sure we always return exactly `limit` items
+    if (feed.length < limit) {
+      print('fetchSongs: Under limit (${feed.length} < $limit), fetching ${limit - feed.length} extra...');
+      final extra = await fetchTopSongs(accessToken, yearRange: yearRange, limit: limit * 2);
+      for (final track in extra) {
+        if (feed.length >= limit) break;
+        _addUnique(track);
+      }
+      print('fetchSongs: Total now ${feed.length}');
+    }
+
+    if (feed.length > limit) {
+      print('fetchSongs: Over limit (${feed.length} > $limit), trimming to $limit...');
+      feed.removeRange(limit, feed.length);
+    }
+
+    feed.shuffle();
+    print('fetchSongs: Returning ${feed.length} unique tracks');
+    return feed;
+  }
+
   
 
 
@@ -214,9 +313,11 @@ class SpotifyService {
   Future<Map<Track, double>> fetchRecommendedSongs() async{
     // Check if user is authenticated
   if (FirebaseAuth.instance.currentUser == null) {
-    print("User not authenticated");
+    print("fetchRecommendedSongs: User not authenticated");
     return {};
   }
+
+    print("fetchRecommendedSongs: Starting fetch for user $_uid");
 
     //fetch the recommended songs for the current user from firestore
     Map<Track, double> recommendedTracks = {};
@@ -228,13 +329,18 @@ class SpotifyService {
           .collection('recommendations')
           .get();
     
+    print("fetchRecommendedSongs: Query returned ${q1.docs.length} documents");
+    
     if(q1.docs.isEmpty){
-        print("No recommendations found for user $_uid");
+        print("fetchRecommendedSongs: No recommendations found for user $_uid");
         return {};
       }
 
       for(var doc in q1.docs){
-        final track = Track(
+        // doc.id holds the Spotify track ID, so use it when constructing the
+      // Track object.  This ensures later UI code can look up reviews/global
+      // ratings by id.
+      final track = Track(
           name: doc['name'] ?? '',
           artists: doc['artists'] ?? '',
           durationMs: doc['durationMs'] ?? 0,
@@ -242,12 +348,14 @@ class SpotifyService {
           url: doc['url'] ?? '',
           albumImageUrl: doc['albumImageUrl'],
           score: doc['score'] != null ? (doc['score'] as num).toDouble() : 0.0,
+          id: doc.id,                       // ← important fix
         );
-        final score = (doc['score'] as num?)?.toDouble() ?? 0.0;
-        recommendedTracks[track] = score;
+      final score = (doc['score'] as num?)?.toDouble() ?? 0.0;
+      recommendedTracks[track] = score;
+      print("fetchRecommendedSongs: Added '${track.name}' with score $score");
       }
 
-      print("Fetched ${recommendedTracks.length} recommended tracks for user $_uid");
+      print("fetchRecommendedSongs: Fetched ${recommendedTracks.length} recommended tracks for user $_uid");
       for(var track in recommendedTracks.keys){
         print("${track.name} by ${track.artists} with score ${recommendedTracks[track]!.toStringAsFixed(2)}");
       }
