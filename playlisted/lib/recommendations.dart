@@ -43,7 +43,9 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
           .collection('co_liked')
           .where('songA', isEqualTo: likedId)
           .orderBy('count', descending: true)
-          .limit(6)
+          // grab a larger neighbourhood of co‑liked tracks so the
+          // recommendation pool can grow well past forty items
+          .limit(20)
           .get();
 
       //extract songB from each document
@@ -74,7 +76,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
           .collection('co_liked')
           .where('songB', isEqualTo: likedId)
           .orderBy('count', descending: true)
-          .limit(6)
+          .limit(20)
           .get();
 
       //extract songA from each document

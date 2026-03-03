@@ -446,7 +446,7 @@ class MyAppState extends ChangeNotifier {
       setTrackCounter(nextIndex);
       print("Track Counter: $_trackCounter\nTrack Length: ${tracks!.length}");
       //if approaching the end, load more tracks in the background
-      if (nextIndex >= tracks!.length - 5) {
+      if (nextIndex >= tracks!.length - 3) {
         print('getNext: near end of feed (index $nextIndex/${tracks!.length}), loading more...');
         loadMoreTracks(); //helper function to call fetchSongs and update feed dynamically
       }
@@ -455,7 +455,7 @@ class MyAppState extends ChangeNotifier {
       //update co-liked tracks every 5 tracks
       //! UNCOMMENT TO ENABLE CO-LIKED UPDATES
       //! Warning: May cause slower performance due to batch writes
-      if(_trackCounter % 3 == 0){
+      if(_trackCounter % 5 == 0){
         print('Updating co-liked tracks...');
         _updateCoLiked(_tempLikedTracks, _likedOrRatedIDs);
         generateRecommendation();
@@ -538,9 +538,20 @@ class MyAppState extends ChangeNotifier {
       print('No liked track available for recommendations.');
       return;
     }
-    else{
-      await recommendService.getRec(_tempLikedTracks, accessToken);
+
+    //run the recommendation algorithm (writes to Firestore)
+    await recommendService.getRec(_tempLikedTracks, accessToken);
+
+    //pull the updated recommendations back into memory
+    await loadRecommendations();
+
+    // f there is room in the current feed, fetch some new tracks now so
+    //the user can immediately see the fresh recommendations
+    if (tracks != null && tracks!.length < 5) {
+      await loadMoreTracks();
     }
+
+    // don't clear _tempLikedTracks here; it is managed elsewhere
     notifyListeners();
   }
 
