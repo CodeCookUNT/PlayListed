@@ -11,7 +11,7 @@ import 'package:flutter/foundation.dart';
 import 'favorites.dart';
 import 'favoritesPage.dart';
 import 'recommendations.dart';
-import 'recommendationsPage.dart';
+// recommendationsPage.dart is no longer referenced in main.dart
 import 'search.dart';
 import 'profile.dart';
 import 'colike.dart';
@@ -20,11 +20,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'globalratings.dart';
 import 'friendsPage.dart';
 import 'collectionspage.dart';
-import 'friends.dart';
-import 'chat.dart';
-import 'dart:collection';
 import 'dart:async';
 import 'content_filter.dart';
+import 'dart:math' as math;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,37 +41,20 @@ Future<void> main() async {
   //load environment variables (.env) so SpotifyService can read client id/secret
   await dotenv.load(fileName: '.env');
 
-  //get our initial token, ? means our token can be null if fetch fails
-  String? initialToken;
-  try {
-    initialToken = await SpotifyService().getAccessToken();
-    print('Initial Spotify token fetched');
-  } catch (e) {
-    initialToken = null;
-    print('Failed to fetch initial token: $e');
-  }
-
-  //get tracks by searching popular genres and years
-  List<Track> initialTracks = [];
-  try {
-    //initialTracks = await SpotifyService().fetchTopSongs(initialToken);
-    initialTracks = await SpotifyService().fetchTopSongs(initialToken, limit: 500);
-    print('Fetched ${initialTracks.length} songs');
-  } catch (e) {
-    print('Failed to fetch top songs: $e');
-  }
-  
-  runApp(MyApp(initialAccessToken: initialToken, intialAccessTracks: initialTracks));
+  // Note: we no longer fetch a token or tracks here.  Instead the
+  // application will request both after the user has successfully
+  // logged in.  This keeps the login flow fast and ensures the feed is
+  // refreshed on every sign‑in.
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  final String? initialAccessToken;
-  final List<Track>? intialAccessTracks;
-  const MyApp({super.key, this.initialAccessToken, this.intialAccessTracks});  
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (context) => MyAppState(accessToken: initialAccessToken,tracks: intialAccessTracks),
+      create: (context) => MyAppState(),
       child: Consumer<MyAppState>(
         builder: (context, appState, _) {
         return MaterialApp(
@@ -183,7 +164,7 @@ class MyAppState extends ChangeNotifier {
   bool isDarkMode = false;
   String? accessToken;
   List<Track>? tracks = [];
-  List <Track> recTracks = [];
+  Map<Track, double> recTracks = {};
   List<String> _tempLikedTracks = [];
   List<String> _deltracks= []; 
   Timer? _deleteTimer;
@@ -192,6 +173,13 @@ class MyAppState extends ChangeNotifier {
   Colikes colikeService = Colikes.instance;
   final Map<String, double> likedOrRated = {};
   final List<String> _likedOrRatedIDs = [];
+  bool isHomeFeedLoading = false;
+  String? homeFeedError;
+  
+  //track which tracks have been seen to avoid serving them again
+  final Set<String> _seenTrackIds = <String>{};
+  final Set<String> _seenTrackNameArtist = <String>{};
+  
   String keyOf(Track t) => t.name;
 
   double ratingFor(Track t) => likedOrRated[keyOf(t)] ?? 0;
@@ -249,7 +237,112 @@ class MyAppState extends ChangeNotifier {
   }
 
   Future<void> loadRecommendations() async {
-    recTracks = await SpotifyService().fetchTopSongs(accessToken);
+    recTracks = await SpotifyService().fetchRecommendedSongs();
+    print('loadRecommendations completed: ${recTracks.length} tracks loaded');
+  }
+
+  /// Fetch the feed that will back the generator page.
+  ///
+  /// This method ensures we have a valid access token (refreshing it if
+  /// necessary), also guarantees that recommendations have been loaded so
+  /// they can be mixed into the feed.  Once the call completes the
+  /// `tracks` list and `current` track are updated and listeners are
+  /// notified.
+  Future<void> loadFeed({String? yearRange}) async {
+    // grab token if we don't already have one
+    if (accessToken == null) {
+      try {
+        accessToken = await SpotifyService().getAccessToken();
+        print('Spotify token obtained in loadFeed');
+      } catch (e) {
+        homeFeedError = 'Unable to acquire Spotify token: $e';
+        print(homeFeedError);
+        notifyListeners();
+        return;
+      }
+    }
+
+    // ensure recommendations are fetched
+    if (recTracks.isEmpty) {
+      print('loadFeed: recTracks is empty, fetching recommendations...');
+      await loadRecommendations();
+      print('loadFeed: after loadRecommendations, recTracks has ${recTracks.length} items');
+    }
+
+    try {
+      print('loadFeed: calling fetchSongs with ${recTracks.length} recommendation tracks');
+      final newTracks = await SpotifyService().fetchSongs(
+        accessToken!,
+        recTracks,
+        yearRange: yearRange,
+        limit: 10,
+      );
+
+      tracks = newTracks;
+      if (tracks != null && tracks!.isNotEmpty) {
+        current = tracks![0];
+        
+        // track all returned tracks so we don't serve them again
+        _seenTrackIds.clear();
+        _seenTrackNameArtist.clear();
+        for (final track in tracks!) {
+          if (track.id != null && track.id!.isNotEmpty) {
+            _seenTrackIds.add(track.id!);
+          }
+          _seenTrackNameArtist.add('${track.name}|${track.artists}'.toLowerCase());
+        }
+      }
+      notifyListeners();
+      print('Loaded ${tracks?.length ?? 0} feed tracks');
+    } catch (e) {
+      homeFeedError = 'Error fetching feed songs: $e';
+      print(homeFeedError);
+      notifyListeners();
+    }
+  }
+
+  /// Fetch additional tracks and append them to the current feed.
+  ///
+  /// This is called when the user scrolls near the end to populate the
+  /// rest of the feed with tracks they haven't seen. Uses the same
+  /// recommendation/popular/random mix as loadFeed but excludes already
+  /// loaded tracks.
+  Future<void> loadMoreTracks({String? yearRange}) async {
+    if (accessToken == null) {
+      print('loadMoreTracks: no access token, skipping');
+      return;
+    }
+
+    try {
+      print('loadMoreTracks: fetching more tracks (excluding ${_seenTrackIds.length} seen)');
+      final moreTracks = await SpotifyService().fetchSongs(
+        accessToken!,
+        recTracks,
+        yearRange: yearRange,
+        limit: 10,
+        excludeIds: _seenTrackIds,
+        excludeNameArtist: _seenTrackNameArtist,
+      );
+
+      if (moreTracks.isNotEmpty) {
+        tracks!.addAll(moreTracks);
+        
+        // track these new tracks
+        for (final track in moreTracks) {
+          if (track.id != null && track.id!.isNotEmpty) {
+            _seenTrackIds.add(track.id!);
+          }
+          _seenTrackNameArtist.add('${track.name}|${track.artists}'.toLowerCase());
+        }
+        
+        notifyListeners();
+        print('loadMoreTracks: added ${moreTracks.length} new tracks, total now ${tracks!.length}');
+      } else {
+        print('loadMoreTracks: no new tracks available');
+      }
+    } catch (e) {
+      print('Error loading more tracks: $e');
+    }
   }
 
   void setTrackCounter(int value){
@@ -323,6 +416,9 @@ class MyAppState extends ChangeNotifier {
   
 
   MyAppState({this.accessToken, this.tracks}) {
+    // we keep this constructor for backwards compatibility, but the
+    // startup fetch logic no longer passes any values in.  current is set
+    // when loadFeed() completes later.
     if (tracks != null && tracks!.isNotEmpty) {
       current = tracks![0];
     } else {
@@ -343,6 +439,17 @@ class MyAppState extends ChangeNotifier {
       int nextIndex = (currentIndex + 1) % tracks!.length;
       current = tracks![nextIndex];
       setTrackCounter(nextIndex);
+      print("Track Counter: $_trackCounter\nTrack Length: ${tracks!.length}");
+      //if approaching the end, load more tracks in the background
+      if (nextIndex >= tracks!.length - 3) {
+        print('getNext: near end of feed (index $nextIndex/${tracks!.length}), loading more...');
+        loadMoreTracks(); //helper function to call fetchSongs and update feed dynamically
+      }
+      
+      //generate new recommendation every 5 tracks
+      //update co-liked tracks every 5 tracks
+      //! UNCOMMENT TO ENABLE CO-LIKED UPDATES
+      //! Warning: May cause slower performance due to batch writes
       if(_trackCounter % 5 == 0){
         print('Updating co-liked tracks...');
         _updateCoLiked(_tempLikedTracks, _likedOrRatedIDs);
@@ -419,9 +526,21 @@ class MyAppState extends ChangeNotifier {
     if (current == null || accessToken == null) {
       print('No liked track available for recommendations.');
       return;
-    } else {
-      await recommendService.getRec(_tempLikedTracks, accessToken);
     }
+
+    //run the recommendation algorithm (writes to Firestore)
+    await recommendService.getRec(_tempLikedTracks, accessToken);
+
+    //pull the updated recommendations back into memory
+    await loadRecommendations();
+
+    // f there is room in the current feed, fetch some new tracks now so
+    //the user can immediately see the fresh recommendations
+    if (tracks != null && tracks!.length < 5) {
+      await loadMoreTracks();
+    }
+
+    // don't clear _tempLikedTracks here; it is managed elsewhere
     notifyListeners();
   }
 
@@ -461,6 +580,27 @@ class MyAppState extends ChangeNotifier {
     isDarkMode = enabled;
     notifyListeners();
   }
+
+  Future<void> initializeHomeFeed({String? yearRange}) async {
+    isHomeFeedLoading = true;
+    homeFeedError = null;
+    notifyListeners();
+
+    try {
+      await loadUserRatings();
+      await loadRecommendations();
+      await loadFeed(yearRange: yearRange);
+
+      if (current == null) {
+        homeFeedError = 'No tracks returned.';
+      }
+    } catch (e) {
+      homeFeedError = 'Failed to load tracks: $e';
+    } finally {
+      isHomeFeedLoading = false;
+      notifyListeners();
+    }
+  }
 }
 
 class MyHomePage extends StatefulWidget {
@@ -471,23 +611,30 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   int selectedIndex = 0;
 
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   //Load user's previous ratings and build the feed once they're signed
+  //   //in. We fetch recommendations first, then ask SpotifyService for a
+  //   //batch of songs using the new `fetchSongs` helper.
+  //   WidgetsBinding.instance.addPostFrameCallback((_) async {
+  //     final appState = context.read<MyAppState>();
+  //     await appState.loadUserRatings();
+  //     await appState.loadRecommendations();
+  //     await appState.loadFeed();
+  //   });
+  // }
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _fetchRecommendedTracksAfterLogin();
-      context.read<MyAppState>().loadUserRatings();
-      context.read<MyAppState>().loadRecommendations();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await context.read<MyAppState>().initializeHomeFeed();
     });
   }
 
-  Future<List<Track>> _fetchRecommendedTracksAfterLogin() async {
-    final appState = context.read<MyAppState>();
-    if (appState.accessToken != null) {
-      return await SpotifyService().fetchTopSongs(appState.accessToken);
-    }
-    return [];
-  }
+  //this helper is no longer needed, we now use loadFeed() on the
+  //app state which wraps token acquisition and calls fetchSongs.
 
   final pages = [
     GeneratorPage(),
@@ -543,7 +690,14 @@ class _MyHomePageState extends State<MyHomePage> {
                       colors: [gradientTop, gradientBottom],
                     ),
                   ),
-                  child: pages[selectedIndex],
+                  child: (appState.isHomeFeedLoading || appState.current == null)
+                      ? VinylLoadingScreen(
+                          labelText: 'Loading tracks...',
+                          ringText: ' NOW LOADING YOUR FEED ',
+                          errorText: appState.homeFeedError,
+                          onRetry: () => context.read<MyAppState>().initializeHomeFeed(),
+                        )
+                      : pages[selectedIndex],
                 )
               : pages[selectedIndex],
           bottomNavigationBar: Container(
@@ -653,7 +807,7 @@ class GeneratorPage extends StatelessWidget {
                         ],
                       ),
                     ] else
-                      const Text('Failed to fetch track'),
+                      const SizedBox.shrink(),
 
                     const SizedBox(height: 10),
 
@@ -1451,6 +1605,196 @@ class StarRating extends StatelessWidget {
           ),
         );
       }),
+    );
+  }
+}
+
+class VinylLoadingScreen extends StatelessWidget {
+  final String labelText;
+  final String ringText;
+  final String? errorText;
+  final VoidCallback? onRetry;
+
+  const VinylLoadingScreen({
+    super.key,
+    required this.labelText,
+    required this.ringText,
+    this.errorText,
+    this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final hasError = (errorText != null && errorText!.trim().isNotEmpty);
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Spinning vinyl
+            SizedBox(
+              width: 200,
+              height: 200,
+              child: TweenAnimationBuilder<double>(
+                duration: const Duration(seconds: 4),
+                tween: Tween(begin: 0.0, end: 1.0),
+                curve: Curves.linear,
+                // Loop the animation by rebuilding with a new tween end
+                onEnd: () {
+                  // This is a StatelessWidget, so we can't call setState.
+                  // Instead, rely on Flutter implicitly restarting when parent rebuilds.
+                  // If you want true continuous spin, we can convert to Stateful with AnimationController.
+                },
+                builder: (context, value, child) {
+                  return Transform.rotate(
+                    angle: value * 2 * math.pi,
+                    child: child,
+                  );
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.black,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.30),
+                        blurRadius: 20,
+                        spreadRadius: 5,
+                      ),
+                    ],
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Grooves
+                      for (int i = 1; i <= 5; i++)
+                        Container(
+                          width: 200 - (i * 20.0),
+                          height: 200 - (i * 20.0),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.grey.withOpacity(0.30),
+                              width: 1,
+                            ),
+                          ),
+                        ),
+
+                      // Center label
+                      Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: theme.colorScheme.primary,
+                        ),
+                        child: Icon(
+                          Icons.album,
+                          color: theme.colorScheme.onPrimary,
+                          size: 30,
+                        ),
+                      ),
+
+                      // Center hole
+                      Container(
+                        width: 14,
+                        height: 14,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.black,
+                        ),
+                      ),
+
+                      // Curved ring text
+                      _VinylText(label: ringText),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 18),
+
+            Text(
+              hasError ? 'Couldn’t load feed' : labelText,
+              style: theme.textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+
+            if (hasError) ...[
+              const SizedBox(height: 10),
+              Text(
+                errorText!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 6,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 14),
+              if (onRetry != null)
+                ElevatedButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retry'),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Draws curved text around the vinyl.
+class _VinylText extends StatelessWidget {
+  final String label;
+
+  const _VinylText({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    const double radius = 85.0;
+    const double fontSize = 8.5;
+    const double anglePerChar = 0.15;
+
+    final characters = label.characters.toList();
+    final int charCount = characters.length;
+
+    final double totalAngle = anglePerChar * (charCount - 1);
+    final double startAngle = -math.pi / 2 - totalAngle / 2;
+
+    return SizedBox(
+      width: 200,
+      height: 200,
+      child: Stack(
+        alignment: Alignment.center,
+        children: List.generate(charCount, (i) {
+          final double angle = startAngle + anglePerChar * i;
+          final double x = radius * math.cos(angle);
+          final double y = radius * math.sin(angle);
+
+          return Transform.translate(
+            offset: Offset(x, y),
+            child: Transform.rotate(
+              angle: angle + math.pi / 2,
+              child: Text(
+                characters[i],
+                style: TextStyle(
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white.withOpacity(0.75),
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
     );
   }
 }

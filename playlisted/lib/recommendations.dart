@@ -1,12 +1,9 @@
 // beginning development of recommendations algorithm, making file
-import 'package:flutter/material.dart';
 import 'spotify.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'colike.dart';
-import 'main.dart' show MyAppState;
 
 
 
@@ -46,7 +43,9 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
           .collection('co_liked')
           .where('songA', isEqualTo: likedId)
           .orderBy('count', descending: true)
-          .limit(2)
+          // grab a larger neighbourhood of co‑liked tracks so the
+          // recommendation pool can grow well past forty items
+          .limit(20)
           .get();
 
       //extract songB from each document
@@ -62,9 +61,13 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
             recTrackIds[songB] = {
               'track': track,
               'sources': <String>{},
+              'colikeCount': 0.0,
             };
           }
           (recTrackIds[songB]!['sources'] as Set<String>).add(likedId);
+          //track the colike count to compute score later
+          final cnt = (data['count'] as num?)?.toDouble() ?? 0.0;
+          recTrackIds[songB]!['colikeCount'] = (recTrackIds[songB]!['colikeCount'] as double) + cnt;
         }
       }
 
@@ -73,7 +76,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
           .collection('co_liked')
           .where('songB', isEqualTo: likedId)
           .orderBy('count', descending: true)
-          .limit(2)
+          .limit(20)
           .get();
 
       //extract songA from each document
@@ -89,9 +92,13 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
             recTrackIds[songA] = {
               'track': track,
               'sources': <String>{},
+              'colikeCount': 0.0,
             };
           }
           (recTrackIds[songA]!['sources'] as Set<String>).add(likedId);
+          //track the colike count to compute score later
+          final cnt = (data['count'] as num?)?.toDouble() ?? 0.0;
+          recTrackIds[songA]!['colikeCount'] = (recTrackIds[songA]!['colikeCount'] as double) + cnt;
         }
       }
     }
@@ -100,18 +107,66 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
     print('Error fetching co-liked tracks: $e');
   }
   
+  // compute max colike count so we can normalize co-like counts to 0..1
+  double maxColike = 0.0;
+  for (final v in recTrackIds.values) {
+    final c = (v['colikeCount'] as double?) ?? 0.0;
+    if (c > maxColike) maxColike = c;
+  }
+
+  // fetch accepted friends to compute friend-based score
+  final friendSnap = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(_uid)
+      .collection('friends')
+      .where('status', isEqualTo: 'accepted')
+      .get();
+  final friendUids = friendSnap.docs.map((d) => d.id).toList();
+
   for (final entry in recTrackIds.entries) {
     final track = entry.value['track'] as Track;
     final sources = entry.value['sources'] as Set<String>;
-    
+    final colikeCount = (entry.value['colikeCount'] as double?) ?? 0.0;
+
+    //normalize co-like count
+    final double colikeNorm = maxColike > 0 ? (colikeCount / maxColike) : 0.0;
+
+    //compute friend score: fraction of accepted friends who have rated/liked this track
+    int friendLikes = 0;
+    for (final f in friendUids) {
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(f)
+            .collection('ratings')
+            .doc(track.id)
+            .get();
+        if (doc.exists) {
+          final rating = (doc.data()?['rating'] as num?)?.toDouble() ?? 0.0;
+          if (rating > 0) friendLikes++;
+        }
+      } catch (e) {
+        //ignore per-friend lookup errors
+      }
+    }
+    final friendScore = friendUids.isEmpty ? 0.0 : (friendLikes / friendUids.length);
+
+    final popularityNorm = track.score != null ? (track.score! / 100) : 0.0;
+
+    //final weighted score: 0.6 * colike + 0.2 * friend + 0.2 * popularity
+    final double score = 0.6 * colikeNorm + 0.2 * friendScore + 0.2 * popularityNorm;
+
     await setRecommended(
       trackId: track.id!,
       name: track.name,
       artists: track.artists,
+      durationMs: track.durationMs,
+      explicit: track.explicit,
+      url: track.url,
       albumImageUrl: track.albumImageUrl,
       recommend: true,
       sourceTrackIds: sources.toList(),
-      score: track.popularityScore ?? 0,
+      score: score,
     );
   }
 }
@@ -122,15 +177,21 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
   Future<void> setRecommended({
     required String trackId,
     required String name,
+    required int durationMs,
+    required bool explicit,
+    required String url,
     required String artists,
     String? albumImageUrl,
     required bool recommend,
     required List<String> sourceTrackIds, //the tracks that led to this recommendation
-    required int score,
+    required double score,
   }) async {
     await _col.doc(trackId).set({
       'name': name,
       'artists': artists,
+      'durationMs': durationMs,
+      'explicit': explicit,
+      'url': url,
       'albumImageUrl': albumImageUrl,
       'recommend': recommend,
       'sourceTrackIds': sourceTrackIds,
@@ -212,8 +273,8 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
     return Track(
       name: json['name'],
       artists: artists,
-      durationMs: json['duration_ms'],
-      explicit: json['explicit'],
+      durationMs: json['duration_ms'] ?? 0,
+      explicit: json['explicit'] ?? false,
       url: json['external_urls']['spotify'],
       albumImageUrl: albumImageUrl,
       popularity: json['popularity'],
@@ -222,8 +283,14 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
       artistId: (json['artists'] != null && (json['artists'] as List).isNotEmpty)
           ? json['artists'][0]['id']
           : null,
-      popularityScore: (json['popularity'] + 10.0 > 100) ? 100 : json['popularity'] + 10.0, //inc score by 10, cap to 100
+      score: json['popularity'] != null ? (json['popularity']) : 0,
     );
+
+  }
+
+  //Delete recommendation
+  Future<void> deleteRecommendation(String trackId) async {
+    await _col.doc(trackId).delete();
   }
 
   
