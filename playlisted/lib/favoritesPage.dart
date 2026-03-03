@@ -351,7 +351,9 @@ class _SlidableListItemState extends State<SlidableListItem> {
                 transform: Matrix4.translationValues(_slideOffset, 0, 0),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF101417)
+                        : const Color(0xFFF6FAFE),
                     border: Border(
                       bottom: BorderSide(
                         color: Theme.of(context).dividerColor.withOpacity(0.1),

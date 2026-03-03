@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'resetPasswordPage.dart';
 import 'content_filter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -217,6 +218,44 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
   bool fnameError = false;
   bool lnameError = false;
   bool emailError = false;
+
+  // For avatar and background color animation
+  int selectedColorIndex = 0;
+  int selectedIconIndex = 0;
+
+  final List<Color> avatarColors = const [
+    Color(0xFF1583B7),
+    Color(0xFF1DB954),
+    Color(0xFFE53935),
+    Color(0xFFFFB300),
+    Color(0xFF8E24AA),
+  ];
+
+  final List<IconData> avatarIcons = const [
+    Icons.music_note,
+    Icons.music_note_outlined,
+    Icons.library_music,
+    Icons.library_music_outlined,
+    Icons.queue_music,
+    Icons.album,
+    Icons.album_outlined,
+    Icons.graphic_eq,
+  ];
+
+  String _iconKeyFromIndex(int i) => const [
+    'music_note',
+    'music_note_outlined',
+    'library_music',
+    'library_music_outlined',
+    'queue_music',
+    'album',
+    'album_outlined',
+    'graphic_eq',
+  ][i];
+  bool agreedToPolicies = false;
+
+  static final Uri _privacyPolicyUri = Uri.parse('https://app.termly.io/policy-viewer/policy.html?policyUUID=7a1f4d91-810f-4320-8c36-02649b44370b');
+  static final Uri _termsUri = Uri.parse('https://app.termly.io/policy-viewer/policy.html?policyUUID=2eb0c776-e4cf-4f8e-b659-12a73734aef1');
   
   late AnimationController _colorAnimationController;
   late Animation<Color?> _colorAnimation;
@@ -235,6 +274,16 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
       begin: const Color(0xFF1583B7),
       end: const Color(0xFF6B48FF),
     ).animate(_colorAnimationController);
+  }
+
+  Future<void> _launchUrl(Uri url) async {
+    final ok = await launchUrl(url, mode: LaunchMode.platformDefault);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open link.')),
+      );
+    }
+
   }
 
   bool strongPassCheck(String password) {
@@ -276,6 +325,14 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
         return;
       }
 
+      if (!agreedToPolicies) {
+        if (mounted) setState(() => busy = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You must agree to the Privacy Policy and Terms and Conditions.')),
+        );
+        return;
+      }
+
       if (password != confirmPass.text) {
         if (mounted) setState(() => busy = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -305,6 +362,11 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
           'firstName': fname,
           'lastName': lname,
           'email': mail,
+          'avatarColor': avatarColors[selectedColorIndex].toARGB32(),
+          'avatarIcon': _iconKeyFromIndex(selectedIconIndex),
+          'agreedPrivacyPolicy': agreedToPolicies,
+          'agreedTerms': agreedToPolicies,
+          'policiesAgreementDate': FieldValue.serverTimestamp(),
           'createdAt': FieldValue.serverTimestamp(),
         });
 
@@ -430,6 +492,90 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
                             });
                           },
                         ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Choose your avatar',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Preview
+                        Center(
+                          child: CircleAvatar(
+                            radius: 28,
+                            backgroundColor: avatarColors[selectedColorIndex],
+                            child: Icon(
+                              avatarIcons[selectedIconIndex],
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        // Color choices (5)
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          alignment: WrapAlignment.center,
+                          children: List.generate(avatarColors.length, (i) {
+                            final selected = i == selectedColorIndex;
+                            return InkWell(
+                              onTap: () => setState(() => selectedColorIndex = i),
+                              borderRadius: BorderRadius.circular(999),
+                              child: Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  color: avatarColors[i],
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: selected ? Colors.black : Colors.transparent,
+                                    width: 2,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        // Icon choices (8)
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          alignment: WrapAlignment.center,
+                          children: List.generate(avatarIcons.length, (i) {
+                            final selected = i == selectedIconIndex;
+                            return InkWell(
+                              onTap: () => setState(() => selectedIconIndex = i),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                width: 46,
+                                height: 46,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: selected ? Theme.of(context).colorScheme.primary : Colors.black26,
+                                    width: selected ? 2 : 1,
+                                  ),
+                                  color: selected ? Theme.of(context).colorScheme.primary.withOpacity(0.08) : Colors.transparent,
+                                ),
+                                child: Icon(
+                                  avatarIcons[i],
+                                  size: 24,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
                         const SizedBox(height: 12),
                         TextField(
                           controller: pass,
@@ -470,8 +616,32 @@ class SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMi
                           obscureText: !confirmPasswordVisible,
                         ),
                         const SizedBox(height: 24),
+                        CheckboxListTile(
+                          value: agreedToPolicies,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          onChanged:(value) {
+                            setState(() {
+                              agreedToPolicies = value ?? false;
+                            });
+                          },
+                          title: const Text('I agree to the Privacy Policy and Terms and Conditions.'),
+                          subtitle: Wrap(
+                            spacing: 4,
+                            children: [
+                              TextButton(
+                                onPressed: () => _launchUrl(_privacyPolicyUri),
+                                child: const Text('View Privacy Policy'),
+                              ),
+                              TextButton(
+                                  onPressed: () => _launchUrl(_termsUri),
+                                  child: const Text('View Terms of Service'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        const SizedBox(height: 12),
                         ElevatedButton(
-                          onPressed: busy ? null : _create,
+                          onPressed: (busy || !agreedToPolicies ? null : _create),
                           child: busy
                               ? const SizedBox(
                                   height: 18,
