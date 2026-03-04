@@ -281,14 +281,21 @@ class _AlbumCover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        context.read<MyAppState>().setCurrentTrack(track);
+      onTap: () async {
+        
+        final appState = context.read<MyAppState>();
+        final previousMainTrack = appState.current;
 
-        Navigator.of(context).push(
+        appState.setCurrentTrack(track);
+        await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => const SongInteractionPage(),
           ),
         );
+
+        if (previousMainTrack == null) return;
+        appState.setCurrentTrack(previousMainTrack);
+
       },
       child: Container(
         width: 180,

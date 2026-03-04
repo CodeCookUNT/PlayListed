@@ -56,14 +56,21 @@ class _SearchPageState extends State<SearchPage> {
     }
   }
 
-void _openSongInteraction(Track track) {
-    context.read<MyAppState>().setCurrentTrack(track);
 
-    Navigator.of(context).push(
+
+  Future<void> _openSongInteraction(Track track) async {
+    final appState = context.read<MyAppState>();
+    final previousMainTrack = appState.current;
+    
+    appState.setCurrentTrack(track);
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => SongInteractionPage(),
       ),
     );
+
+    if (!mounted || previousMainTrack == null) return;
+    appState.setCurrentTrack(previousMainTrack);
   }
 
   @override
