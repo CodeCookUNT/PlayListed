@@ -439,7 +439,6 @@ class MyAppState extends ChangeNotifier {
       int nextIndex = (currentIndex + 1) % tracks!.length;
       current = tracks![nextIndex];
       setTrackCounter(nextIndex);
-      print("Track Counter: $_trackCounter\nTrack Length: ${tracks!.length}");
       //if approaching the end, load more tracks in the background
       if (nextIndex >= tracks!.length - 3) {
         print('getNext: near end of feed (index $nextIndex/${tracks!.length}), loading more...');

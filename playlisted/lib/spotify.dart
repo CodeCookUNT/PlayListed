@@ -239,10 +239,8 @@ class SpotifyService {
     // Remove duplicates based on track name and artist
     final uniqueTracks = <String, Track>{};
     for (var track in allTracks) {
-      double score = track.score != null ? track.score! / 100 : 0; // Use score as score, default to 0 if null
       final key = '${track.name}-${track.artists}';
       uniqueTracks[key] = track;
-      //need to take a look at this to see if we need it printed or not
     }
     
 
