@@ -1,9 +1,5 @@
 import 'recommendations.dart';
 import 'package:flutter/material.dart';
-import 'main.dart' show MyAppState;
-import 'package:provider/provider.dart';
-import 'spotify.dart' show Track;
-import 'favorites.dart';
 
 class RecommendationsPage extends StatefulWidget {
   const RecommendationsPage({super.key});

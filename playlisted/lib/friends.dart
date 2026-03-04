@@ -248,6 +248,9 @@ Future<void> acceptRequest(String requestId) async {
   final myName = current.displayName ??
       (current.email?.split('@').first ?? 'You');
 
+  final myUserSnap = await _db.collection('users').doc(current.uid).get();
+  final myData = myUserSnap.data() ?? {};
+
   final now = Timestamp.now();
 
   final myFriendRef = _db
@@ -268,6 +271,8 @@ Future<void> acceptRequest(String requestId) async {
     'friendUid': otherUid,
     'friendName': otherName,
     'friendPhotoUrl': otherData['photoUrl'],
+    'friendAvatarColor': otherData['avatarColor'],
+    'friendAvatarIcon': otherData['avatarIcon'],
     'status': 'accepted',
     'createdAt': now,
   }, SetOptions(merge: true));
@@ -276,6 +281,8 @@ Future<void> acceptRequest(String requestId) async {
     'friendUid': current.uid,
     'friendName': myName,
     'friendPhotoUrl': current.photoURL,
+    'friendAvatarColor': myData['avatarColor'],
+    'friendAvatarIcon': myData['avatarIcon'],
     'status': 'accepted',
     'createdAt': now,
   }, SetOptions(merge: true));

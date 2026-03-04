@@ -22,13 +22,13 @@ class ProfileFunctions {
   }
 
   // Stream user's ratings for real-time updates
-  Stream<QuerySnapshot> ratingsStream() {
-    if (_uid == null) {
-      return Stream.empty();
-    }
+  Stream<QuerySnapshot> ratingsStream({String? uid}) {
+    final targetUid = uid ?? _uid;
+    if (targetUid == null || targetUid.isEmpty) return Stream.empty();
+    
     return FirebaseFirestore.instance
         .collection('users')
-        .doc(_uid)
+        .doc(targetUid)
         .collection('ratings')
         .snapshots();
   }
