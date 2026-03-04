@@ -297,7 +297,7 @@ class SpotifyService {
           url: json['external_urls']['spotify'],
           albumImageUrl: albumImageUrl,
           popularity: json['popularity'],
-          score: json['popularity'],
+          score: (json['popularity'] as num).toDouble() / 100,
           releaseDate: json['album'] != null ? json['album']['release_date'] : null,
           id: json['id'],
           artistId: (json['artists'] != null && (json['artists'] as List).isNotEmpty)
