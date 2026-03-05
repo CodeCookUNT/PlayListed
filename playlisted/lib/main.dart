@@ -23,9 +23,13 @@ import 'collectionspage.dart';
 import 'dart:async';
 import 'content_filter.dart';
 import 'dart:math' as math;
+import 'package:flutter/services.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setPreferredOrientations(
+    [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown],
+  );
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -760,9 +764,19 @@ class GeneratorPage extends StatelessWidget {
     final isLiked = track != null && appState.favorites.any((t) => t.name == track.name);
 
     return SafeArea(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onHorizontalDragEnd: (details) {
+          final velocity = details.primaryVelocity ?? 0;
+          if (velocity < -250) {
+            appState.getNext();
+          } else if (velocity > 250) {
+            appState.getPrevious();
+          }
+        },
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: constraints.maxHeight - 48),
@@ -885,6 +899,7 @@ class GeneratorPage extends StatelessWidget {
             ),
           );
         },
+        ),
       ),
     );
   }
