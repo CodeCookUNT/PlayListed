@@ -610,6 +610,15 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   int selectedIndex = 0;
 
+  static const List<String> topPageTitle = [
+    'Playlist\'d',
+    'My Songs',
+    'Search',
+    'Friends',
+    'Collections',
+    'Profile',
+  ];
+
   // @override
   // void initState() {
   //   super.initState();
@@ -667,8 +676,9 @@ class _MyHomePageState extends State<MyHomePage> {
               icon: const Icon(Icons.settings),
               onPressed: () => _openSettings(context),
             ),
+            centerTitle: true,
             title: Text(
-              'Playlist\'d',
+              topPageTitle[selectedIndex],
               style: GoogleFonts.montserrat(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
@@ -710,6 +720,7 @@ class _MyHomePageState extends State<MyHomePage> {
               ],
             ),
             child: NavigationBar(
+              labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
               destinations: const [
                 NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
                 NavigationDestination(icon: Icon(Icons.library_music), label: 'Songs'),
