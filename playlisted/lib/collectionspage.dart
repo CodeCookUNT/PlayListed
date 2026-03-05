@@ -69,12 +69,12 @@ class _CollectionsPageState extends State<CollectionsPage> {
       final futures = <Future<void>>[];
 
       futures.add(
-        _spotifyService.fetchTopSongs(_accessToken, limit: 50).then((tracks) {
+        _spotifyService.fetchTopSongs(_accessToken, limit: 15).then((tracks) {
           _cache.decadeTracks['Popular Now'] = tracks;
         }),
       );
 
-      // fetch 50 songs for each decade
+      // fetch 15 songs for each decade
       final decades = {
         '2020s': '2020-2029',
         '2010s': '2010-2019',
@@ -92,7 +92,7 @@ class _CollectionsPageState extends State<CollectionsPage> {
               .fetchTopSongs(
                 _accessToken,
                 yearRange: entry.value,
-                limit: 50,
+                limit: 15,
               )
               .then((tracks) {
             _cache.decadeTracks[entry.key] = tracks;
