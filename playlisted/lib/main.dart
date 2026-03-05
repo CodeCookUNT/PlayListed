@@ -618,7 +618,7 @@ class _MyHomePageState extends State<MyHomePage> {
   static const List<String> topPageTitle = [
     'Playlist\'d',
     'My Songs',
-    'Search',
+    'Song Search',
     'Friends',
     'Collections',
     'Profile',

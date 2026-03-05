@@ -55,11 +55,8 @@ class _ChatPageState extends State<ChatPage> {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
 
-    // Checking for explicit language when sending messages between users
+    // Submissiong gaurd kept in case there are changes without the content filter
     if (ExplicitContentFilter.containsExplicitContent(text)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please remove explicit content from your message.')),
-      );
       return;
     }
 
@@ -151,17 +148,29 @@ class _ChatPageState extends State<ChatPage> {
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     child: TextField(
                       controller: _controller,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         hintText: 'Type a message...',
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
+                        errorText: _profanityDetected
+                            ? 'Message contains profanity, please revise.'
+                            : null,
                       ),
+                      onChanged: (value) {
+                        final hasExplicitContent =
+                            ExplicitContentFilter.containsExplicitContent(value.trim());
+                        if (hasExplicitContent != _profanityDetected) {
+                          setState(() {
+                            _profanityDetected = hasExplicitContent;
+                          });
+                        }
+                      },
                       onSubmitted: (_) => _sendMessage(),
                     ),
                   ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.send),
-                  onPressed: _sendMessage,
+                  onPressed: _profanityDetected ? null : _sendMessage,
                 ),
               ],
             ),

@@ -5,6 +5,7 @@ import 'spotify.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'main.dart';
+import 'dart:async';
 
 
 class SearchPage extends StatefulWidget {
@@ -20,6 +21,26 @@ class _SearchPageState extends State<SearchPage> {
 
   bool _isLoading = false;
   List<Track> _results = [];
+  Timer? _searchDebounce;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+
+    if (value.trim().isEmpty) {
+      setState(() {
+        _results = [];
+        _isLoading = false;
+      });
+      return;
+    }
+
+    _doSearch();
+  } 
 
   Future<void> _doSearch() async {
     final query = _controller.text.trim();
@@ -82,6 +103,7 @@ class _SearchPageState extends State<SearchPage> {
           children: [
             TextField(
               controller: _controller,
+              onChanged: _onSearchChanged,
               decoration: InputDecoration(
                 labelText: 'Search for a song or artist',
                 suffixIcon: IconButton(
