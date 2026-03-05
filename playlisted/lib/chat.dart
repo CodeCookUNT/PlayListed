@@ -21,6 +21,7 @@ class _ChatPageState extends State<ChatPage> {
   final _db = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
   final _controller = TextEditingController();
+  bool _profanityDetected = false;
 
   String get _myUid => _auth.currentUser!.uid;
 
@@ -36,7 +37,7 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _ensureConvoExists() async {
-  final convoRef = _db.collection('conversations').doc(_convoId);
+    final convoRef = _db.collection('conversations').doc(_convoId);
     try {
       await convoRef.set({
         'participants': [_myUid, widget.friendUid],

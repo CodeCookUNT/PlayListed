@@ -144,21 +144,26 @@ class _ToggleButtonManagerState extends State<ToggleButtonManager> {
   Widget build(BuildContext context) {
     var appState = context.watch<MyAppState>();
     final isDark = appState.isDarkMode;
-    return Padding(
-      padding: const EdgeInsets.all(10.0),
-      child: CircleAvatar(
-        radius: 22,
-        backgroundColor: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
-        child: IconButton(
-        icon: Icon( isDark ? Icons.dark_mode : Icons.light_mode, color: isDark ? Colors.white : Colors.black, ),
-        onPressed: (){
-          appState.toggleDarkMode(!isDark);
-        },
-      ),
-      ),
-    );
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.only(top: 12.0),
+          child: CircleAvatar(
+            radius: 28,
+            backgroundColor: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+            child: IconButton(
+              iconSize: 32,
+              icon: Icon(
+                isDark ? Icons.dark_mode : Icons.light_mode,
+                color: isDark ? Colors.white : Colors.black,
+              ),
+              onPressed: () => appState.toggleDarkMode(!isDark)    
+            )
+          )
+        )
+      );
   }
 }
+
 
 class MyAppState extends ChangeNotifier {
   bool isDarkMode = false;
@@ -1546,26 +1551,37 @@ class GlobalRatingDisplay extends StatelessWidget {
 void _openSettings(BuildContext context) {
   showModalBottomSheet(
     context: context,
+    backgroundColor: Colors.transparent,
     builder: (context) {
-      var appState = context.watch<MyAppState>();
-      return Container(
-        padding: const EdgeInsets.all(16),
-        height: 200,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('    Settings    ', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              child: const Text('Logout'),
-              onPressed: () async {
-                context.read<MyAppState>().logout();
-                await FirebaseAuth.instance.signOut();
-                Navigator.of(context).pop();
-              },
-            ),
-            const ToggleButtonManager(),
-          ],
+      return Align(
+        alignment: Alignment.bottomCenter,
+        child: Container(
+          width: 170,
+          height: 220,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const Text(
+                'Settings',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                child: const Text('Logout'),
+                onPressed: () async {
+                  context.read<MyAppState>().logout();
+                  await FirebaseAuth.instance.signOut();
+                  Navigator.of(context).pop();
+                },
+              ),
+              const ToggleButtonManager(),
+            ],
+          ),
         ),
       );
     },
