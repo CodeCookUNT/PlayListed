@@ -798,6 +798,7 @@ class GeneratorPage extends StatelessWidget {
                           return BigCard(
                             track: track,
                             globalRating: globalRating,
+                            userRating: appState.ratingFor(track),
                           );
                         },
                       ),
@@ -897,8 +898,8 @@ class GeneratorPage extends StatelessWidget {
                 ),
               ),
             ),
-          );
-        },
+            );
+          },
         ),
       ),
     );
@@ -1257,10 +1258,11 @@ class _ReviewDialogState extends State<ReviewDialog> {
 }
 
 class BigCard extends StatefulWidget {
-  const BigCard({super.key, required this.track, this.globalRating = 0.0});
+  const BigCard({super.key, required this.track, this.globalRating = 0.0, this.userRating = 0.0});
 
   final Track track;
   final double globalRating;
+  final double userRating;
 
   @override
   State<BigCard> createState() => _BigCardState();
@@ -1288,7 +1290,7 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
     );
     _previousTrack = widget.track;
     _previousRating = widget.globalRating;
-    _currentVinylColor = _getVinylColor(widget.globalRating);
+    _currentVinylColor = _getVinylColor(_effectiveRating());
     _animationController.forward();
 
     // Push initial vinyl color to app state
@@ -1307,7 +1309,7 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
       _previousTrack = oldWidget.track;
       _previousRating = oldWidget.globalRating;
       setState(() {
-        _currentVinylColor = _getVinylColor(widget.globalRating);
+        _currentVinylColor = _getVinylColor(_effectiveRating());
       });
       _animationController.reset();
       _animationController.forward();
@@ -1318,9 +1320,9 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
           context.read<MyAppState>().setVinylColor(_currentVinylColor);
         }
       });
-    } else if (oldWidget.globalRating != widget.globalRating) {
+    } else if (oldWidget.globalRating != widget.globalRating || oldWidget.userRating != widget.userRating) {
       setState(() {
-        _currentVinylColor = _getVinylColor(widget.globalRating);
+        _currentVinylColor = _getVinylColor(_effectiveRating());
       });
       // Notify app state when rating changes color
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1335,6 +1337,14 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
   void dispose() {
     _animationController.dispose();
     super.dispose();
+  }
+  
+  double _effectiveRating() {
+    // Combine global and user rating for vinyl color
+    if (widget.userRating > 0) {
+      return widget.userRating;
+    }
+    return widget.globalRating;
   }
 
   Color _getVinylColor(double rating) {
