@@ -59,7 +59,9 @@ class _ChatPageState extends State<ChatPage> {
     if (ExplicitContentFilter.containsExplicitContent(text)) {
       return;
     }
-
+    // Add notifications for friend requests and messages
+    // TODO - add notication feature in firestore and trigger on new message or friend request
+    // TODO - add settings to let users opt in or out of notifications.
     _controller.clear();
 
     final convoRef = _db.collection('conversations').doc(_convoId);
