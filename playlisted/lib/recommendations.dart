@@ -277,13 +277,13 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
       explicit: json['explicit'] ?? false,
       url: json['external_urls']['spotify'],
       albumImageUrl: albumImageUrl,
-      popularity: json['popularity'],
+      popularity: (json['popularity'] as num?)?.toInt(),
       releaseDate: json['album'] != null ? json['album']['release_date'] : null,
       id: json['id'],
       artistId: (json['artists'] != null && (json['artists'] as List).isNotEmpty)
           ? json['artists'][0]['id']
           : null,
-      score: json['popularity'] != null ? (json['popularity']) : 0,
+      score: ((json['popularity'] as num?)?.toDouble() ?? 0.0) / 100.0,
     );
 
   }
