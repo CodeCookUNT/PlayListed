@@ -149,7 +149,7 @@ class SpotifyService {
       
       for (String query in searchQueries) {
         try {
-          final tracks = await _searchTracks(accessToken, query, limit: 50);
+          final tracks = await _searchTracks(accessToken, query, limit: 10);
           allTracks.addAll(tracks);
           
           // Stop if we've reached desired limit
@@ -178,7 +178,7 @@ class SpotifyService {
       
       for (String query in searchQueries) {
         try {
-          final tracks = await _searchTracks(accessToken, query, limit: 20);
+          final tracks = await _searchTracks(accessToken, query, limit: 10);
           allTracks.addAll(tracks);
           
           // Stop if we've reached ~500 songs
@@ -234,8 +234,7 @@ Future<List<Track>> fetchRandomUnseenTracks(
     return '$randomChar genre:$genre year:$yearStart-$yearEnd';
   }
 
-  while (results.length < count && attempts < 10) {
-    attempts++;
+  for(int i = 0;i<count;i++){ 
 
     final query = randomQuery();
     final tracks = await _searchTracks(accessToken, query, limit: count, offset: _rand.nextInt(100));
@@ -265,7 +264,7 @@ Future<List<Track>> fetchRandomUnseenTracks(
 Future<List<Track>> _searchTracks(
   String? accessToken,
   String query, {
-  int limit = 20,
+  int limit = 10,
   int offset = 0, // if we want to fetch more than 50 songs
 }) async {
 
