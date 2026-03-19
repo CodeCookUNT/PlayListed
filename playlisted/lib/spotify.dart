@@ -3,6 +3,8 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:math';
+import 'dart:async';
 
 //Track Class for holding track info
 class Track {
@@ -112,60 +114,12 @@ class SpotifyService {
       if (feed.length >= 8) break;
       _addUnique(entry.key);
     }
-    
-    // If we don't have 8 recommendations yet, fetch more from Spotify API
-    if (feed.length < 8) {
-      print('fetchSongs: Only ${feed.length} recommendations (some were seen), fetching from Spotify API...');
-      final neededCount = 8 - feed.length;
-      final spotifyRecs = await fetchTopSongs(accessToken, yearRange: yearRange, limit: neededCount * 2);
-      for (final track in spotifyRecs) {
-        if (feed.length >= 8) break;
-        _addUnique(track);
-      }
-      print('fetchSongs: Now have ${feed.length} recommendations');
-    }
 
-    // 2. Add 3 popular songs
-    print('fetchSongs: Fetching popular tracks...');
-    final popular = await fetchTopSongs(accessToken, yearRange: yearRange, limit: 10);
-    int addedPopular = 0;
-    for (final track in popular) {
-      if (addedPopular >= 3) break;
-      final oldLen = feed.length;
-      _addUnique(track);
-      if (feed.length > oldLen) addedPopular++;
-    }
-    print('fetchSongs: Added $addedPopular popular tracks, total now ${feed.length}');
-
-    // 3. Add 1 random track for variety
-    print('fetchSongs: Fetching random tracks...');
-    final randomTracks = await fetchTopSongs(accessToken, yearRange: yearRange, limit: 10);
-    randomTracks.shuffle();
+    // 2. fetch 2 random, popular songs to mix in
+    final randomTracks = await fetchRandomUnseenTracks(accessToken, seenIds, count: 2);
     for (final track in randomTracks) {
-      final oldLen = feed.length;
+      if (feed.length >= 10) break;
       _addUnique(track);
-      if (feed.length > oldLen) {
-        print('fetchSongs: Added 1 random track, total now ${feed.length}');
-        break;
-      }
-    }
-
-    // 4. Ensure we hit the exact limit
-    if (feed.length < limit) {
-      print('fetchSongs: Under limit (${feed.length} < $limit), fetching ${limit - feed.length} extra...');
-      final extra = await fetchTopSongs(accessToken, yearRange: yearRange, limit: limit * 3);
-      for (final track in extra) {
-        if (feed.length >= limit) break;
-        _addUnique(track);
-      }
-      print('fetchSongs: Total now ${feed.length}');
-
-      // final fallback: if we still didn't reach the limit because every
-      // candidate was already seen, allow a duplicate rather than returning an empty list
-      if (feed.isEmpty) {
-        final fallback = await fetchTopSongs(accessToken, yearRange: yearRange, limit: limit);
-        feed.addAll(fallback.take(limit));
-      }
     }
 
     if (feed.length > limit) {
@@ -202,6 +156,8 @@ class SpotifyService {
           if (allTracks.length >= limit) {
             break;
           }
+          // Add delay to avoid rate limiting
+          await Future.delayed(const Duration(milliseconds: 200));
         } catch (e) {
           print('Error searching for $query: $e');
           continue;
@@ -229,6 +185,8 @@ class SpotifyService {
           if (allTracks.length >= limit) {
             break;
           }
+          // Add delay to avoid rate limiting
+          await Future.delayed(const Duration(milliseconds: 200));
         } catch (e) {
           print('Error searching for $query: $e');
           continue;
@@ -242,7 +200,6 @@ class SpotifyService {
       double score = track.score != null ? track.score! / 100 : 0; // Use score as score, default to 0 if null
       final key = '${track.name}-${track.artists}';
       uniqueTracks[key] = track;
-      //need to take a look at this to see if we need it printed or not
     }
     
 
@@ -253,64 +210,137 @@ class SpotifyService {
     return shuffledTracks.take(limit).toList();
   }
 
-  // Future<List<Track>> fetchSongs(Map <Track, double> trackScores){
 
-  // }
 
-  // Helper method to search for tracks
-  Future<List<Track>> _searchTracks(String? accessToken, String query, {int limit = 50}) async {
-    final uri = Uri.https(
-      'api.spotify.com',
-      '/v1/search',
-      {
-        'q': query,
-        'type': 'track',
-        'limit': limit.toString(),
-      },
-    );
+Future<List<Track>> fetchRandomUnseenTracks(
+  String accessToken,
+  Set<String> seenIds,
+  {int count = 2}
+) async {
+  final results = <Track>[];
+  int attempts = 0;
+  final _rand = Random();
 
-    final response = await http.get(
-      uri,
-      headers: {'Authorization': 'Bearer $accessToken'},
-    );
+  String randomQuery() {
+    const genres = ['pop', 'rock', 'hip-hop', 'indie', 'electronic'];
+    
+    final yearStart = 1970 + _rand.nextInt(50); // 1970–2020
+    final yearEnd = yearStart + 5;
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final tracksJson = data['tracks']['items'] as List;
-      return tracksJson.map((json) {
-        final artists = (json['artists'] as List)
-            .map((artist) => artist['name'])
-            .join(', ');
-        
-        // Get album image URL from the track's album
-        String? albumImageUrl;
-        if (json['album'] != null && json['album']['images'] != null) {
-          final images = json['album']['images'] as List;
-          if (images.isNotEmpty) {
-            albumImageUrl = images.length > 1 ? images[1]['url'] : images[0]['url'];
-          }
-        }
+    final randomChar = String.fromCharCode(97 + _rand.nextInt(26)); // a-z
 
-        return Track(
-          name: json['name'],
-          artists: artists,
-          durationMs: json['duration_ms'],
-          explicit: json['explicit'],
-          url: json['external_urls']['spotify'],
-          albumImageUrl: albumImageUrl,
-          popularity: json['popularity'],
-          score: json['popularity'],
-          releaseDate: json['album'] != null ? json['album']['release_date'] : null,
-          id: json['id'],
-          artistId: (json['artists'] != null && (json['artists'] as List).isNotEmpty)
-              ? json['artists'][0]['id']
-              : null,
-        );
-      }).toList();
-    } else {
-      throw Exception('Failed to search tracks: ${response.body}');
+    final genre = genres[_rand.nextInt(genres.length)];
+
+    return '$randomChar genre:$genre year:$yearStart-$yearEnd';
+  }
+
+  while (results.length < count && attempts < 10) {
+    attempts++;
+
+    final query = randomQuery();
+    final tracks = await _searchTracks(accessToken, query, limit: count, offset: _rand.nextInt(100));
+
+    tracks.shuffle();
+
+    for (final track in tracks) {
+      if (track.id == null) continue;
+      if (seenIds.contains(track.id)) continue;
+
+      seenIds.add(track.id!);
+      results.add(track);
+
+      if (results.length >= count) break;
+    }
+
+    // Add delay to avoid rate limiting
+    if (results.length < count) {
+      await Future.delayed(const Duration(milliseconds: 200));
     }
   }
+
+  return results;
+}
+
+//search for a list of songs based on a query, return a list of tracks
+Future<List<Track>> _searchTracks(
+  String? accessToken,
+  String query, {
+  int limit = 20,
+  int offset = 0, // if we want to fetch more than 50 songs
+}) async {
+
+  final safeLimit = limit.clamp(1, 20).toInt();
+
+  Uri uri = Uri.https(
+    'api.spotify.com',
+    '/v1/search',
+    {
+      'q': query,
+      'type': 'track',
+      'limit': safeLimit.toString(),
+      'offset': offset.toString(),
+    },
+  );
+
+  final headers = {'Authorization': 'Bearer $accessToken'};
+
+  throttle() async {
+    // Add a small random delay to help prevent hitting rate limits
+    final delay = 100 + Random().nextInt(200); // 100-300 ms
+    await Future.delayed(Duration(milliseconds: delay));
+  }
+
+  await throttle(); //prevents spam
+
+  final response = await http.get(uri, headers: headers);
+
+  //do not retry automatically
+  if (response.statusCode == 429) {
+    print('Rate limited on query: $query');
+    return []; // let caller decide what to do
+  }
+
+  if (response.statusCode == 200) {
+    final data = jsonDecode(response.body);
+    final tracksJson = data['tracks']['items'] as List;
+
+    return tracksJson.map((json) {
+      final artists = (json['artists'] as List)
+          .map((artist) => artist['name'])
+          .join(', ');
+
+      String? albumImageUrl;
+      if (json['album'] != null && json['album']['images'] != null) {
+        final images = json['album']['images'] as List;
+        if (images.isNotEmpty) {
+          albumImageUrl =
+              images.length > 1 ? images[1]['url'] : images[0]['url'];
+        }
+      }
+
+      return Track(
+        name: json['name'],
+        artists: artists,
+        durationMs: (json['duration_ms'] as num?)?.toInt() ?? 0,
+        explicit: json['explicit'],
+        url: json['external_urls']['spotify'],
+        albumImageUrl: albumImageUrl,
+        popularity: (json['popularity'] as num?)?.toInt(),
+        score: ((json['popularity'] as num?)?.toDouble() ?? 0.0) / 100,
+        releaseDate: json['album'] != null
+            ? json['album']['release_date']
+            : null,
+        id: json['id'],
+        artistId: (json['artists'] != null &&
+                (json['artists'] as List).isNotEmpty)
+            ? json['artists'][0]['id']
+            : null,
+      );
+    }).toList();
+  }
+
+  throw Exception('Failed to search tracks: ${response.body}');
+}
 
   Future<Map<Track, double>> fetchRecommendedSongs() async{
     // Check if user is authenticated

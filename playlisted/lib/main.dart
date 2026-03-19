@@ -445,7 +445,7 @@ class MyAppState extends ChangeNotifier {
         print('getNext: near end of feed (index $nextIndex/${tracks!.length}), loading more...');
         loadMoreTracks(); //helper function to call fetchSongs and update feed dynamically
       }
-      
+      print("Index: $_trackCounter");
       //generate new recommendation every 5 tracks
       //update co-liked tracks every 5 tracks
       //! UNCOMMENT TO ENABLE CO-LIKED UPDATES
