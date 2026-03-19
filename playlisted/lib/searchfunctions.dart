@@ -19,13 +19,28 @@ class SearchFunctions {
       },
     );
 
-    final response = await http.get(
+
+    await Future.delayed(const Duration(milliseconds: 120)); // Add a small delay to help prevent hitting rate limits
+    var response = await http.get(
       uri,
       headers: {'Authorization': 'Bearer $token'},
     );
 
+
+    if (response.statusCode == 429) {
+      final retryAfterSeconds = int.tryParse(response.headers['retry-after'] ?? '') ?? 1;
+
+      await Future.delayed(Duration(seconds: retryAfterSeconds));
+
+      response = await http.get(
+        uri,
+        headers: {' Authorization': 'Bearer $token'},
+      ); 
+    }
+
+
     if (response.statusCode != 200) {
-      throw Exception("Song search failed: ${response.body}");
+      throw Exception("Song search failed: ${response.statusCode == 429 ? 'Too Many Requests' : response.body}");
     }
 
     final data = jsonDecode(response.body);
@@ -39,11 +54,11 @@ class SearchFunctions {
       return Track(
         name: json['name'],
         artists: artists,
-        durationMs: json['duration_ms'],
+        durationMs: (json['duration_ms'] as num).toInt() ?? 0,
         explicit: json['explicit'],
         url: json['external_urls']['spotify'],
         albumImageUrl: json['album']?['images']?[0]?['url'],
-        popularity: json['popularity'],
+        popularity: (json['popularity'] as num?)?.toInt(),
         releaseDate: json['album']?['release_date'],
         id: json['id'],
         artistId: json['artists'][0]['id'],
@@ -109,11 +124,11 @@ class SearchFunctions {
       return Track(
         name: json['name'],
         artists: artists,
-        durationMs: json['duration_ms'],
+        durationMs: (json['duration_ms'] as num?)?.toInt() ?? 0,
         explicit: json['explicit'],
         url: json['external_urls']['spotify'],
         albumImageUrl: json['album']?['images']?[0]?['url'],
-        popularity: json['popularity'],
+        popularity: (json['popularity'] as num?)?.toInt(),
         releaseDate: json['album']?['release_date'],
         id: json['id'],
         artistId: json['artists'][0]['id'],

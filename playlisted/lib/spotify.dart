@@ -139,7 +139,10 @@ class SpotifyService {
 
     // 3. Add 1 random track for variety
     print('fetchSongs: Fetching random tracks...');
-    final randomTracks = await fetchTopSongs(accessToken, yearRange: yearRange, limit: 10);
+    final randomTracks = List<Track>.from(popular);
+    if (randomTracks.isEmpty) {
+      randomTracks.addAll(await fetchTopSongs(accessToken, yearRange: yearRange, limit: 10));
+    }
     randomTracks.shuffle();
     for (final track in randomTracks) {
       final oldLen = feed.length;
@@ -189,8 +192,8 @@ class SpotifyService {
       final searchQueries = [
         'year:$yearRange',
         'year:$yearRange genre:pop',
-        'year:$yearRange genre:rock',
-        'year:$yearRange genre:hip-hop',
+        // 'year:$yearRange genre:rock',
+        // 'year:$yearRange genre:hip-hop',
       ];
       
       for (String query in searchQueries) {
@@ -204,20 +207,24 @@ class SpotifyService {
           }
         } catch (e) {
           print('Error searching for $query: $e');
+          if (e.toString().contains('Too many requests')) {
+            break;
+          }
           continue;
         }
       }
     } else {
       // Original behavior - search across multiple genres
       final searchQueries = [
-        'year:1970-1979',
+        // 'year:1970-1979',
+        'year:2010-2019',
         'genre:pop',
         'genre:rock',
         'genre:hip-hop',
-        'genre:r&b',
-        'genre:country',
-        'genre:electronic',
-        'genre:indie',
+        // 'genre:r&b',
+        // 'genre:country',
+        // 'genre:electronic',
+        // 'genre:indie',
       ];
       
       for (String query in searchQueries) {
@@ -231,6 +238,9 @@ class SpotifyService {
           }
         } catch (e) {
           print('Error searching for $query: $e');
+          if (e.toString().contains('Too many requests')) {
+            break;
+          }
           continue;
         }
       }
@@ -257,20 +267,43 @@ class SpotifyService {
 
   // Helper method to search for tracks
   Future<List<Track>> _searchTracks(String? accessToken, String query, {int limit = 50}) async {
-    final uri = Uri.https(
+
+    final safeLimit = limit.clamp(1, 50).toInt();
+
+    Uri buildUri({int? requestLimit}) => Uri.https(
       'api.spotify.com',
       '/v1/search',
       {
         'q': query,
         'type': 'track',
-        'limit': limit.toString(),
+        if (requestLimit != null) 'limit': requestLimit.toString(),
       },
     );
 
-    final response = await http.get(
-      uri,
-      headers: {'Authorization': 'Bearer $accessToken'},
-    );
+    final headers = {'Authorization': 'Bearer $accessToken'};
+
+    Future<http.Response> doGet(Uri uri) async {
+      var res = await http.get(uri, headers: headers);
+      if (res.statusCode == 429) {
+        final retryAfterSeconds = int.tryParse(res.headers['retry-after'] ?? '') ?? 1;
+        await Future.delayed(Duration(seconds: retryAfterSeconds));
+        res = await http.get(uri, headers: headers);
+      }
+      return res;
+    }
+
+    var response = await doGet(buildUri(requestLimit: safeLimit));
+
+    if (response.statusCode == 400 && response.body.contains('Invalid limit')) {
+      response = await doGet(buildUri(requestLimit: 20));
+      if (response.statusCode == 400 && response.body.contains('Invalid limit')) {
+        response = await doGet(buildUri());
+      }
+    }
+
+    if (response.statusCode == 429) {
+      throw Exception('Failed to search tracks: Too many requests');
+    }
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -292,12 +325,12 @@ class SpotifyService {
         return Track(
           name: json['name'],
           artists: artists,
-          durationMs: json['duration_ms'],
+          durationMs: (json['duration_ms'] as num?)?.toInt() ?? 0,
           explicit: json['explicit'],
           url: json['external_urls']['spotify'],
           albumImageUrl: albumImageUrl,
-          popularity: json['popularity'],
-          score: (json['popularity'] as num).toDouble() / 100,
+          popularity: (json['popularity'] as num?)?.toInt(),
+          score: ((json['popularity'] as num?)?.toDouble() ?? 0.0) / 100,
           releaseDate: json['album'] != null ? json['album']['release_date'] : null,
           id: json['id'],
           artistId: (json['artists'] != null && (json['artists'] as List).isNotEmpty)
