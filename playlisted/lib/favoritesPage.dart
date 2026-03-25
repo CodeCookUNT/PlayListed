@@ -67,7 +67,7 @@ class SongsList extends StatelessWidget {
         if (snap.connectionState == ConnectionState.waiting) {
           return const LoadingVinylPage(
             labelText: 'Loading your songs...',
-            ringText: ' NOW LOADING YOUR SONGS ',
+            ringText: ' LOADING YOUR SONGS ',
           );
         }
 

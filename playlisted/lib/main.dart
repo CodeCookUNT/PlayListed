@@ -712,7 +712,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   child: (appState.isHomeFeedLoading || appState.current == null)
                       ? LoadingVinylPage(
                           labelText: 'Loading tracks...',
-                          ringText: ' NOW LOADING YOUR FEED ',
+                          ringText: ' LOADING YOUR FEED ',
                           errorText: appState.homeFeedError,
                           onRetry: () => context.read<MyAppState>().initializeHomeFeed(),
                         )
