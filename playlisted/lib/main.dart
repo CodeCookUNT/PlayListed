@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'spotify.dart';
@@ -275,11 +277,15 @@ class MyAppState extends ChangeNotifier {
     if (recTracks.isEmpty) {
       print('loadFeed: recTracks is empty, fetching recommendations...');
       await loadRecommendations();
-      print('loadFeed: after loadRecommendations, recTracks has ${recTracks.length} items');
+      print(
+        'loadFeed: after loadRecommendations, recTracks has ${recTracks.length} items',
+      );
     }
 
     try {
-      print('loadFeed: calling fetchSongs with ${recTracks.length} recommendation tracks');
+      print(
+        'loadFeed: calling fetchSongs with ${recTracks.length} recommendation tracks',
+      );
       final newTracks = await SpotifyService().fetchSongs(
         accessToken!,
         recTracks,
@@ -290,7 +296,7 @@ class MyAppState extends ChangeNotifier {
       tracks = newTracks;
       if (tracks != null && tracks!.isNotEmpty) {
         current = tracks![0];
-        
+
         // track all returned tracks so we don't serve them again
         _seenTrackIds.clear();
         _seenTrackNameArtist.clear();
@@ -298,7 +304,9 @@ class MyAppState extends ChangeNotifier {
           if (track.id != null && track.id!.isNotEmpty) {
             _seenTrackIds.add(track.id!);
           }
-          _seenTrackNameArtist.add('${track.name}|${track.artists}'.toLowerCase());
+          _seenTrackNameArtist.add(
+            '${track.name}|${track.artists}'.toLowerCase(),
+          );
         }
       }
       notifyListeners();
@@ -323,7 +331,9 @@ class MyAppState extends ChangeNotifier {
     }
 
     try {
-      print('loadMoreTracks: fetching more tracks (excluding ${_seenTrackIds.length} seen)');
+      print(
+        'loadMoreTracks: fetching more tracks (excluding ${_seenTrackIds.length} seen)',
+      );
       final moreTracks = await SpotifyService().fetchSongs(
         accessToken!,
         recTracks,
@@ -335,17 +345,21 @@ class MyAppState extends ChangeNotifier {
 
       if (moreTracks.isNotEmpty) {
         tracks!.addAll(moreTracks);
-        
+
         // track these new tracks
         for (final track in moreTracks) {
           if (track.id != null && track.id!.isNotEmpty) {
             _seenTrackIds.add(track.id!);
           }
-          _seenTrackNameArtist.add('${track.name}|${track.artists}'.toLowerCase());
+          _seenTrackNameArtist.add(
+            '${track.name}|${track.artists}'.toLowerCase(),
+          );
         }
-        
+
         notifyListeners();
-        print('loadMoreTracks: added ${moreTracks.length} new tracks, total now ${tracks!.length}');
+        print(
+          'loadMoreTracks: added ${moreTracks.length} new tracks, total now ${tracks!.length}',
+        );
       } else {
         print('loadMoreTracks: no new tracks available');
       }
@@ -354,11 +368,11 @@ class MyAppState extends ChangeNotifier {
     }
   }
 
-  void setTrackCounter(int value){
+  void setTrackCounter(int value) {
     _trackCounter = value;
   }
 
-  void markSongsForDeletion(String songID){
+  void markSongsForDeletion(String songID) {
     _deltracks.add(songID);
     _deleteTimer?.cancel();
     _deleteTimer = Timer(const Duration(seconds: 2), () async {
@@ -367,15 +381,15 @@ class MyAppState extends ChangeNotifier {
       await Recommendations.instance.removeRecommendationsFromSource(todelete);
     });
   }
-  
-  void printLikedOrRatedIDs(){
+
+  void printLikedOrRatedIDs() {
     print('Liked or rated IDs:');
     for (var id in _likedOrRatedIDs) {
       print(id);
     }
   }
 
-  List<String> getLikedOrRatedIDs(){
+  List<String> getLikedOrRatedIDs() {
     return _likedOrRatedIDs;
   }
 
@@ -392,12 +406,11 @@ class MyAppState extends ChangeNotifier {
       if (t.id != null) {
         final userId = FirebaseAuth.instance.currentUser?.uid;
         if (userId != null) {
-          GlobalRatings.instance.removeRating(
-            trackId: t.id!,
-            userId: userId,
-          ).catchError((e) {
-            print('Error removing global rating: $e');
-          });
+          GlobalRatings.instance
+              .removeRating(trackId: t.id!, userId: userId)
+              .catchError((e) {
+                print('Error removing global rating: $e');
+              });
         }
       }
     } else {
@@ -410,19 +423,16 @@ class MyAppState extends ChangeNotifier {
       if (t.id != null) {
         final userId = FirebaseAuth.instance.currentUser?.uid;
         if (userId != null) {
-          GlobalRatings.instance.submitRating(
-            trackId: t.id!,
-            userId: userId,
-            rating: r,
-          ).catchError((e) {
-            print('Error submitting global rating: $e');
-          });
+          GlobalRatings.instance
+              .submitRating(trackId: t.id!, userId: userId, rating: r)
+              .catchError((e) {
+                print('Error submitting global rating: $e');
+              });
         }
       }
     }
     notifyListeners();
   }
-  
 
   MyAppState({this.accessToken, this.tracks}) {
     // we keep this constructor for backwards compatibility, but the

@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:io';
 
 //Track Class for holding track info
 class Track {
@@ -116,8 +117,7 @@ class SpotifyService {
     // If we don't have 8 recommendations yet, fetch more from Spotify API
     if (feed.length < 8) {
       print('fetchSongs: Only ${feed.length} recommendations (some were seen), fetching from Spotify API...');
-      final neededCount = 8 - feed.length;
-      final spotifyRecs = await fetchTopSongs(accessToken, yearRange: yearRange, limit: neededCount * 2);
+      final spotifyRecs = await getRandomPopSongs(limit: 8); 
       for (final track in spotifyRecs) {
         if (feed.length >= 8) break;
         _addUnique(track);
@@ -127,7 +127,7 @@ class SpotifyService {
 
     // 2. Add 3 popular songs
     print('fetchSongs: Fetching popular tracks...');
-    final popular = await fetchTopSongs(accessToken, yearRange: yearRange, limit: 10);
+    final popular =  await getRandomPopSongs(limit: 3); 
     int addedPopular = 0;
     for (final track in popular) {
       if (addedPopular >= 3) break;
@@ -137,26 +137,11 @@ class SpotifyService {
     }
     print('fetchSongs: Added $addedPopular popular tracks, total now ${feed.length}');
 
-    // 3. Add 1 random track for variety
-    print('fetchSongs: Fetching random tracks...');
-    final randomTracks = List<Track>.from(popular);
-    if (randomTracks.isEmpty) {
-      randomTracks.addAll(await fetchTopSongs(accessToken, yearRange: yearRange, limit: 10));
-    }
-    randomTracks.shuffle();
-    for (final track in randomTracks) {
-      final oldLen = feed.length;
-      _addUnique(track);
-      if (feed.length > oldLen) {
-        print('fetchSongs: Added 1 random track, total now ${feed.length}');
-        break;
-      }
-    }
 
     // 4. Ensure we hit the exact limit
     if (feed.length < limit) {
       print('fetchSongs: Under limit (${feed.length} < $limit), fetching ${limit - feed.length} extra...');
-      final extra = await fetchTopSongs(accessToken, yearRange: yearRange, limit: limit * 3);
+      final extra = await getRandomPopSongs(limit: limit - feed.length);
       for (final track in extra) {
         if (feed.length >= limit) break;
         _addUnique(track);
@@ -166,7 +151,7 @@ class SpotifyService {
       // final fallback: if we still didn't reach the limit because every
       // candidate was already seen, allow a duplicate rather than returning an empty list
       if (feed.isEmpty) {
-        final fallback = await fetchTopSongs(accessToken, yearRange: yearRange, limit: limit);
+        final fallback = await getRandomPopSongs(limit: limit);
         feed.addAll(fallback.take(limit));
       }
     }
@@ -181,6 +166,47 @@ class SpotifyService {
     return feed;
   }
   
+
+  Future<List<Track>> getRandomPopSongs({int limit = 10}) async {
+    List<Track> feed = [];
+    //open file
+    final popFile = File('lib/Data/high_popularity_spotify_data.csv');
+    final lines = await popFile.readAsLines();
+
+    //randomly select x Lines
+    final selectedLines = lines.skip(1).toList()..shuffle()..take(limit);
+
+    for(var line in selectedLines){ //skip header
+      feed.add(parseLine(line));
+    }
+    return feed;
+  }
+
+  Track parseLine(String line) {
+    final columns = line.split(',');
+    if (columns.length < 5) return Track(name: '', artists: '', durationMs: 0, explicit: false, url: '');
+    final name = columns[0].trim();
+    final artists = columns[1].trim();
+    final durationMs = int.tryParse(columns[2].trim()) ?? 0;
+    final explicit = (columns.length > 3 && columns[3].trim().toLowerCase() == 'true');
+    final url = columns.length > 4 ? columns[4].trim() : '';
+    final albumImageUrl = columns.length > 5 ? columns[5].trim() : null;
+    final popularity = columns.length > 6 ? int.tryParse(columns[6].trim()) : null;
+    final releaseDate = columns.length > 7 ? columns[7].trim() : null;
+    final id = columns.length > 8 ? columns[8].trim() : null;
+    return Track(
+      name: name,
+      artists: artists,
+      durationMs: durationMs,
+      explicit: explicit,
+      url: url,
+      albumImageUrl: albumImageUrl?.isEmpty == true ? null : albumImageUrl,
+      popularity: popularity,
+      releaseDate: releaseDate?.isEmpty == true ? null : releaseDate,
+      id: id?.isEmpty == true ? null : id,
+      score: popularity != null ? (popularity / 100.0) : null,
+    );
+  }
 
 
   

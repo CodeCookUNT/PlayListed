@@ -4,7 +4,7 @@ import 'chat.dart';
 import 'profile.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'Loading_vinyl.dart';
+import 'loading_vinyl.dart';
 
 class FriendsPage extends StatefulWidget {
   const FriendsPage({super.key});
