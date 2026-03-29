@@ -5,6 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'login.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
@@ -24,6 +25,7 @@ import 'loading_vinyl.dart';
 import 'dart:async';
 import 'content_filter.dart';
 import 'package:flutter/services.dart';
+import 'notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,6 +35,7 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   //firebase local part for web dev
   if (kIsWeb) {
     FirebaseFirestore.instance.settings =
@@ -44,6 +47,7 @@ Future<void> main() async {
   print('Firebase initialized ✅');
   //load environment variables (.env) so SpotifyService can read client id/secret
   await dotenv.load(fileName: '.env');
+  await NotificationService.instance.initializePushNotifications();
 
   // Note: we no longer fetch a token or tracks here.  Instead the
   // application will request both after the user has successfully
@@ -126,7 +130,7 @@ class AuthGate extends StatelessWidget {
           );
         }
         if (snap.hasData) {
-          return MyHomePage();
+          return NotificationBootstrap(child: MyHomePage());
         }
         return const LoginPage();
       },
