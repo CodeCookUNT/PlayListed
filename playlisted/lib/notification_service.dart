@@ -58,4 +58,43 @@ class NotificationService {
 
     await batch.commit();
   }
+  Stream<List<Map<String, dynamic>>> notificationsStream(String uid) {
+    return _db
+        .collection('users')
+        .doc(uid)
+        .collection('notifications')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map(
+          (snap) => snap.docs.map((d) => {...d.data(), 'id': d.id}).toList(),
+        );
+  }
+  Future<void> markNotificationRead({
+    required String uid,
+    required String notificationId,
+  }) async {
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('notifications')
+        .doc(notificationId)
+        .update({'read': true});
+  }
+  Future<void> sendFriendRequestNotification({
+    required String toUid,
+    required String fromUid,
+    required String fromName,
+  }) async {
+    await _db
+        .collection('users')
+        .doc(toUid)
+        .collection('notifications')
+        .add({
+      'type': 'friend_request',
+      'fromUid': fromUid,
+      'fromName': fromName,
+      'createdAt': FieldValue.serverTimestamp(),
+      'read': false,
+    });
+  }
 }

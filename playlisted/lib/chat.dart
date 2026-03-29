@@ -79,6 +79,13 @@ class _ChatPageState extends State<ChatPage> {
       'text': text,
       'createdAt': FieldValue.serverTimestamp(),
     });
+
+    await NotificationService.instance.sendMessageNotification(
+      toUid: widget.friendUid,
+      fromUid: _myUid,
+      convoId: _convoId,
+      previewText: text,
+    );
   }
 
   @override
