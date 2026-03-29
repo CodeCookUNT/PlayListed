@@ -1,8 +1,8 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'favorites.dart';
+import 'loading_vinyl.dart';
 import 'main.dart' show MyAppState, StarRating;
 
 class MySongsPage extends StatelessWidget {
@@ -57,100 +57,17 @@ class SongsList extends StatelessWidget {
     this.showFavoriteIcon = true,
   });
 
-  //This segment of code will appear when loading the song tab 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final appState = context.read<MyAppState>();
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: stream,
       builder: (context, snap) {
+        // Show loading vinyl while waiting for data
         if (snap.connectionState == ConnectionState.waiting) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Spinning vinyl
-                SizedBox(
-                  width: 200,
-                  height: 200,
-                  child: TweenAnimationBuilder(
-                    duration: const Duration(seconds: 4),
-                    tween: Tween(begin: 0.0, end: 1.0),
-                    curve: Curves.linear,
-                    builder: (context, value, child) {
-                      return Transform.rotate(
-                        angle: value * 6.28319, // 2 * pi for full rotation
-                        child: child,
-                      );
-                    },
-                    child: Container(
-                      width: 200,
-                      height: 200,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.black,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
-                            blurRadius: 20,
-                            spreadRadius: 5,
-                          ),
-                        ],
-                      ),
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          // Vinyl grooves
-                          for (int i = 1; i <= 5; i++)
-                            Container(
-                              width: 200 - (i * 20.0),
-                              height: 200 - (i * 20.0),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.grey.withOpacity(0.3),
-                                  width: 1,
-                                ),
-                              ),
-                            ),
-                          // Center label with rotating text
-                          Container(
-                            width: 60,
-                            height: 60,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: theme.colorScheme.primary,
-                            ),
-                            child: Icon(
-                              Icons.album,
-                              color: theme.colorScheme.onPrimary,
-                              size: 30,
-                            ),
-                          ),
-                          // Center hole
-                          Container(
-                            width: 15,
-                            height: 15,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.black,
-                            ),
-                          ),
-                          // Curved text around the outer groove of the vinyl
-                          _VinylText(),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Loading songs...',
-                  style: theme.textTheme.titleMedium,
-                ),
-              ],
-            ),
+          return const LoadingVinylPage(
+            labelText: 'Loading your songs...',
+            ringText: ' LOADING YOUR SONGS ',
           );
         }
 
@@ -177,9 +94,8 @@ class SongsList extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(20),
               child: Text(headerLabel.replaceFirst('{count}', '${items.length}'),
-                  style: theme.textTheme.titleMedium),
+                  style: Theme.of(context).textTheme.titleMedium),
             ),
-
 
             for (final doc in items)
               SlidableListItem(
@@ -191,54 +107,6 @@ class SongsList extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-// Draws " NOW LOADING YOUR SONGS " curved around the vinyl groove.
-class _VinylText extends StatelessWidget {
-  const _VinylText();
-
-  @override
-  Widget build(BuildContext context) {
-    const String label = ' NOW LOADING YOUR SONGS ';
-    const double radius = 85.0;
-    const double fontSize = 8.5;
-    const double anglePerChar = 0.15; // space between each character
-
-    final characters = label.characters.toList();
-    final int charCount = characters.length;
-
-    // Center the text arc at the top of the circle
-    final double totalAngle = anglePerChar * (charCount - 1);
-    final double startAngle = -math.pi / 2 - totalAngle / 2;
-
-    return SizedBox(
-      width: 200,
-      height: 200,
-      child: Stack(
-        alignment: Alignment.center,
-        children: List.generate(charCount, (i) {
-          final double angle = startAngle + anglePerChar * i;
-          final double x = radius * math.cos(angle);
-          final double y = radius * math.sin(angle);
-
-          return Transform.translate(
-            offset: Offset(x, y),
-            child: Transform.rotate(
-              angle: angle + math.pi / 2,
-              child: Text(
-                characters[i],
-                style: TextStyle(
-                  fontSize: fontSize,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white.withOpacity(0.75),
-                ),
-              ),
-            ),
-          );
-        }),
-      ),
     );
   }
 }

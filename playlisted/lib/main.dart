@@ -20,9 +20,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'globalratings.dart';
 import 'friendsPage.dart';
 import 'collectionspage.dart';
+import 'loading_vinyl.dart';
 import 'dart:async';
 import 'content_filter.dart';
-import 'dart:math' as math;
 import 'package:flutter/services.dart';
 
 Future<void> main() async {
@@ -708,10 +708,11 @@ class _MyHomePageState extends State<MyHomePage> {
                       colors: [gradientTop, gradientBottom],
                     ),
                   ),
+                  // Show loading page if we're still fetching the feed, otherwise show the generator
                   child: (appState.isHomeFeedLoading || appState.current == null)
-                      ? VinylLoadingScreen(
+                      ? LoadingVinylPage(
                           labelText: 'Loading tracks...',
-                          ringText: ' NOW LOADING YOUR FEED ',
+                          ringText: ' LOADING YOUR FEED ',
                           errorText: appState.homeFeedError,
                           onRetry: () => context.read<MyAppState>().initializeHomeFeed(),
                         )
@@ -1656,196 +1657,6 @@ class StarRating extends StatelessWidget {
           ),
         );
       }),
-    );
-  }
-}
-
-class VinylLoadingScreen extends StatelessWidget {
-  final String labelText;
-  final String ringText;
-  final String? errorText;
-  final VoidCallback? onRetry;
-
-  const VinylLoadingScreen({
-    super.key,
-    required this.labelText,
-    required this.ringText,
-    this.errorText,
-    this.onRetry,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    final hasError = (errorText != null && errorText!.trim().isNotEmpty);
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Spinning vinyl
-            SizedBox(
-              width: 200,
-              height: 200,
-              child: TweenAnimationBuilder<double>(
-                duration: const Duration(seconds: 4),
-                tween: Tween(begin: 0.0, end: 1.0),
-                curve: Curves.linear,
-                // Loop the animation by rebuilding with a new tween end
-                onEnd: () {
-                  // This is a StatelessWidget, so we can't call setState.
-                  // Instead, rely on Flutter implicitly restarting when parent rebuilds.
-                  // If you want true continuous spin, we can convert to Stateful with AnimationController.
-                },
-                builder: (context, value, child) {
-                  return Transform.rotate(
-                    angle: value * 2 * math.pi,
-                    child: child,
-                  );
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.black,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.30),
-                        blurRadius: 20,
-                        spreadRadius: 5,
-                      ),
-                    ],
-                  ),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // Grooves
-                      for (int i = 1; i <= 5; i++)
-                        Container(
-                          width: 200 - (i * 20.0),
-                          height: 200 - (i * 20.0),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.grey.withOpacity(0.30),
-                              width: 1,
-                            ),
-                          ),
-                        ),
-
-                      // Center label
-                      Container(
-                        width: 60,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: theme.colorScheme.primary,
-                        ),
-                        child: Icon(
-                          Icons.album,
-                          color: theme.colorScheme.onPrimary,
-                          size: 30,
-                        ),
-                      ),
-
-                      // Center hole
-                      Container(
-                        width: 14,
-                        height: 14,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.black,
-                        ),
-                      ),
-
-                      // Curved ring text
-                      _VinylText(label: ringText),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 18),
-
-            Text(
-              hasError ? 'Couldn’t load feed' : labelText,
-              style: theme.textTheme.titleMedium,
-              textAlign: TextAlign.center,
-            ),
-
-            if (hasError) ...[
-              const SizedBox(height: 10),
-              Text(
-                errorText!,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.error,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 6,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 14),
-              if (onRetry != null)
-                ElevatedButton.icon(
-                  onPressed: onRetry,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Retry'),
-                ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// Draws curved text around the vinyl.
-class _VinylText extends StatelessWidget {
-  final String label;
-
-  const _VinylText({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    const double radius = 85.0;
-    const double fontSize = 8.5;
-    const double anglePerChar = 0.15;
-
-    final characters = label.characters.toList();
-    final int charCount = characters.length;
-
-    final double totalAngle = anglePerChar * (charCount - 1);
-    final double startAngle = -math.pi / 2 - totalAngle / 2;
-
-    return SizedBox(
-      width: 200,
-      height: 200,
-      child: Stack(
-        alignment: Alignment.center,
-        children: List.generate(charCount, (i) {
-          final double angle = startAngle + anglePerChar * i;
-          final double x = radius * math.cos(angle);
-          final double y = radius * math.sin(angle);
-
-          return Transform.translate(
-            offset: Offset(x, y),
-            child: Transform.rotate(
-              angle: angle + math.pi / 2,
-              child: Text(
-                characters[i],
-                style: TextStyle(
-                  fontSize: fontSize,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white.withOpacity(0.75),
-                ),
-              ),
-            ),
-          );
-        }),
-      ),
     );
   }
 }

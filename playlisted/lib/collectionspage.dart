@@ -6,6 +6,7 @@ import 'spotify.dart';
 import 'package:provider/provider.dart';
 import 'main.dart';
 import 'search.dart';
+import 'loading_vinyl.dart';
 
 //cache so the data stays loaded when switching pages
 class SpotifyCache {
@@ -135,7 +136,10 @@ class _CollectionsPageState extends State<CollectionsPage> {
             ? const Color(0xFF101417)
             : const Color(0xFFF6FAFE),
         body: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const LoadingVinylPage(
+                labelText: 'Loading collections...',
+                ringText: ' LOADING COLLECTIONS ',
+              )
             : ListView(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 children: _cache.decadeTracks.entries.map((entry) {

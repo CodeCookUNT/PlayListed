@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'profilefunctions.dart';
+import 'loading_vinyl.dart';
 
 class ProfilePage extends StatelessWidget {
   final String uid;
@@ -20,12 +21,6 @@ class ProfilePage extends StatelessWidget {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance.collection('users').doc(uid).snapshots(),
       builder: (context, userSnap) {
-        if (userSnap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (userSnap.hasError) {
-          return Center(child: Text('Error loading user: ${userSnap.error}'));
-        }
 
         final data = userSnap.data?.data() ?? {};
         final displayName = (data['username'] as String?) ??
@@ -39,7 +34,10 @@ class ProfilePage extends StatelessWidget {
       stream: profileFunctions.ratingsStream(uid: uid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const LoadingVinylPage(
+            labelText: 'Loading profile...',
+            ringText: ' LOADING YOUR PROFILE ',
+          );
         }
         if (snapshot.hasError) {
           return Center(child: Text('Error loading profile: ${snapshot.error}'));
