@@ -83,6 +83,8 @@ class _ChatPageState extends State<ChatPage> {
     await NotificationService.instance.sendMessageNotification(
       toUid: widget.friendUid,
       fromUid: _myUid,
+      fromName: FirebaseAuth.instance.currentUser?.displayName ??
+          (FirebaseAuth.instance.currentUser?.email?.split('@').first ?? 'A friend'),
       convoId: _convoId,
       previewText: text,
     );
