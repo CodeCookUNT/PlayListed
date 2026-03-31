@@ -1,9 +1,7 @@
 // beginning development of recommendations algorithm, making file
-import 'spotify.dart';
+import 'local_music_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 
 
 
@@ -56,7 +54,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
           continue; //skip if user has already liked/rated this track
         }
         if (songB != null) {
-          final track = await fetchTrackDetails(songB, accessToken);
+          final track = await fetchTrackDetails(songB);
           if (!recTrackIds.containsKey(songB)) {
             recTrackIds[songB] = {
               'track': track,
@@ -87,7 +85,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
           continue; //skip if user has already liked/rated this track
         }
         if (songA != null) {
-          final track = await fetchTrackDetails(songA, accessToken);
+          final track = await fetchTrackDetails(songA);
           if (!recTrackIds.containsKey(songA)) {
             recTrackIds[songA] = {
               'track': track,
@@ -245,47 +243,12 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
   }
 
   //Fetch the track details from Spotify API given only the track ID
-  Future<Track> fetchTrackDetails(String trackId, String? accessToken) async {
-    //get the track details from Spotify API
-    final uri = Uri.https(
-      'api.spotify.com',
-      '/v1/tracks/$trackId',
-    );
-
-    final response = await http.get(
-      uri,
-      headers: {'Authorization': 'Bearer $accessToken'},
-    );
-    if(response.statusCode != 200){
-      throw Exception('Failed to fetch track details: ${response.body}');
+  Future<Track> fetchTrackDetails(String trackId) async {
+    final track = await LocalMusicService().fetchTrackById(trackId);
+    if (track == null) {
+      throw Exception('Failed to find local track details for $trackId');
     }
-    final json = jsonDecode(response.body);
-    final artists = (json['artists'] as List)
-        .map((artist) => artist['name'])
-        .join(', ');
-    String? albumImageUrl;
-    if (json['album'] != null &&
-        json['album']['images'] != null &&
-        (json['album']['images'] as List).isNotEmpty) {
-      albumImageUrl = json['album']['images'][0]['url'];
-    }
-    //return Track object
-    return Track(
-      name: json['name'],
-      artists: artists,
-      durationMs: json['duration_ms'] ?? 0,
-      explicit: json['explicit'] ?? false,
-      url: json['external_urls']['spotify'],
-      albumImageUrl: albumImageUrl,
-      popularity: (json['popularity'] as num?)?.toInt(),
-      releaseDate: json['album'] != null ? json['album']['release_date'] : null,
-      id: json['id'],
-      artistId: (json['artists'] != null && (json['artists'] as List).isNotEmpty)
-          ? json['artists'][0]['id']
-          : null,
-      score: ((json['popularity'] as num?)?.toDouble() ?? 0.0) / 100.0,
-    );
-
+    return track;
   }
 
   //Delete recommendation

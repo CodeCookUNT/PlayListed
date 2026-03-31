@@ -1,3 +1,5 @@
+// NOT IN USE / DEPRECATED
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'spotify.dart';
@@ -19,28 +21,28 @@ class SearchFunctions {
       },
     );
 
-
-    await Future.delayed(const Duration(milliseconds: 120)); // Add a small delay to help prevent hitting rate limits
+    await Future.delayed(const Duration(milliseconds: 120));
     var response = await http.get(
       uri,
       headers: {'Authorization': 'Bearer $token'},
     );
 
-
     if (response.statusCode == 429) {
-      final retryAfterSeconds = int.tryParse(response.headers['retry-after'] ?? '') ?? 1;
+      final retryAfterSeconds =
+          int.tryParse(response.headers['retry-after'] ?? '') ?? 1;
 
       await Future.delayed(Duration(seconds: retryAfterSeconds));
 
       response = await http.get(
         uri,
         headers: {' Authorization': 'Bearer $token'},
-      ); 
+      );
     }
 
-
     if (response.statusCode != 200) {
-      throw Exception("Song search failed: ${response.statusCode == 429 ? 'Too Many Requests' : response.body}");
+      throw Exception(
+        "Song search failed: ${response.statusCode == 429 ? 'Too Many Requests' : response.body}",
+      );
     }
 
     final data = jsonDecode(response.body);
@@ -66,11 +68,9 @@ class SearchFunctions {
     }).toList();
   }
 
-  // 2. Search artist → return their top tracks
   Future<List<Track>> searchArtistTopSongs(String artistName) async {
     final token = await _spotifyService.getAccessToken();
 
-    // Step 1: search artist to get ID
     final artistUri = Uri.https(
       'api.spotify.com',
       '/v1/search',
@@ -97,7 +97,6 @@ class SearchFunctions {
 
     final artistId = artistItems[0]['id'];
 
-    // Step 2: fetch top tracks
     final topTracksUri = Uri.https(
       'api.spotify.com',
       '/v1/artists/$artistId/top-tracks',

@@ -1,5 +1,6 @@
 import 'recommendations.dart';
 import 'package:flutter/material.dart';
+import 'track_artwork.dart';
 
 class RecommendationsPage extends StatefulWidget {
   const RecommendationsPage({super.key});
@@ -50,16 +51,12 @@ class _RecommendationsPageState extends State<RecommendationsPage> {
 
             for (final doc in items)
               ListTile(
-                leading: (doc['albumImageUrl'] as String?) != null
-                    ? Image.network(
-                        doc['albumImageUrl'],
-                        width: 50,
-                        height: 50,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            const Icon(Icons.favorite),
-                      )
-                    : const Icon(Icons.favorite),
+                leading: TrackArtwork(
+                  imageUrl: doc['albumImageUrl'] as String?,
+                  width: 50,
+                  height: 50,
+                  icon: Icons.favorite,
+                ),
                 title: Text(doc['name'] ?? ''),
                 subtitle: Text(doc['artists'] ?? ''),
               ),

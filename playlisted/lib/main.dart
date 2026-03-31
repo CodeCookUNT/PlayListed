@@ -1,6 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'spotify.dart';
+import 'local_music_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -27,6 +29,7 @@ import 'package:flutter/services.dart';
 import 'notification_service.dart';
 import 'help_overlay.dart';
 import 'help_content.dart';
+import 'track_artwork.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,7 +48,7 @@ Future<void> main() async {
         const Settings(cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED);
   }
   print('Firebase initialized ✅');
-  //load environment variables (.env) so SpotifyService can read client id/secret
+  //load environment variables (.env) for backwards compatibility with old setup
   await dotenv.load(fileName: '.env');
 
   // Note: we no longer fetch a token or tracks here.  Instead the
@@ -214,7 +217,7 @@ class MyAppState extends ChangeNotifier {
   }
 
   Future<void> loadRecommendations() async {
-    recTracks = await SpotifyService().fetchRecommendedSongs();
+    recTracks = await LocalMusicService().fetchRecommendedSongs();
     print('loadRecommendations completed: ${recTracks.length} tracks loaded');
   }
 
@@ -229,7 +232,7 @@ class MyAppState extends ChangeNotifier {
     // grab token if we don't already have one
     if (accessToken == null) {
       try {
-        accessToken = await SpotifyService().getAccessToken();
+        accessToken = await LocalMusicService().getAccessToken();
         print('Spotify token obtained in loadFeed');
       } catch (e) {
         homeFeedError = 'Unable to acquire Spotify token: $e';
@@ -243,12 +246,16 @@ class MyAppState extends ChangeNotifier {
     if (recTracks.isEmpty) {
       print('loadFeed: recTracks is empty, fetching recommendations...');
       await loadRecommendations();
-      print('loadFeed: after loadRecommendations, recTracks has ${recTracks.length} items');
+      print(
+        'loadFeed: after loadRecommendations, recTracks has ${recTracks.length} items',
+      );
     }
 
     try {
-      print('loadFeed: calling fetchSongs with ${recTracks.length} recommendation tracks');
-      final newTracks = await SpotifyService().fetchSongs(
+      print(
+        'loadFeed: calling fetchSongs with ${recTracks.length} recommendation tracks',
+      );
+      final newTracks = await LocalMusicService().fetchSongs(
         accessToken!,
         recTracks,
         yearRange: yearRange,
@@ -258,7 +265,7 @@ class MyAppState extends ChangeNotifier {
       tracks = newTracks;
       if (tracks != null && tracks!.isNotEmpty) {
         current = tracks![0];
-        
+
         // track all returned tracks so we don't serve them again
         _seenTrackIds.clear();
         _seenTrackNameArtist.clear();
@@ -266,7 +273,9 @@ class MyAppState extends ChangeNotifier {
           if (track.id != null && track.id!.isNotEmpty) {
             _seenTrackIds.add(track.id!);
           }
-          _seenTrackNameArtist.add('${track.name}|${track.artists}'.toLowerCase());
+          _seenTrackNameArtist.add(
+            '${track.name}|${track.artists}'.toLowerCase(),
+          );
         }
       }
       notifyListeners();
@@ -291,8 +300,10 @@ class MyAppState extends ChangeNotifier {
     }
 
     try {
-      print('loadMoreTracks: fetching more tracks (excluding ${_seenTrackIds.length} seen)');
-      final moreTracks = await SpotifyService().fetchSongs(
+      print(
+        'loadMoreTracks: fetching more tracks (excluding ${_seenTrackIds.length} seen)',
+      );
+      final moreTracks = await LocalMusicService().fetchSongs(
         accessToken!,
         recTracks,
         yearRange: yearRange,
@@ -303,17 +314,21 @@ class MyAppState extends ChangeNotifier {
 
       if (moreTracks.isNotEmpty) {
         tracks!.addAll(moreTracks);
-        
+
         // track these new tracks
         for (final track in moreTracks) {
           if (track.id != null && track.id!.isNotEmpty) {
             _seenTrackIds.add(track.id!);
           }
-          _seenTrackNameArtist.add('${track.name}|${track.artists}'.toLowerCase());
+          _seenTrackNameArtist.add(
+            '${track.name}|${track.artists}'.toLowerCase(),
+          );
         }
-        
+
         notifyListeners();
-        print('loadMoreTracks: added ${moreTracks.length} new tracks, total now ${tracks!.length}');
+        print(
+          'loadMoreTracks: added ${moreTracks.length} new tracks, total now ${tracks!.length}',
+        );
       } else {
         print('loadMoreTracks: no new tracks available');
       }
@@ -322,11 +337,11 @@ class MyAppState extends ChangeNotifier {
     }
   }
 
-  void setTrackCounter(int value){
+  void setTrackCounter(int value) {
     _trackCounter = value;
   }
 
-  void markSongsForDeletion(String songID){
+  void markSongsForDeletion(String songID) {
     _deltracks.add(songID);
     _deleteTimer?.cancel();
     _deleteTimer = Timer(const Duration(seconds: 2), () async {
@@ -335,15 +350,15 @@ class MyAppState extends ChangeNotifier {
       await Recommendations.instance.removeRecommendationsFromSource(todelete);
     });
   }
-  
-  void printLikedOrRatedIDs(){
+
+  void printLikedOrRatedIDs() {
     print('Liked or rated IDs:');
     for (var id in _likedOrRatedIDs) {
       print(id);
     }
   }
 
-  List<String> getLikedOrRatedIDs(){
+  List<String> getLikedOrRatedIDs() {
     return _likedOrRatedIDs;
   }
 
@@ -360,12 +375,11 @@ class MyAppState extends ChangeNotifier {
       if (t.id != null) {
         final userId = FirebaseAuth.instance.currentUser?.uid;
         if (userId != null) {
-          GlobalRatings.instance.removeRating(
-            trackId: t.id!,
-            userId: userId,
-          ).catchError((e) {
-            print('Error removing global rating: $e');
-          });
+          GlobalRatings.instance
+              .removeRating(trackId: t.id!, userId: userId)
+              .catchError((e) {
+                print('Error removing global rating: $e');
+              });
         }
       }
     } else {
@@ -378,19 +392,16 @@ class MyAppState extends ChangeNotifier {
       if (t.id != null) {
         final userId = FirebaseAuth.instance.currentUser?.uid;
         if (userId != null) {
-          GlobalRatings.instance.submitRating(
-            trackId: t.id!,
-            userId: userId,
-            rating: r,
-          ).catchError((e) {
-            print('Error submitting global rating: $e');
-          });
+          GlobalRatings.instance
+              .submitRating(trackId: t.id!, userId: userId, rating: r)
+              .catchError((e) {
+                print('Error submitting global rating: $e');
+              });
         }
       }
     }
     notifyListeners();
   }
-  
 
   MyAppState({this.accessToken, this.tracks}) {
     // we keep this constructor for backwards compatibility, but the
@@ -805,8 +816,10 @@ class GeneratorPage extends StatelessWidget {
                             backgroundColor: const Color(0xFF1DB954),
                             child: IconButton(
                               icon: const Icon(Icons.open_in_new, color: Colors.white),
-                              onPressed: () async {
-                                final uri = Uri.parse(track.url!);
+                              onPressed: track.url.isEmpty
+                                  ? null
+                                  : () async {
+                                final uri = Uri.parse(track.url);
                                 if (await canLaunchUrl(uri)) {
                                   await launchUrl(uri);
                                 } else {
@@ -1353,8 +1366,7 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (widget.track.albumImageUrl != null)
-          Padding(
+        Padding(
             padding: const EdgeInsets.only(bottom: 1.0),
             child: AnimatedBuilder(
               animation: _slideAnimation,
@@ -1430,17 +1442,14 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(4.0),
-                        child: Image.network(
-                          widget.track.albumImageUrl!,
+                        child: TrackArtwork(
+                          imageUrl: widget.track.albumImageUrl,
                           width: 200,
                           height: 200,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Container(
-                            width: 300,
-                            height: 300,
-                            color: Colors.grey,
-                            child: const Icon(Icons.album, size: 100, color: Colors.white),
-                          ),
+                          borderRadius: 4,
+                          icon: Icons.album,
+                          backgroundColor: Colors.grey,
+                          iconColor: Colors.white,
                         ),
                       ),
                     ),

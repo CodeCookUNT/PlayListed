@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'favorites.dart';
 import 'loading_vinyl.dart';
 import 'main.dart' show MyAppState, StarRating;
+import 'track_artwork.dart';
 
 class MySongsPage extends StatelessWidget {
   MySongsPage({super.key});
@@ -230,17 +231,14 @@ class _SlidableListItemState extends State<SlidableListItem> {
                     ),
                   ),
                   child: ListTile(
-                    leading: (widget.doc['albumImageUrl'] as String?) != null
-                        ? Image.network(
-                            widget.doc['albumImageUrl'],
-                            width: 50,
-                            height: 50,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Icon(
-                              widget.showFavoriteIcon ? Icons.favorite : Icons.library_music,
-                            )
-                          )
-                        : Icon(widget.showFavoriteIcon ? Icons.favorite : Icons.library_music), 
+                    leading: TrackArtwork(
+                      imageUrl: widget.doc['albumImageUrl'] as String?,
+                      width: 50,
+                      height: 50,
+                      icon: widget.showFavoriteIcon
+                          ? Icons.favorite
+                          : Icons.library_music,
+                    ),
                     title: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
