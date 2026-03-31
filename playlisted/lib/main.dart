@@ -24,6 +24,8 @@ import 'loading_vinyl.dart';
 import 'dart:async';
 import 'content_filter.dart';
 import 'package:flutter/services.dart';
+import 'help_overlay.dart';
+import 'help_content.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -133,41 +135,6 @@ class AuthGate extends StatelessWidget {
     );
   }
 }
-
-// Toggle button for dark mode
-// Other toggle buttons can be added here later
-class ToggleButtonManager extends StatefulWidget {
-  const ToggleButtonManager({super.key});
-  @override
-  State<ToggleButtonManager> createState() => _ToggleButtonManagerState();
-}
-
-class _ToggleButtonManagerState extends State<ToggleButtonManager> {
-
-  @override
-  Widget build(BuildContext context) {
-    var appState = context.watch<MyAppState>();
-    final isDark = appState.isDarkMode;
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.only(top: 12.0),
-          child: CircleAvatar(
-            radius: 28,
-            backgroundColor: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
-            child: IconButton(
-              iconSize: 32,
-              icon: Icon(
-                isDark ? Icons.dark_mode : Icons.light_mode,
-                color: isDark ? Colors.white : Colors.black,
-              ),
-              onPressed: () => appState.toggleDarkMode(!isDark)    
-            )
-          )
-        )
-      );
-  }
-}
-
 
 class MyAppState extends ChangeNotifier {
   bool isDarkMode = false;
@@ -619,6 +586,18 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   int selectedIndex = 0;
 
+HelpPageContent get _currentHelpContent {
+  switch (selectedIndex) {
+    case 0: return HelpContent.home;
+    case 1: return HelpContent.mySongs;
+    case 2: return HelpContent.search;
+    case 3: return HelpContent.friends;
+    case 4: return HelpContent.collections;
+    case 5: return HelpContent.profile;
+    default: return HelpContent.home;
+  }
+}
+
   static const List<String> topPageTitle = [
     'Playlist\'d',
     'My Songs',
@@ -683,7 +662,7 @@ class _MyHomePageState extends State<MyHomePage> {
           appBar: AppBar(
             leading: IconButton(
               icon: const Icon(Icons.settings),
-              onPressed: () => _openSettings(context),
+              onPressed: () => _openSettings(context, _currentHelpContent),
             ),
             centerTitle: true,
             title: Text(
@@ -1574,40 +1553,77 @@ class GlobalRatingDisplay extends StatelessWidget {
   }
 }
 
-void _openSettings(BuildContext context) {
+void _openSettings(BuildContext context, HelpPageContent helpContent) {
   showModalBottomSheet(
     context: context,
     backgroundColor: Colors.transparent,
     builder: (context) {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      final appState = context.read<MyAppState>();
       return Align(
         alignment: Alignment.bottomCenter,
         child: Container(
-          width: 170,
-          height: 220,
+          width: 210,
+          height:200,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const Text(
-                'Settings',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const Text(
+                  'Settings',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  child: const Text('Logout'),
+                  onPressed: () async {
+                    context.read<MyAppState>().logout();
+                    await FirebaseAuth.instance.signOut();
+                    Navigator.of(context).pop();
+                  },
+                ),
+                const SizedBox(height: 20),
+                Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // dark/light mode button
+                  CircleAvatar(
+                    radius: 25,
+                    backgroundColor: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                    child: IconButton(
+                      iconSize: 32,
+                      icon: Icon(
+                        isDark ? Icons.dark_mode : Icons.light_mode,
+                        color: isDark ? Colors.white : Colors.black,
+                      ),
+                      onPressed: () => appState.toggleDarkMode(!isDark),
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  // help button
+                  CircleAvatar(
+                    radius: 25,
+                    backgroundColor: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                    child: IconButton(
+                      iconSize: 32,
+                      icon: Icon(
+                        Icons.question_mark,
+                        color: isDark ? Colors.white : Colors.black,
+                      ),
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        Navigator.of(context).push(HelpOverlay.route(helpContent));
+                      },
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                child: const Text('Logout'),
-                onPressed: () async {
-                  context.read<MyAppState>().logout();
-                  await FirebaseAuth.instance.signOut();
-                  Navigator.of(context).pop();
-                },
-              ),
-              const ToggleButtonManager(),
             ],
-          ),
+          ),  
         ),
       );
     },
