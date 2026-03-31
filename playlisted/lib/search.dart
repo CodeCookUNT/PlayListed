@@ -170,20 +170,24 @@ class SongInteractionPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
+        backgroundColor: theme.appBarTheme.backgroundColor ?? theme.primaryColor,
         title: Text(
           'Playlistd',
           style: GoogleFonts.montserrat(
             fontSize: 22,
             fontWeight: FontWeight.w700,
-            color: Colors.white,
+            color: theme.appBarTheme.foregroundColor ?? Colors.white,
             letterSpacing: 0.5,
           ),
         ),
+        iconTheme: theme.appBarTheme.iconTheme ?? const IconThemeData(color: Colors.white),
       ),
       body: Container(
-        color: context.watch<MyAppState>().backgroundColor,
+        color: theme.scaffoldBackgroundColor,
         child: const GeneratorPage(
           showScrollButtons: false,
           centerVertically: true,

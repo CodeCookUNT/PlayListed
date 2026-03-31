@@ -52,6 +52,8 @@ class _CollectionsPageState extends State<CollectionsPage> {
   bool _loading = true;
   String? _selectedTrackId;
 
+  String? _expandedCategory;
+
   @override
   void initState() {
     super.initState();
@@ -101,12 +103,11 @@ class _CollectionsPageState extends State<CollectionsPage> {
           }),
         );
       }
-
       //await Future.wait(futures);
       for (final future in futures) {
         await future;
         await Future.delayed(const Duration(milliseconds: 250));
-    }
+      }
       _cache.isLoaded = true;
 
       if (!mounted) return;
@@ -144,10 +145,25 @@ class _CollectionsPageState extends State<CollectionsPage> {
             : ListView(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 children: _cache.decadeTracks.entries.map((entry) {
+                  // Popular Now is always expanded
+                  final isPopularNow = entry.key == 'Popular Now';
                   return _CollectionRow(
                     title: entry.key,
                     tracks: entry.value,
                     selectedTrackId: _selectedTrackId,
+                    isExpanded: isPopularNow
+                        ? true
+                        : _expandedCategory == entry.key,
+                    onHeaderTapped: () {
+                      if (isPopularNow) return; // cannot collapse Popular Now
+                      setState(() {
+                        if (_expandedCategory == entry.key) {
+                          _expandedCategory = null;
+                        } else {
+                          _expandedCategory = entry.key;
+                        }
+                      });
+                    },
                     onTrackTapped: _onTrackTapped,
                   );
                 }).toList(),
@@ -164,11 +180,16 @@ class _CollectionRow extends StatefulWidget {
   final String? selectedTrackId;
   final Function(String?) onTrackTapped;
 
+  final bool isExpanded;
+  final VoidCallback onHeaderTapped;
+
   const _CollectionRow({
     required this.title,
     required this.tracks,
     required this.selectedTrackId,
     required this.onTrackTapped,
+    required this.isExpanded,
+    required this.onHeaderTapped,
   });
 
   @override
@@ -209,63 +230,76 @@ class _CollectionRowState extends State<_CollectionRow> {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Text(
-            widget.title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
+          child: InkWell(
+            onTap: widget.onHeaderTapped,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  widget.title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20,
+                      ),
                 ),
+                if (widget.title != 'Popular Now') // only show arrow for collapsible
+                  Icon(
+                    widget.isExpanded
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
+                  ),
+              ],
+            ),
           ),
         ),
-        SizedBox(
-          height: 180,
-          child: Stack(
-            children: [
-              ListView.separated(
-                controller: _scrollController,
-                padding: const EdgeInsets.symmetric(horizontal: 40),
-                scrollDirection: Axis.horizontal,
-                itemCount: widget.tracks.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (context, index) {
-                  return _AlbumCover(
-                    track: widget.tracks[index],
-                    isSelected:
-                        widget.selectedTrackId == widget.tracks[index].id,
-                    onTap: () =>
-                        widget.onTrackTapped(widget.tracks[index].id),
-                  );
-                },
-              ),
-              // Left Arrow
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                child: Center(
-                  child: IconButton(
-                    icon: const Icon(Icons.chevron_left, size: 32),
-                    color: Colors.black,
-                    onPressed: _scrollLeft,
+        if (widget.isExpanded)
+          SizedBox(
+            height: 180,
+            child: Stack(
+              children: [
+                ListView.separated(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.symmetric(horizontal: 40),
+                  scrollDirection: Axis.horizontal,
+                  itemCount: widget.tracks.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (context, index) {
+                    return _AlbumCover(
+                      track: widget.tracks[index],
+                      isSelected:
+                          widget.selectedTrackId == widget.tracks[index].id,
+                      onTap: () =>
+                          widget.onTrackTapped(widget.tracks[index].id),
+                    );
+                  },
+                ),
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: IconButton(
+                      icon: const Icon(Icons.chevron_left, size: 32),
+                      color: Colors.black,
+                      onPressed: _scrollLeft,
+                    ),
                   ),
                 ),
-              ),
-              // Right Arrow
-              Positioned(
-                right: 0,
-                top: 0,
-                bottom: 0,
-                child: Center(
-                  child: IconButton(
-                    icon: const Icon(Icons.chevron_right, size: 32),
-                    color: Colors.black,
-                    onPressed: _scrollRight,
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: IconButton(
+                      icon: const Icon(Icons.chevron_right, size: 32),
+                      color: Colors.black,
+                      onPressed: _scrollRight,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
         const SizedBox(height: 16),
       ],
     );
@@ -287,7 +321,6 @@ class _AlbumCover extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () async {
-        
         final appState = context.read<MyAppState>();
         final previousMainTrack = appState.current;
 
@@ -300,7 +333,6 @@ class _AlbumCover extends StatelessWidget {
 
         if (previousMainTrack == null) return;
         appState.setCurrentTrack(previousMainTrack);
-
       },
       child: Container(
         width: 180,
@@ -311,7 +343,6 @@ class _AlbumCover extends StatelessWidget {
         ),
         child: Stack(
           children: [
-            // Album image
             Positioned.fill(
               child: TrackArtwork(
                 imageUrl: track.albumImageUrl,
@@ -323,8 +354,6 @@ class _AlbumCover extends StatelessWidget {
                 iconColor: Colors.white54,
               ),
             ),
-
-            // Title overlay
             Positioned(
               bottom: 0,
               left: 0,
