@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'profilefunctions.dart';
 import 'loading_vinyl.dart';
+import 'track_artwork.dart';
 
 class ProfilePage extends StatelessWidget {
   final String uid;
@@ -263,34 +264,11 @@ class ProfilePage extends StatelessWidget {
                           child: Row(
                             children: [
                               // Album artwork or icon
-                              if (song['albumImageUrl'] != null)
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: Image.network(
-                                    song['albumImageUrl'],
-                                    width: 50,
-                                    height: 50,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Container(
-                                        width: 50,
-                                        height: 50,
-                                        color: Colors.grey,
-                                        child: Icon(Icons.music_note, color: Colors.white),
-                                      );
-                                    },
-                                  ),
-                                )
-                              else
-                                Container(
-                                  width: 50,
-                                  height: 50,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade300,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Icon(Icons.music_note),
-                                ),
+                              TrackArtwork(
+                                imageUrl: song['albumImageUrl'],
+                                width: 50,
+                                height: 50,
+                              ),
                               SizedBox(width: 12),
                               // Song info
                               Expanded(
@@ -361,26 +339,11 @@ class ProfilePage extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               // Album image
-                              if (r['albumImageUrl'] != null)
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: Image.network(
-                                    r['albumImageUrl'],
-                                    width: 50,
-                                    height: 50,
-                                    fit: BoxFit.cover,
-                                  ),
-                                )
-                              else
-                                Container(
-                                  width: 50,
-                                  height: 50,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade300,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Icon(Icons.music_note),
-                                ),
+                              TrackArtwork(
+                                imageUrl: r['albumImageUrl'],
+                                width: 50,
+                                height: 50,
+                              ),
 
                               SizedBox(width: 12),
 

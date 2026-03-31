@@ -35,3 +35,5 @@ flutter:
   uses-material-design: true
   assets:
     - .env
+    - lib/Data/high_popularity_spotify_data.csv
+    - lib/Data/low_popularity_spotify_data.csv

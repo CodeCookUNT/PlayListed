@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'spotify.dart';
+import 'local_music_service.dart';
 import 'package:provider/provider.dart';
 import 'main.dart';
 import 'search.dart';
 import 'loading_vinyl.dart';
+import 'track_artwork.dart';
 
 //cache so the data stays loaded when switching pages
 class SpotifyCache {
@@ -44,7 +45,7 @@ class CollectionsPage extends StatefulWidget {
 }
 
 class _CollectionsPageState extends State<CollectionsPage> {
-  final SpotifyService _spotifyService = SpotifyService();
+  final LocalMusicService _spotifyService = LocalMusicService();
   final SpotifyCache _cache = SpotifyCache();
 
   String? _accessToken;
@@ -312,14 +313,15 @@ class _AlbumCover extends StatelessWidget {
           children: [
             // Album image
             Positioned.fill(
-              child: track.albumImageUrl != null &&
-                      track.albumImageUrl!.isNotEmpty
-                  ? Image.network(track.albumImageUrl!,
-                      fit: BoxFit.cover)
-                  : const Center(
-                      child: Icon(Icons.album,
-                          size: 48, color: Colors.white54),
-                    ),
+              child: TrackArtwork(
+                imageUrl: track.albumImageUrl,
+                width: 180,
+                height: 180,
+                borderRadius: 0,
+                icon: Icons.album,
+                backgroundColor: Colors.grey.shade800,
+                iconColor: Colors.white54,
+              ),
             ),
 
             // Title overlay

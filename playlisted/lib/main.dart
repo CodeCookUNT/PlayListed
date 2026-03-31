@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'spotify.dart';
+import 'local_music_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -28,6 +28,7 @@ import 'content_filter.dart';
 import 'package:flutter/services.dart';
 import 'help_overlay.dart';
 import 'help_content.dart';
+import 'track_artwork.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,7 +47,7 @@ Future<void> main() async {
         const Settings(cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED);
   }
   print('Firebase initialized ✅');
-  //load environment variables (.env) so SpotifyService can read client id/secret
+  //load environment variables (.env) for backwards compatibility with old setup
   await dotenv.load(fileName: '.env');
 
   // Note: we no longer fetch a token or tracks here.  Instead the
@@ -215,7 +216,7 @@ class MyAppState extends ChangeNotifier {
   }
 
   Future<void> loadRecommendations() async {
-    recTracks = await SpotifyService().fetchRecommendedSongs();
+    recTracks = await LocalMusicService().fetchRecommendedSongs();
     print('loadRecommendations completed: ${recTracks.length} tracks loaded');
   }
 
@@ -230,7 +231,7 @@ class MyAppState extends ChangeNotifier {
     // grab token if we don't already have one
     if (accessToken == null) {
       try {
-        accessToken = await SpotifyService().getAccessToken();
+        accessToken = await LocalMusicService().getAccessToken();
         print('Spotify token obtained in loadFeed');
       } catch (e) {
         homeFeedError = 'Unable to acquire Spotify token: $e';
@@ -253,7 +254,7 @@ class MyAppState extends ChangeNotifier {
       print(
         'loadFeed: calling fetchSongs with ${recTracks.length} recommendation tracks',
       );
-      final newTracks = await SpotifyService().fetchSongs(
+      final newTracks = await LocalMusicService().fetchSongs(
         accessToken!,
         recTracks,
         yearRange: yearRange,
@@ -301,7 +302,7 @@ class MyAppState extends ChangeNotifier {
       print(
         'loadMoreTracks: fetching more tracks (excluding ${_seenTrackIds.length} seen)',
       );
-      final moreTracks = await SpotifyService().fetchSongs(
+      final moreTracks = await LocalMusicService().fetchSongs(
         accessToken!,
         recTracks,
         yearRange: yearRange,
@@ -814,8 +815,10 @@ class GeneratorPage extends StatelessWidget {
                             backgroundColor: const Color(0xFF1DB954),
                             child: IconButton(
                               icon: const Icon(Icons.open_in_new, color: Colors.white),
-                              onPressed: () async {
-                                final uri = Uri.parse(track.url!);
+                              onPressed: track.url.isEmpty
+                                  ? null
+                                  : () async {
+                                final uri = Uri.parse(track.url);
                                 if (await canLaunchUrl(uri)) {
                                   await launchUrl(uri);
                                 } else {
@@ -1362,8 +1365,7 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (widget.track.albumImageUrl != null)
-          Padding(
+        Padding(
             padding: const EdgeInsets.only(bottom: 1.0),
             child: AnimatedBuilder(
               animation: _slideAnimation,
@@ -1439,17 +1441,14 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(4.0),
-                        child: Image.network(
-                          widget.track.albumImageUrl!,
+                        child: TrackArtwork(
+                          imageUrl: widget.track.albumImageUrl,
                           width: 200,
                           height: 200,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Container(
-                            width: 300,
-                            height: 300,
-                            color: Colors.grey,
-                            child: const Icon(Icons.album, size: 100, color: Colors.white),
-                          ),
+                          borderRadius: 4,
+                          icon: Icons.album,
+                          backgroundColor: Colors.grey,
+                          iconColor: Colors.white,
                         ),
                       ),
                     ),

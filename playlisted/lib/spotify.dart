@@ -1,3 +1,5 @@
+// NOT IN USE / DEPRECATED
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -211,174 +213,17 @@ class SpotifyService {
 
   
   Future<List<Track>> fetchTopSongs(String? accessToken, {String? yearRange, int limit = 500}) async {
-    List<Track> allTracks = [];
-    
-    // If yearRange is provided, search specifically for that decade
-    if (yearRange != null) {
-      final searchQueries = [
-        'year:$yearRange',
-        'year:$yearRange genre:pop',
-        // 'year:$yearRange genre:rock',
-        // 'year:$yearRange genre:hip-hop',
-      ];
-      
-      for (String query in searchQueries) {
-        try {
-          final tracks = await _searchTracks(accessToken, query, limit: 50);
-          allTracks.addAll(tracks);
-          
-          // Stop if we've reached desired limit
-          if (allTracks.length >= limit) {
-            break;
-          }
-        } catch (e) {
-          print('Error searching for $query: $e');
-          if (e.toString().contains('Too many requests')) {
-            break;
-          }
-          continue;
-        }
-      }
-    } else {
-      // Original behavior - search across multiple genres
-      final searchQueries = [
-        // 'year:1970-1979',
-        'year:2010-2019',
-        'genre:pop',
-        'genre:rock',
-        'genre:hip-hop',
-        // 'genre:r&b',
-        // 'genre:country',
-        // 'genre:electronic',
-        // 'genre:indie',
-      ];
-      
-      for (String query in searchQueries) {
-        try {
-          final tracks = await _searchTracks(accessToken, query, limit: 20);
-          allTracks.addAll(tracks);
-          
-          // Stop if we've reached ~500 songs
-          if (allTracks.length >= limit) {
-            break;
-          }
-        } catch (e) {
-          print('Error searching for $query: $e');
-          if (e.toString().contains('Too many requests')) {
-            break;
-          }
-          continue;
-        }
-      }
-    }
-    
-    // Remove duplicates based on track name and artist
-    final uniqueTracks = <String, Track>{};
-    for (var track in allTracks) {
-      final key = '${track.name}-${track.artists}';
-      uniqueTracks[key] = track;
-    }
-    
-
-    // Shuffle to mix songs from different searches
-    final shuffledTracks = uniqueTracks.values.toList()..shuffle();
-    
-    // Return up to the limit
-    return shuffledTracks.take(limit).toList();
-  }
-
-  // Future<List<Track>> fetchSongs(Map <Track, double> trackScores){
-
-  // }
-
-  // Helper method to search for tracks
-  Future<List<Track>> _searchTracks(String? accessToken, String query, {int limit = 50}) async {
-
-    final safeLimit = limit.clamp(1, 50).toInt();
-
-    Uri buildUri({int? requestLimit}) => Uri.https(
-      'api.spotify.com',
-      '/v1/search',
-      {
-        'q': query,
-        'type': 'track',
-        if (requestLimit != null) 'limit': requestLimit.toString(),
-      },
-    );
-
-    final headers = {'Authorization': 'Bearer $accessToken'};
-
-    Future<http.Response> doGet(Uri uri) async {
-      var res = await http.get(uri, headers: headers);
-      if (res.statusCode == 429) {
-        final retryAfterSeconds = int.tryParse(res.headers['retry-after'] ?? '') ?? 1;
-        await Future.delayed(Duration(seconds: retryAfterSeconds));
-        res = await http.get(uri, headers: headers);
-      }
-      return res;
-    }
-
-    var response = await doGet(buildUri(requestLimit: safeLimit));
-
-    if (response.statusCode == 400 && response.body.contains('Invalid limit')) {
-      response = await doGet(buildUri(requestLimit: 20));
-      if (response.statusCode == 400 && response.body.contains('Invalid limit')) {
-        response = await doGet(buildUri());
-      }
-    }
-
-    if (response.statusCode == 429) {
-      throw Exception('Failed to search tracks: Too many requests');
-    }
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final tracksJson = data['tracks']['items'] as List;
-      return tracksJson.map((json) {
-        final artists = (json['artists'] as List)
-            .map((artist) => artist['name'])
-            .join(', ');
-        
-        // Get album image URL from the track's album
-        String? albumImageUrl;
-        if (json['album'] != null && json['album']['images'] != null) {
-          final images = json['album']['images'] as List;
-          if (images.isNotEmpty) {
-            albumImageUrl = images.length > 1 ? images[1]['url'] : images[0]['url'];
-          }
-        }
-
-        return Track(
-          name: json['name'],
-          artists: artists,
-          durationMs: (json['duration_ms'] as num?)?.toInt() ?? 0,
-          explicit: json['explicit'],
-          url: json['external_urls']['spotify'],
-          albumImageUrl: albumImageUrl,
-          popularity: (json['popularity'] as num?)?.toInt(),
-          score: ((json['popularity'] as num?)?.toDouble() ?? 0.0) / 100,
-          releaseDate: json['album'] != null ? json['album']['release_date'] : null,
-          id: json['id'],
-          artistId: (json['artists'] != null && (json['artists'] as List).isNotEmpty)
-              ? json['artists'][0]['id']
-              : null,
-        );
-      }).toList();
-    } else {
-      throw Exception('Failed to search tracks: ${response.body}');
-    }
+    return [];
   }
 
   Future<Map<Track, double>> fetchRecommendedSongs() async{
-    // Check if user is authenticated
-  if (FirebaseAuth.instance.currentUser == null) {
-    print("fetchRecommendedSongs: User not authenticated");
-    return {};
-  }
+    if (FirebaseAuth.instance.currentUser == null) {
+      print("fetchRecommendedSongs: User not authenticated");
+      return {};
+    }
 
     print("fetchRecommendedSongs: Starting fetch for user $_uid");
 
-    //fetch the recommended songs for the current user from firestore
     Map<Track, double> recommendedTracks = {};
 
     try {
@@ -388,18 +233,15 @@ class SpotifyService {
           .collection('recommendations')
           .get();
     
-    print("fetchRecommendedSongs: Query returned ${q1.docs.length} documents");
+      print("fetchRecommendedSongs: Query returned ${q1.docs.length} documents");
     
-    if(q1.docs.isEmpty){
+      if(q1.docs.isEmpty){
         print("fetchRecommendedSongs: No recommendations found for user $_uid");
         return {};
       }
 
       for(var doc in q1.docs){
-        // doc.id holds the Spotify track ID, so use it when constructing the
-      // Track object.  This ensures later UI code can look up reviews/global
-      // ratings by id.
-      final track = Track(
+        final track = Track(
           name: doc['name'] ?? '',
           artists: doc['artists'] ?? '',
           durationMs: doc['durationMs'] ?? 0,
@@ -407,10 +249,10 @@ class SpotifyService {
           url: doc['url'] ?? '',
           albumImageUrl: doc['albumImageUrl'],
           score: doc['score'] != null ? (doc['score'] as num).toDouble() : 0.0,
-          id: doc.id,                       // ← important fix
+          id: doc.id,
         );
-      final score = (doc['score'] as num?)?.toDouble() ?? 0.0;
-      recommendedTracks[track] = score;
+        final score = (doc['score'] as num?)?.toDouble() ?? 0.0;
+        recommendedTracks[track] = score;
       }
 
       print("fetchRecommendedSongs: Fetched ${recommendedTracks.length} recommended tracks for user $_uid");
@@ -419,6 +261,4 @@ class SpotifyService {
     }
     return recommendedTracks;
   }
-
 }
-
