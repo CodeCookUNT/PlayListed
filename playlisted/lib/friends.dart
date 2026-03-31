@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'notification_service.dart';
 
 class FriendsService {
   FriendsService._();
@@ -167,6 +168,11 @@ class FriendsService {
     });
 
     await batch.commit();
+    await NotificationService.instance.sendFriendRequestNotification(
+      toUid: friendUid,
+      fromUid: current.uid,
+      fromName: myName,
+    );
   }
 
   /// Add a friend by their email (simple v1, no requests, just mutual friendship).

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'content_filter.dart';
+import 'notification_service.dart';
 
 class ChatPage extends StatefulWidget {
   final String friendUid;
@@ -59,7 +60,9 @@ class _ChatPageState extends State<ChatPage> {
     if (ExplicitContentFilter.containsExplicitContent(text)) {
       return;
     }
-
+    // Add notifications for friend requests and messages
+    // TODO - add notication feature in firestore and trigger on new message or friend request
+    // TODO - add settings to let users opt in or out of notifications.
     _controller.clear();
 
     final convoRef = _db.collection('conversations').doc(_convoId);
@@ -76,6 +79,15 @@ class _ChatPageState extends State<ChatPage> {
       'text': text,
       'createdAt': FieldValue.serverTimestamp(),
     });
+
+    await NotificationService.instance.sendMessageNotification(
+      toUid: widget.friendUid,
+      fromUid: _myUid,
+      fromName: FirebaseAuth.instance.currentUser?.displayName ??
+          (FirebaseAuth.instance.currentUser?.email?.split('@').first ?? 'A friend'),
+      convoId: _convoId,
+      previewText: text,
+    );
   }
 
   @override

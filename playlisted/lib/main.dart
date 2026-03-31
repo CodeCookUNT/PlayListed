@@ -24,6 +24,7 @@ import 'loading_vinyl.dart';
 import 'dart:async';
 import 'content_filter.dart';
 import 'package:flutter/services.dart';
+import 'notification_service.dart';
 import 'help_overlay.dart';
 import 'help_content.dart';
 
@@ -128,7 +129,7 @@ class AuthGate extends StatelessWidget {
           );
         }
         if (snap.hasData) {
-          return MyHomePage();
+          return NotificationBootstrap(child: MyHomePage());
         }
         return const LoginPage();
       },
