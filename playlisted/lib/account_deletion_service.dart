@@ -24,6 +24,8 @@ class AccountDeletionService {
     await _deleteCollection(_db.collection('users').doc(uid).collection('incoming_requests'));
     await _deleteCollection(_db.collection('users').doc(uid).collection('outgoing_requests'));
     await _deleteCollection(_db.collection('users').doc(uid).collection('co_liked'));
+    await _deleteCollection(_db.collection('users').doc(uid).collection('song_reviews'));
+
 
     await _deleteDocsFromQuery(
       _db.collection('song_reviews').where('userId', isEqualTo: uid),
@@ -53,6 +55,26 @@ class AccountDeletionService {
     await user.delete();
     await _auth.signOut();
   }
+
+Future<void> reauthenticateAndDelete(String email, String password) async {
+  final user = _auth.currentUser;
+  if (user == null) throw StateError('No logged-in user found.');
+
+  // Re-authenticate first — this refreshes the session token
+  final credential = EmailAuthProvider.credential(
+    email: email,
+    password: password,
+  );
+
+  try {
+    await user.reauthenticateWithCredential(credential);
+  } on FirebaseAuthException catch (e) {
+    throw Exception('Re-authentication failed: ${e.message}');
+  }
+
+  // Now safe to delete
+  await deleteCurrentUserAccountAndData();
+}
 
   Future<void> _deleteCollection(CollectionReference<Map<String, dynamic>> colRef) async {
     while (true) {

@@ -461,6 +461,81 @@ class ProfilePage extends StatelessWidget {
 
     if (shouldDelete != true || !context.mounted) return;
 
+     // Prompt for email and password
+    final credentials = await showDialog<Map<String, String>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        final emailController = TextEditingController();
+        final passwordController = TextEditingController();
+        final formKey = GlobalKey<FormState>();
+
+        return AlertDialog(
+          title: const Text('Confirm your identity'),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: emailController,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    hintText: 'Enter your email address',
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your email';
+                    }
+                    if (!value.contains('@')) {
+                      return 'Please enter a valid email';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: passwordController,
+                  decoration: const InputDecoration(
+                    labelText: 'Password',
+                    hintText: 'Enter your password',
+                  ),
+                  obscureText: true,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your password';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(null),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (formKey.currentState?.validate() == true) {
+                  Navigator.of(ctx).pop({
+                    'email': emailController.text.trim(),
+                    'password': passwordController.text,
+                  });
+                }
+              },
+              child: const Text('Confirm'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (credentials == null || !context.mounted) return;
+
+
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -476,7 +551,10 @@ class ProfilePage extends StatelessWidget {
     );
 
     try {
-      await AccountDeletionService.instance.deleteCurrentUserAccountAndData();
+      await AccountDeletionService.instance.reauthenticateAndDelete(
+        credentials['email']!,
+        credentials['password']!,
+      );
     } on FirebaseAuthException catch (e) {
       if (context.mounted) {
         Navigator.of(context, rootNavigator: true).pop();
