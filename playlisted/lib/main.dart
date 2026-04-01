@@ -1,5 +1,4 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'local_music_service.dart';
@@ -820,19 +819,20 @@ class GeneratorPage extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (track != null) ...[
-                      FutureBuilder<Map<String, dynamic>>(
-                        future: track.id != null 
-                          ? GlobalRatings.instance.getAverageRating(track.id!)
-                          : Future.value({'averageRating': 0.0, 'totalRatings': 0}),
+                      // Stream the global rating so BigCard always has the
+                      // latest community value to drive the vinyl colour.
+                      StreamBuilder<Map<String, dynamic>>(
+                        stream: track.id != null
+                            ? GlobalRatings.instance.watchAverageRating(track.id!)
+                            : Stream.value({'averageRating': 0.0, 'totalRatings': 0}),
                         builder: (context, snapshot) {
-                          final globalRating = snapshot.hasData 
-                            ? (snapshot.data!['averageRating'] as num?)?.toDouble() ?? 0.0
-                            : 0.0;
-                          
+                          final globalRating = snapshot.hasData
+                              ? (snapshot.data!['averageRating'] as num?)?.toDouble() ?? 0.0
+                              : 0.0;
+
                           return BigCard(
                             track: track,
                             globalRating: globalRating,
-                            userRating: appState.ratingFor(track),
                           );
                         },
                       ),
@@ -1294,11 +1294,16 @@ class _ReviewDialogState extends State<ReviewDialog> {
 }
 
 class BigCard extends StatefulWidget {
-  const BigCard({super.key, required this.track, this.globalRating = 0.0, this.userRating = 0.0});
+  // userRating is kept for the star display row above, but no longer
+  // influences the vinyl colour — that is driven by globalRating only.
+  const BigCard({
+    super.key,
+    required this.track,
+    this.globalRating = 0.0,
+  });
 
   final Track track;
   final double globalRating;
-  final double userRating;
 
   @override
   State<BigCard> createState() => _BigCardState();
@@ -1309,7 +1314,6 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
   late Animation<double> _slideAnimation;
   Track? _previousTrack;
   Color _currentVinylColor = Colors.black;
-  double _previousRating = 0.0;
 
   @override
   void initState() {
@@ -1325,11 +1329,10 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
       ),
     );
     _previousTrack = widget.track;
-    _previousRating = widget.globalRating;
-    _currentVinylColor = _getVinylColor(_effectiveRating());
+    // Vinyl colour is always driven by the global (community) rating.
+    _currentVinylColor = _getVinylColor(widget.globalRating);
     _animationController.forward();
 
-    // Push initial vinyl color to app state
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         context.read<MyAppState>().setVinylColor(_currentVinylColor);
@@ -1342,25 +1345,24 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
     super.didUpdateWidget(oldWidget);
 
     if (oldWidget.track.id != widget.track.id) {
+      // Track changed — reset animation and recalculate colour.
       _previousTrack = oldWidget.track;
-      _previousRating = oldWidget.globalRating;
       setState(() {
-        _currentVinylColor = _getVinylColor(_effectiveRating());
+        _currentVinylColor = _getVinylColor(widget.globalRating);
       });
       _animationController.reset();
       _animationController.forward();
 
-      // Notify app state of new vinyl color
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           context.read<MyAppState>().setVinylColor(_currentVinylColor);
         }
       });
-    } else if (oldWidget.globalRating != widget.globalRating || oldWidget.userRating != widget.userRating) {
+    } else if (oldWidget.globalRating != widget.globalRating) {
+      // Same track but community rating updated — update colour.
       setState(() {
-        _currentVinylColor = _getVinylColor(_effectiveRating());
+        _currentVinylColor = _getVinylColor(widget.globalRating);
       });
-      // Notify app state when rating changes color
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           context.read<MyAppState>().setVinylColor(_currentVinylColor);
@@ -1373,14 +1375,6 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
   void dispose() {
     _animationController.dispose();
     super.dispose();
-  }
-  
-  double _effectiveRating() {
-    // Combine global and user rating for vinyl color
-    if (widget.userRating > 0) {
-      return widget.userRating;
-    }
-    return widget.globalRating;
   }
 
   Color _getVinylColor(double rating) {
