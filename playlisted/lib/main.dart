@@ -216,6 +216,36 @@ class MyAppState extends ChangeNotifier {
     }
   }
 
+  Future<List<String>> getFriendsUids() async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return [];
+
+    final snapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('friends')
+        .where('status', isEqualTo: 'accepted')
+        .get();
+
+    return snapshot.docs.map((doc) => doc.id).toList();
+  }
+
+  Future<void> checkIfFriendLikedTrack(String trackId) async {
+    final friendsUids = await getFriendsUids();
+    for (String friendUid in friendsUids) {
+      final ratingDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(friendUid)
+          .collection('ratings')
+          .doc(trackId)
+          .get();
+      if (ratingDoc.exists) {
+        print('Friend $friendUid liked track $trackId');
+        return; // Just print once for now
+      }
+    }
+  }
+
   Future<void> loadRecommendations() async {
     recTracks = await LocalMusicService().fetchRecommendedSongs();
     print('loadRecommendations completed: ${recTracks.length} tracks loaded');
@@ -265,6 +295,9 @@ class MyAppState extends ChangeNotifier {
       tracks = newTracks;
       if (tracks != null && tracks!.isNotEmpty) {
         current = tracks![0];
+        if (current!.id != null) {
+          checkIfFriendLikedTrack(current!.id!);
+        }
 
         // track all returned tracks so we don't serve them again
         _seenTrackIds.clear();
@@ -418,6 +451,9 @@ class MyAppState extends ChangeNotifier {
 
   void setCurrentTrack(Track track) {
     current = track;
+    if (track.id != null) {
+      checkIfFriendLikedTrack(track.id!);
+    }
     notifyListeners();
   }
 
@@ -426,6 +462,9 @@ class MyAppState extends ChangeNotifier {
       int currentIndex = tracks!.indexWhere((track) => track.name == current?.name);
       int nextIndex = (currentIndex + 1) % tracks!.length;
       current = tracks![nextIndex];
+      if (current!.id != null) {
+        checkIfFriendLikedTrack(current!.id!);
+      }
       setTrackCounter(nextIndex);
       //if approaching the end, load more tracks in the background
       if (nextIndex >= tracks!.length - 3) {
@@ -454,6 +493,9 @@ class MyAppState extends ChangeNotifier {
       int currentIndex = tracks!.indexWhere((track) => track.name == current?.name);
       int nextIndex = (currentIndex - 1) % tracks!.length;
       current = tracks![nextIndex];
+      if (current!.id != null) {
+        checkIfFriendLikedTrack(current!.id!);
+      }
       setTrackCounter(nextIndex);
     } else {
       current = null;

@@ -337,7 +337,7 @@ class LocalMusicService {
       seenNameArtist.add(key);
       feed.add(track);
     }
-
+  
     final validRec = recTracks.entries
         .where((entry) => entry.key.id != null && entry.key.id!.isNotEmpty)
         .toList()
@@ -426,21 +426,29 @@ class LocalMusicService {
     return _CsvMusicLibrary.instance.trackById(trackId);
   }
 
-  Future<Map<Track, double>> fetchRecommendedSongs() async {
+  Future<Map<Track, double>> fetchRecommendedSongs() async{
     if (FirebaseAuth.instance.currentUser == null) {
+      print("fetchRecommendedSongs: User not authenticated");
       return {};
     }
 
-    final recommendedTracks = <Track, double>{};
+    print("fetchRecommendedSongs: Starting fetch for user $_uid");
+
+    Map<Track, double> recommendedTracks = {};
 
     try {
-      final snapshot = await FirebaseFirestore.instance
+      final q1 = await FirebaseFirestore.instance
           .collection('users')
           .doc(_uid)
           .collection('recommendations')
           .get();
+        
+      if(q1.docs.isEmpty){
+        print("fetchRecommendedSongs: No recommendations found for user $_uid");
+        return {};
+      }
 
-      for (final doc in snapshot.docs) {
+      for(var doc in q1.docs){
         final track = Track(
           name: doc['name'] ?? '',
           artists: doc['artists'] ?? '',
@@ -448,18 +456,17 @@ class LocalMusicService {
           explicit: doc['explicit'] ?? false,
           url: doc['url'] ?? '',
           albumImageUrl: doc['albumImageUrl'],
-          popularity: doc['popularity'],
-          releaseDate: doc['releaseDate'],
-          score: doc['score'] != null
-              ? (doc['score'] as num).toDouble()
-              : 0.0,
+          score: doc['score'] != null ? (doc['score'] as num).toDouble() : 0.0,
           id: doc.id,
         );
-        recommendedTracks[track] =
-            (doc['score'] as num?)?.toDouble() ?? 0.0;
+        final score = (doc['score'] as num?)?.toDouble() ?? 0.0;
+        recommendedTracks[track] = score;
       }
-    } catch (_) {}
 
+      print("fetchRecommendedSongs: Fetched ${recommendedTracks.length} recommended tracks for user $_uid");
+    } catch (e) {
+      print("Error fetching recommendations for user $_uid: $e");
+    }
     return recommendedTracks;
   }
 }
