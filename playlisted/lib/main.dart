@@ -1,5 +1,4 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'local_music_service.dart';
@@ -30,6 +29,7 @@ import 'notification_service.dart';
 import 'help_overlay.dart';
 import 'help_content.dart';
 import 'track_artwork.dart';
+import 'friend_likes_widget.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -230,21 +230,6 @@ class MyAppState extends ChangeNotifier {
     return snapshot.docs.map((doc) => doc.id).toList();
   }
 
-  Future<void> checkIfFriendLikedTrack(String trackId) async {
-    final friendsUids = await getFriendsUids();
-    for (String friendUid in friendsUids) {
-      final ratingDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(friendUid)
-          .collection('ratings')
-          .doc(trackId)
-          .get();
-      if (ratingDoc.exists) {
-        print('Friend $friendUid liked track $trackId');
-        return; // Just print once for now
-      }
-    }
-  }
 
   Future<void> loadRecommendations() async {
     recTracks = await LocalMusicService().fetchRecommendedSongs();
@@ -295,9 +280,6 @@ class MyAppState extends ChangeNotifier {
       tracks = newTracks;
       if (tracks != null && tracks!.isNotEmpty) {
         current = tracks![0];
-        if (current!.id != null) {
-          checkIfFriendLikedTrack(current!.id!);
-        }
 
         // track all returned tracks so we don't serve them again
         _seenTrackIds.clear();
@@ -451,9 +433,6 @@ class MyAppState extends ChangeNotifier {
 
   void setCurrentTrack(Track track) {
     current = track;
-    if (track.id != null) {
-      checkIfFriendLikedTrack(track.id!);
-    }
     notifyListeners();
   }
 
@@ -462,9 +441,6 @@ class MyAppState extends ChangeNotifier {
       int currentIndex = tracks!.indexWhere((track) => track.name == current?.name);
       int nextIndex = (currentIndex + 1) % tracks!.length;
       current = tracks![nextIndex];
-      if (current!.id != null) {
-        checkIfFriendLikedTrack(current!.id!);
-      }
       setTrackCounter(nextIndex);
       //if approaching the end, load more tracks in the background
       if (nextIndex >= tracks!.length - 3) {
@@ -493,9 +469,6 @@ class MyAppState extends ChangeNotifier {
       int currentIndex = tracks!.indexWhere((track) => track.name == current?.name);
       int nextIndex = (currentIndex - 1) % tracks!.length;
       current = tracks![nextIndex];
-      if (current!.id != null) {
-        checkIfFriendLikedTrack(current!.id!);
-      }
       setTrackCounter(nextIndex);
     } else {
       current = null;
@@ -820,19 +793,20 @@ class GeneratorPage extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (track != null) ...[
-                      FutureBuilder<Map<String, dynamic>>(
-                        future: track.id != null 
-                          ? GlobalRatings.instance.getAverageRating(track.id!)
-                          : Future.value({'averageRating': 0.0, 'totalRatings': 0}),
+                      // Stream the global rating so BigCard always has the
+                      // latest community value to drive the vinyl colour.
+                      StreamBuilder<Map<String, dynamic>>(
+                        stream: track.id != null
+                            ? GlobalRatings.instance.watchAverageRating(track.id!)
+                            : Stream.value({'averageRating': 0.0, 'totalRatings': 0}),
                         builder: (context, snapshot) {
-                          final globalRating = snapshot.hasData 
-                            ? (snapshot.data!['averageRating'] as num?)?.toDouble() ?? 0.0
-                            : 0.0;
-                          
+                          final globalRating = snapshot.hasData
+                              ? (snapshot.data!['averageRating'] as num?)?.toDouble() ?? 0.0
+                              : 0.0;
+
                           return BigCard(
                             track: track,
                             globalRating: globalRating,
-                            userRating: appState.ratingFor(track),
                           );
                         },
                       ),
@@ -927,6 +901,10 @@ class GeneratorPage extends StatelessWidget {
                     if (track != null && track.id != null) ...[
                       const SizedBox(height: 10),
                       GlobalRatingDisplay(trackId: track.id!),
+                      FriendLikesWidget(
+                        trackId: track.id!,
+                        trackName: track.name,
+                      ),
                     ],
 
                     const SizedBox(height: 24),
@@ -1294,11 +1272,16 @@ class _ReviewDialogState extends State<ReviewDialog> {
 }
 
 class BigCard extends StatefulWidget {
-  const BigCard({super.key, required this.track, this.globalRating = 0.0, this.userRating = 0.0});
+  // userRating is kept for the star display row above, but no longer
+  // influences the vinyl colour — that is driven by globalRating only.
+  const BigCard({
+    super.key,
+    required this.track,
+    this.globalRating = 0.0,
+  });
 
   final Track track;
   final double globalRating;
-  final double userRating;
 
   @override
   State<BigCard> createState() => _BigCardState();
@@ -1309,7 +1292,6 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
   late Animation<double> _slideAnimation;
   Track? _previousTrack;
   Color _currentVinylColor = Colors.black;
-  double _previousRating = 0.0;
 
   @override
   void initState() {
@@ -1325,11 +1307,10 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
       ),
     );
     _previousTrack = widget.track;
-    _previousRating = widget.globalRating;
-    _currentVinylColor = _getVinylColor(_effectiveRating());
+    // Vinyl colour is always driven by the global (community) rating.
+    _currentVinylColor = _getVinylColor(widget.globalRating);
     _animationController.forward();
 
-    // Push initial vinyl color to app state
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         context.read<MyAppState>().setVinylColor(_currentVinylColor);
@@ -1342,25 +1323,24 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
     super.didUpdateWidget(oldWidget);
 
     if (oldWidget.track.id != widget.track.id) {
+      // Track changed — reset animation and recalculate colour.
       _previousTrack = oldWidget.track;
-      _previousRating = oldWidget.globalRating;
       setState(() {
-        _currentVinylColor = _getVinylColor(_effectiveRating());
+        _currentVinylColor = _getVinylColor(widget.globalRating);
       });
       _animationController.reset();
       _animationController.forward();
 
-      // Notify app state of new vinyl color
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           context.read<MyAppState>().setVinylColor(_currentVinylColor);
         }
       });
-    } else if (oldWidget.globalRating != widget.globalRating || oldWidget.userRating != widget.userRating) {
+    } else if (oldWidget.globalRating != widget.globalRating) {
+      // Same track but community rating updated — update colour.
       setState(() {
-        _currentVinylColor = _getVinylColor(_effectiveRating());
+        _currentVinylColor = _getVinylColor(widget.globalRating);
       });
-      // Notify app state when rating changes color
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           context.read<MyAppState>().setVinylColor(_currentVinylColor);
@@ -1373,14 +1353,6 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
   void dispose() {
     _animationController.dispose();
     super.dispose();
-  }
-  
-  double _effectiveRating() {
-    // Combine global and user rating for vinyl color
-    if (widget.userRating > 0) {
-      return widget.userRating;
-    }
-    return widget.globalRating;
   }
 
   Color _getVinylColor(double rating) {
