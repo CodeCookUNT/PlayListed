@@ -8,18 +8,244 @@
       name="description"
       content="How to request account deletion and data removal for Playlist'd."
     />
+    <style>
+      :root {
+        --bg-1: #f4fdff;
+        --bg-2: #e6faff;
+        --card: rgba(255, 255, 255, 0.9);
+        --card-border: rgba(34, 211, 238, 0.25);
+        --text: #06242c;
+        --muted: #3a7c86;
+        --cyan: #67e8f9;
+        --cyan-soft: #a5f3fc;
+        --cyan-strong: #22d3ee;
+        --shadow: 0 15px 40px rgba(0, 150, 170, 0.15);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top left, rgba(103, 232, 249, 0.4), transparent 40%),
+          radial-gradient(circle at bottom right, rgba(165, 243, 252, 0.4), transparent 40%),
+          linear-gradient(135deg, var(--bg-1), var(--bg-2));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 16px;
+      }
+
+      .shell {
+        width: 100%;
+        max-width: 860px;
+      }
+
+      .card {
+        position: relative;
+        overflow: hidden;
+        background: var(--card);
+        border: 1px solid var(--card-border);
+        backdrop-filter: blur(10px);
+        border-radius: 28px;
+        padding: 40px;
+        box-shadow: var(--shadow);
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: rgba(103, 232, 249, 0.3);
+        border: 1px solid rgba(34, 211, 238, 0.4);
+        color: #036c7a;
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .badge::before {
+        content: "";
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--cyan-strong);
+      }
+
+      h1 {
+        margin: 18px 0 12px;
+        font-size: clamp(2.2rem, 5vw, 3.4rem);
+        line-height: 1.05;
+        letter-spacing: -0.03em;
+        text-transform: capitalize;
+      }
+
+      .subtitle {
+        margin: 0 0 28px;
+        max-width: 640px;
+        color: var(--muted);
+        font-size: 1.05rem;
+        line-height: 1.7;
+      }
+
+      .steps {
+        display: grid;
+        gap: 18px;
+        margin: 28px 0 24px;
+      }
+
+      .step {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        padding: 20px;
+        border-radius: 20px;
+        background: rgba(165, 243, 252, 0.3);
+        border: 1px solid rgba(34, 211, 238, 0.3);
+        transition: all 0.2s ease;
+      }
+
+      .step:hover {
+        transform: translateY(-2px);
+        background: rgba(103, 232, 249, 0.4);
+        border-color: rgba(34, 211, 238, 0.5);
+      }
+
+      .step-number {
+        flex-shrink: 0;
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        font-weight: 800;
+        color: #00363f;
+        background: linear-gradient(135deg, var(--cyan), var(--cyan-soft));
+      }
+
+      .step p {
+        margin: 0;
+        font-size: 1rem;
+        line-height: 1.65;
+      }
+
+      .alt-box {
+        margin-top: 28px;
+        padding: 22px;
+        border-radius: 22px;
+        background: rgba(165, 243, 252, 0.3);
+        border: 1px solid rgba(34, 211, 238, 0.35);
+      }
+
+      .alt-box h2 {
+        margin: 0 0 10px;
+        font-size: 1.2rem;
+        text-transform: capitalize;
+      }
+
+      .alt-box p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+
+      .email-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 18px;
+        padding: 14px 18px;
+        border-radius: 14px;
+        color: #00363f;
+        text-decoration: none;
+        font-weight: 800;
+        background: linear-gradient(135deg, var(--cyan), var(--cyan-soft));
+        transition: all 0.2s ease;
+      }
+
+      .email-link:hover {
+        transform: translateY(-2px);
+        background: linear-gradient(135deg, var(--cyan-strong), var(--cyan));
+      }
+
+      .footer-note {
+        margin-top: 26px;
+        font-size: 0.9rem;
+        color: #2c6f78;
+      }
+
+      @media (max-width: 640px) {
+        .card {
+          padding: 28px 20px;
+        }
+
+        .email-link {
+          width: 100%;
+        }
+      }
+    </style>
   </head>
-  <body style="font-family: Arial, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; line-height: 1.5;">
-    <h1>Account Deletion Request</h1>
-    <p>
-      To delete your Playlist'd account and wipe your data, open the app,
-      go to <strong>Profile</strong>, then tap
-      <strong>Delete my account</strong> and confirm.
-    </p>
-    <p>
-      If you cannot access the app, email
-      <a href="mailto:support@playlisted.app?subject=Account%20Deletion%20Request">support@playlisted.app</a>
-      from your account email and request deletion.
-    </p>
+  <body>
+    <main class="shell">
+      <section class="card">
+
+        <span class="badge">Playlist'd Support</span>
+
+        <h1>Account Deletion Request v3</h1>
+
+        <p class="subtitle">
+          Delete Your Playlist'd Account And Permanently Remove Your Data Using The Steps Below.
+        </p>
+
+        <div class="steps">
+          <div class="step">
+            <div class="step-number">1</div>
+            <p>
+              Open The <strong>Playlist'd</strong> App And Go To Your <strong>Profile</strong>.
+            </p>
+          </div>
+
+          <div class="step">
+            <div class="step-number">2</div>
+            <p>
+              Tap <strong>Delete My Account</strong>.
+            </p>
+          </div>
+
+          <div class="step">
+            <div class="step-number">3</div>
+            <p>
+              Confirm To Permanently Delete Your Account And Wipe Your Data.
+            </p>
+          </div>
+        </div>
+
+        <div class="alt-box">
+          <h2>Can’t Access The App?</h2>
+          <p>
+            Send An Email From Your Account Email Address To Request Manual Deletion.
+          </p>
+
+          <a
+            class="email-link"
+            href="mailto:playlistd.team@gmail.com?subject=Account%20Deletion%20Request"
+          >
+            Email Playlistd.team@gmail.com
+          </a>
+        </div>
+
+        <p class="footer-note">
+          Deletion Requests May Require Verification From Your Account Email Address.
+        </p>
+      </section>
+    </main>
   </body>
 </html>
