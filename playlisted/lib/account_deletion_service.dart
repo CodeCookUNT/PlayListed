@@ -51,36 +51,45 @@ class AccountDeletionService {
     final userDoc = await _db.collection('users').doc(uid).get();
     final username = (userDoc.data()?['username'] as String?)?.toLowerCase();
 
-    await _deleteCollection(_db.collection('users').doc(uid).collection('ratings'));
-    await _deleteCollection(_db.collection('users').doc(uid).collection('recommendations'));
-    await _deleteCollection(_db.collection('users').doc(uid).collection('friends'));
-    await _deleteCollection(_db.collection('users').doc(uid).collection('incoming_requests'));
-    await _deleteCollection(_db.collection('users').doc(uid).collection('outgoing_requests'));
-    await _deleteCollection(_db.collection('users').doc(uid).collection('co_liked'));
+    try {
+      await _deleteCollection(_db.collection('users').doc(uid).collection('ratings'));
+      await _deleteCollection(_db.collection('users').doc(uid).collection('recommendations'));
+      await _deleteCollection(_db.collection('users').doc(uid).collection('friends'));
+      await _deleteCollection(_db.collection('users').doc(uid).collection('incoming_requests'));
+      await _deleteCollection(_db.collection('users').doc(uid).collection('outgoing_requests'));
+      await _deleteCollection(_db.collection('users').doc(uid).collection('co_liked'));
 
-    await _deleteDocsFromQuery(
-      _db.collection('song_reviews').where('userId', isEqualTo: uid),
-    );
+      await _deleteDocsFromQuery(
+        _db.collection('song_reviews').where('userId', isEqualTo: uid),
+      );
 
-    await _deleteDocsFromQuery(
-      _db.collection('conversations').where('participants', arrayContains: uid),
-      deleteSubcollections: const ['messages'],
-    );
+      // Best-effort cleanups for shared/cross-user areas.
+      // These may be blocked by security rules; do not stop auth deletion if so.
+      await _bestEffortDeleteDocsFromQuery(
+        _db.collection('conversations').where('participants', arrayContains: uid),
+        deleteSubcollections: const ['messages'],
+      );
 
-    await _deleteDocsFromQuery(
-      _db.collectionGroup('friends').where('friendUid', isEqualTo: uid),
-    );
-    await _deleteDocsFromQuery(
-      _db.collectionGroup('incoming_requests').where('fromUid', isEqualTo: uid),
-    );
-    await _deleteDocsFromQuery(
-      _db.collectionGroup('outgoing_requests').where('toUid', isEqualTo: uid),
-    );
+      await _bestEffortDeleteDocsFromQuery(
+        _db.collectionGroup('friends').where('friendUid', isEqualTo: uid),
+      );
+      await _bestEffortDeleteDocsFromQuery(
+        _db.collectionGroup('incoming_requests').where('fromUid', isEqualTo: uid),
+      );
+      await _bestEffortDeleteDocsFromQuery(
+        _db.collectionGroup('outgoing_requests').where('toUid', isEqualTo: uid),
+      );
 
-    await _db.collection('users').doc(uid).delete();
+      await _db.collection('users').doc(uid).delete();
 
-    if (username != null && username.isNotEmpty) {
-      await _db.collection('usernames').doc(username).delete().catchError((_) {});
+      if (username != null && username.isNotEmpty) {
+        await _db.collection('usernames').doc(username).delete().catchError((_) {});
+      }
+    } on FirebaseException catch (e) {
+      if (e.code != 'permission-denied') {
+        rethrow;
+      }
+      // Continue to auth deletion even if some Firestore locations are blocked by rules.
     }
 
     await user.delete();
@@ -123,6 +132,23 @@ class AccountDeletionService {
         batch.delete(doc.reference);
       }
       await batch.commit();
+    }
+  }
+
+  Future<void> _bestEffortDeleteDocsFromQuery(
+    Query<Map<String, dynamic>> query, {
+    List<String> deleteSubcollections = const [],
+  }) async {
+    try {
+      await _deleteDocsFromQuery(
+        query,
+        deleteSubcollections: deleteSubcollections,
+      );
+    } on FirebaseException catch (e) {
+      if (e.code != 'permission-denied') {
+        rethrow;
+      }
+      // Ignore permission-denied here so account auth deletion can still complete.
     }
   }
 }
