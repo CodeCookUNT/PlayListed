@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import 'favorites.dart';
 import 'loading_vinyl.dart';
@@ -174,7 +175,7 @@ class _SlidableListItemState extends State<SlidableListItem> {
                             trackId: widget.doc['id'],
                           );
                           widget.appState.markSongsForDeletion(widget.doc['id']);
-                          widget.appState.removeFromLikedOrRated(widget.doc['id']);
+                          widget.appState.removeTrack(widget.doc, FirebaseAuth.instance.currentUser!.uid);
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
