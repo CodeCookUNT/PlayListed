@@ -155,7 +155,9 @@ class MyAppState extends ChangeNotifier {
   final List<String> _likedOrRatedIDs = [];
   bool isHomeFeedLoading = false;
   String? homeFeedError;
-  
+  bool isLoggingOut = false;
+  int _operationId = 0;
+
   //track which tracks have been seen to avoid serving them again
   final Set<String> _seenTrackIds = <String>{};
   final Set<String> _seenTrackNameArtist = <String>{};
@@ -176,14 +178,37 @@ class MyAppState extends ChangeNotifier {
     }
   }
 
-  void logout() {
+  Future<void> logout() async {
+    isLoggingOut = true;
+    _operationId++;
+    _deleteTimer?.cancel();
+    _deleteTimer = null;
+    _deltracks.clear();
     accessToken = null;
+    recTracks.clear();
+    _seenTrackIds.clear();
+    _seenTrackNameArtist.clear();
+    _tempLikedTracks.clear();
+    _likedOrRatedIDs.clear();
+    likedOrRated.clear();
+    favorites.clear();
+    tracks?.clear();
+    tracks = [];
+    current = null;
     vinylColor = Colors.black;
+    homeFeedError = null;
+    isHomeFeedLoading = false;
     SpotifyCache().clear();
     notifyListeners();
   }
 
+  bool _isOperationCanceled(int opId) {
+    return isLoggingOut || opId != _operationId;
+  }
+
   Future<void> loadUserRatings() async {
+    if (isLoggingOut) return;
+    final opId = _operationId;
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) {
       print('No user logged in, cannot load ratings');
@@ -196,6 +221,7 @@ class MyAppState extends ChangeNotifier {
           .doc(userId)
           .collection('ratings')
           .get();
+      if (_isOperationCanceled(opId)) return;
 
       print('Loading ${snapshot.docs.length} ratings from Firestore');
 
@@ -217,6 +243,7 @@ class MyAppState extends ChangeNotifier {
   }
 
   Future<List<String>> getFriendsUids() async {
+    if (isLoggingOut) return [];
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) return [];
 
@@ -232,7 +259,11 @@ class MyAppState extends ChangeNotifier {
 
 
   Future<void> loadRecommendations() async {
-    recTracks = await LocalMusicService().fetchRecommendedSongs();
+    if (isLoggingOut) return;
+    final opId = _operationId;
+    final recommended = await LocalMusicService().fetchRecommendedSongs();
+    if (_isOperationCanceled(opId)) return;
+    recTracks = recommended;
     print('loadRecommendations completed: ${recTracks.length} tracks loaded');
   }
 
@@ -244,10 +275,13 @@ class MyAppState extends ChangeNotifier {
   /// `tracks` list and `current` track are updated and listeners are
   /// notified.
   Future<void> loadFeed({String? yearRange}) async {
+    if (isLoggingOut) return;
+    final opId = _operationId;
     // grab token if we don't already have one
     if (accessToken == null) {
       try {
         accessToken = await LocalMusicService().getAccessToken();
+        if (_isOperationCanceled(opId)) return;
         print('Spotify token obtained in loadFeed');
       } catch (e) {
         homeFeedError = 'Unable to acquire Spotify token: $e';
@@ -261,6 +295,7 @@ class MyAppState extends ChangeNotifier {
     if (recTracks.isEmpty) {
       print('loadFeed: recTracks is empty, fetching recommendations...');
       await loadRecommendations();
+      if (_isOperationCanceled(opId)) return;
       print(
         'loadFeed: after loadRecommendations, recTracks has ${recTracks.length} items',
       );
@@ -309,6 +344,8 @@ class MyAppState extends ChangeNotifier {
   /// recommendation/popular/random mix as loadFeed but excludes already
   /// loaded tracks.
   Future<void> loadMoreTracks({String? yearRange}) async {
+    if (isLoggingOut) return;
+    final opId = _operationId;
     if (accessToken == null) {
       print('loadMoreTracks: no access token, skipping');
       return;
@@ -326,6 +363,7 @@ class MyAppState extends ChangeNotifier {
         excludeIds: _seenTrackIds,
         excludeNameArtist: _seenTrackNameArtist,
       );
+      if (_isOperationCanceled(opId)) return;
 
       if (moreTracks.isNotEmpty) {
         tracks!.addAll(moreTracks);
@@ -382,10 +420,7 @@ class MyAppState extends ChangeNotifier {
     final k = keyOf(t);
 
     if (r <= 0) {
-      likedOrRated.remove(k);
-      favorites.removeWhere((x) => keyOf(x) == k);
-      _likedOrRatedIDs.remove(t.id!);
-      _tempLikedTracks.remove(current!.id!);
+      removeTrack(t, FirebaseAuth.instance.currentUser!.uid);
       Recommendations.instance.removeOneSongFromSource(current!.id!);
       if (t.id != null) {
         final userId = FirebaseAuth.instance.currentUser?.uid;
@@ -488,10 +523,7 @@ class MyAppState extends ChangeNotifier {
       _likedOrRatedIDs.add(current!.id!);
       _tempLikedTracks.add(current!.id!);
     } else {
-      favorites.removeWhere((t) => t.name == current!.name);
-      likedOrRated.remove(current!.name);
-      _likedOrRatedIDs.remove(current!.id!);
-      _tempLikedTracks.remove(current!.id!);
+      removeTrack(current!, FirebaseAuth.instance.currentUser!.uid);
       Recommendations.instance.removeOneSongFromSource(current!.id!);
     }
     notifyListeners();
@@ -508,23 +540,53 @@ class MyAppState extends ChangeNotifier {
     }
   }
   
-  void removeFavorite(String idToRemove) {
-    favorites.removeWhere((fav) => fav.id == idToRemove);
-    notifyListeners();
-  }
+  //one big function to remove from our caches, and the firestore
+  Future<void> removeTrack(dynamic track, String userId) async {
+    if (isLoggingOut) return;
+    final String? trackId;
+    final String? trackName;
 
-  void removeFromLikedOrRated(String idToRemove) {
-    _likedOrRatedIDs.remove(idToRemove);
-    final index = favorites.indexWhere((fav) => fav.id == idToRemove);
-    if (index != -1) {
-      final trackToRemove = favorites[index];
-      likedOrRated.remove(keyOf(trackToRemove));
-      favorites.removeAt(index);
+    if (track is Map<String, dynamic>) {
+      trackId = track['id'] as String?;
+      trackName = track['name'] as String?;
+    } else {
+      trackId = track.id as String?;
+      trackName = track.name as String?;
+    }
+
+    print('Removing track: $trackName (ID: $trackId)');
+
+    if (trackName != null) {
+      favorites.removeWhere((t) => t.name == trackName);
+      likedOrRated.remove(trackName);
+    }
+
+    if (trackId != null && trackId.isNotEmpty) {
+      _likedOrRatedIDs.remove(trackId);
+      _tempLikedTracks.remove(trackId);
+      Recommendations.instance.removeOneSongFromSource(trackId);
+    }
+
+    //now remove from the firestore
+    try {
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      if (currentUserId != null && trackId != null && trackId.isNotEmpty) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(currentUserId)
+            .collection('ratings')
+            .doc(trackId)
+            .delete();
+      }
+    } catch (e) {
+      print('Failed to remove track rating from Firestore: $e');
     }
     notifyListeners();
   }
 
   Future<void> generateRecommendation() async {
+    if (isLoggingOut) return;
+    final opId = _operationId;
     if (current == null || accessToken == null) {
       print('No liked track available for recommendations.');
       return;
@@ -532,14 +594,17 @@ class MyAppState extends ChangeNotifier {
 
     //run the recommendation algorithm (writes to Firestore)
     await recommendService.getRec(_tempLikedTracks, accessToken);
+    if (_isOperationCanceled(opId)) return;
 
     //pull the updated recommendations back into memory
     await loadRecommendations();
+    if (_isOperationCanceled(opId)) return;
 
     // f there is room in the current feed, fetch some new tracks now so
     //the user can immediately see the fresh recommendations
     if (tracks != null && tracks!.length < 5) {
       await loadMoreTracks();
+      if (_isOperationCanceled(opId)) return;
     }
 
     // don't clear _tempLikedTracks here; it is managed elsewhere
@@ -552,6 +617,8 @@ class MyAppState extends ChangeNotifier {
   }
 
   Future<void> _updateCoLiked(List<String> tempLikedTracks, List<String> likedOrRatedIDs) async {
+    if (isLoggingOut) return;
+    final opId = _operationId;
     final newTracks = List<String>.from(tempLikedTracks);
     if (newTracks.isEmpty) return;
 
@@ -564,18 +631,21 @@ class MyAppState extends ChangeNotifier {
             .doc(userId)
             .collection('co_liked')
             .get();
+        if (_isOperationCanceled(opId)) return;
         existingPairIds = snap.docs.map((d) => d.id).toSet();
       } catch (e) {
         print('Error fetching existing user co_likes: $e');
       }
     }
 
+    if (_isOperationCanceled(opId)) return;
     print('Updating co-liked for ${newTracks.length} new songs');
     await colikeService.updateCoLikedBatch(
       newSongIds: List.from(newTracks),
       existingLikedSongs: likedOrRatedIDs,
       existingPairIds: existingPairIds,
     );
+    if (_isOperationCanceled(opId)) return;
   }
 
   void toggleDarkMode(bool enabled) {
@@ -584,14 +654,19 @@ class MyAppState extends ChangeNotifier {
   }
 
   Future<void> initializeHomeFeed({String? yearRange}) async {
+    isLoggingOut = false;
     isHomeFeedLoading = true;
     homeFeedError = null;
     notifyListeners();
 
+    final opId = _operationId;
     try {
       await loadUserRatings();
+      if (_isOperationCanceled(opId)) return;
       await loadRecommendations();
+      if (_isOperationCanceled(opId)) return;
       await loadFeed(yearRange: yearRange);
+      if (_isOperationCanceled(opId)) return;
 
       if (current == null) {
         homeFeedError = 'No tracks returned.';
@@ -1605,9 +1680,13 @@ void _openSettings(BuildContext context, HelpPageContent helpContent) {
                 ElevatedButton(
                   child: const Text('Logout'),
                   onPressed: () async {
-                    context.read<MyAppState>().logout();
-                    await FirebaseAuth.instance.signOut();
                     Navigator.of(context).pop();
+                    await context.read<MyAppState>().logout();
+                    try {
+                      await FirebaseAuth.instance.signOut();
+                    } catch (e) {
+                      print('Sign out failed: $e');
+                    }
                   },
                 ),
                 const SizedBox(height: 20),

@@ -72,7 +72,7 @@ class FriendLikesWidget extends StatelessWidget {
             .doc(trackId)
             .get();
 
-        if (ratingDoc.exists) {
+        if (ratingDoc.exists && ((ratingDoc.data()?['favorite'] as bool?) == true)) {
           //final rating = ratingDoc.data()?['rating'] as num?;
           // If friend has a rating > 0, they have liked the track
           final friendName = friend['friendName'] as String? ?? 'Friend';
