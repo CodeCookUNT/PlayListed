@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 
 class Track {
   final String name;
@@ -10,7 +12,7 @@ class Track {
   final int durationMs;
   final bool explicit;
   final String url;
-  final String? albumImageUrl;
+  String? albumImageUrl;
   final int? popularity;
   final String? releaseDate;
   final String? id;
@@ -325,7 +327,58 @@ class LocalMusicService {
     final seenNameArtist = <String>{...(excludeNameArtist ?? {})};
     final feed = <Track>[];
 
-    void addUnique(Track track) {
+     Future<String?> getAlbumImageFromAPI(String accessToken, String trackId) async {
+      try {
+        final response = await http.get(
+          Uri.parse('https://api.spotify.com/v1/tracks/$trackId'),
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+            'Content-Type': 'application/json',
+          },
+        );
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final images = data['album']?['images'] as List?;
+          if (images != null && images.isNotEmpty) {
+            return images[0]['url'] as String?;
+          }
+        }
+      } catch (e) {
+        print('Error fetching album image: $e');
+      }
+      return null;
+    }
+
+    //get the album image from firestore, if not found get it from the spotify api and save it to firestore for future use
+    Future<void> fetchAlbumImage(String accessToken, Track track) async {
+      if(track.albumImageUrl != null) return;
+      if (track.id == null || track.id!.isEmpty) return;
+
+      try {
+        final doc = await FirebaseFirestore.instance.collection('albumCovers').doc(track.id).get();
+        if(doc.exists){
+          final data = doc.data();
+          if(data != null && data['albumImageUrl'] != null){
+            track.albumImageUrl = data['albumImageUrl'];
+            return;
+          }
+        }
+        
+        //if no track image is found get the album image from the spotify api and save it to firestore for future use
+        track.albumImageUrl = await getAlbumImageFromAPI(accessToken, track.id!);
+        if(track.albumImageUrl != null){
+          await FirebaseFirestore.instance.collection('albumCovers').doc(track.id).set({
+            'albumImageUrl': track.albumImageUrl,
+          }, SetOptions(merge: true));
+        }
+      } catch (e) {
+        print('Error in fetchAlbumImage for track ${track.id}: $e');
+      }
+    }
+
+
+    Future<void> addUnique(Track track) async {
       final key = '${track.name}|${track.artists}'.toLowerCase();
 
       if (track.id != null && track.id!.isNotEmpty) {
@@ -335,8 +388,11 @@ class LocalMusicService {
 
       if (seenNameArtist.contains(key)) return;
       seenNameArtist.add(key);
+      await fetchAlbumImage(accessToken, track);
       feed.add(track);
     }
+
+   
   
     final validRec = recTracks.entries
         .where((entry) => entry.key.id != null && entry.key.id!.isNotEmpty)
@@ -345,7 +401,7 @@ class LocalMusicService {
 
     for (final entry in validRec) {
       if (feed.length >= 8) break;
-      addUnique(entry.key);
+      await addUnique(entry.key);
     }
 
     if (feed.length < 8) {
@@ -353,13 +409,13 @@ class LocalMusicService {
           _CsvMusicLibrary.instance.randomSongs(limit: 8 - feed.length);
       for (final track in extraRecommendations) {
         if (feed.length >= 8) break;
-        addUnique(track);
+        await addUnique(track);
       }
     }
 
     final popularTracks = _CsvMusicLibrary.instance.randomPopularSongs(limit: 3);
     for (final track in popularTracks) {
-      addUnique(track);
+      await addUnique(track);
     }
 
     if (feed.length < limit) {
@@ -372,7 +428,7 @@ class LocalMusicService {
 
       for (final track in candidates) {
         if (feed.length >= limit) break;
-        addUnique(track);
+        await addUnique(track);
       }
     }
 
@@ -380,7 +436,7 @@ class LocalMusicService {
       final fallback = _CsvMusicLibrary.instance.randomSongs(limit: limit * 3);
       for (final track in fallback) {
         if (feed.length >= limit) break;
-        addUnique(track);
+        await addUnique(track);
       }
     }
 
