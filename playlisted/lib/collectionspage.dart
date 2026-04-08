@@ -1,7 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'local_music_service.dart';
 import 'package:provider/provider.dart';
 import 'main.dart';
@@ -36,6 +33,20 @@ class SpotifyCache {
     isLoaded = false;
   }
 }
+
+// Color bars shown behind each decade/category title.
+// Each entry is a list of 2 colors that form a gradient strip.
+const Map<String, List<Color>> _decadeColors = {
+  'Popular Now': [Color(0xFF1DB954), Color(0xFF1583B7)],
+  '2020s': [Color(0xFF6C63FF), Color(0xFFE040FB)],
+  '2010s': [Color(0xFFFF6B35), Color(0xFFFFD700)],
+  '2000s': [Color(0xFF00CFDD), Color(0xFF005BEA)],
+  '90s':   [Color(0xFFFF0080), Color(0xFF7928CA)],
+  '80s':   [Color(0xFFFF6EC7), Color(0xFFFFD700)],
+  '70s':   [Color(0xFFD4A017), Color(0xFFB5451B)],
+  '60s':   [Color(0xFF43B89C), Color(0xFFE8A838)],
+  '50s':   [Color(0xFF708090), Color(0xFFB0C4DE)],
+};
 
 class CollectionsPage extends StatefulWidget {
   const CollectionsPage({super.key});
@@ -225,6 +236,8 @@ class _CollectionRowState extends State<_CollectionRow> {
   Widget build(BuildContext context) {
     if (widget.tracks.isEmpty) return const SizedBox.shrink();
 
+    final colors = _decadeColors[widget.title] ?? [const Color(0xFF1583B7)];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -232,23 +245,51 @@ class _CollectionRowState extends State<_CollectionRow> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: InkWell(
             onTap: widget.onHeaderTapped,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  widget.title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 20,
+            child: SizedBox(
+              height: 32,
+              child: Stack(
+                alignment: Alignment.centerLeft,
+                children: [
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(6),
+                        gradient: LinearGradient(
+                          colors: colors,
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                        ),
                       ),
-                ),
-                if (widget.title != 'Popular Now') // only show arrow for collapsible
-                  Icon(
-                    widget.isExpanded
-                        ? Icons.keyboard_arrow_up
-                        : Icons.keyboard_arrow_down,
+                    ),
                   ),
-              ],
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          widget.title,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 20,
+                                color: Colors.white,
+                              ),
+                        ),
+                        if (widget.title != 'Popular Now')
+                          Icon(
+                            widget.isExpanded
+                                ? Icons.keyboard_arrow_up
+                                : Icons.keyboard_arrow_down,
+                            color: Colors.white,
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -262,7 +303,7 @@ class _CollectionRowState extends State<_CollectionRow> {
                   padding: const EdgeInsets.symmetric(horizontal: 40),
                   scrollDirection: Axis.horizontal,
                   itemCount: widget.tracks.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  separatorBuilder: (_, _) => const SizedBox(width: 12),
                   itemBuilder: (context, index) {
                     return _AlbumCover(
                       track: widget.tracks[index],
