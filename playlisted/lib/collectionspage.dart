@@ -14,6 +14,9 @@ class SpotifyCache {
 
   final Map<String, List<Track>> decadeTracks = {
     'Popular Now': [],
+    'Pop': [],
+    'Hip Hop': [],
+    'Rock': [],
     '2020s': [],
     '2010s': [],
     '2000s': [],
@@ -38,6 +41,11 @@ class SpotifyCache {
 // Each entry is a list of 2 colors that form a gradient strip.
 const Map<String, List<Color>> _decadeColors = {
   'Popular Now': [Color(0xFF1DB954), Color(0xFF1583B7)],
+  // Genre rows
+  'Pop':     [Color(0xFFFF4E8C), Color(0xFFFF9A9E)],
+  'Hip Hop': [Color(0xFF1A1A2E), Color(0xFF8B5CF6)],
+  'Rock':    [Color(0xFF991B1B), Color(0xFFD97706)],
+  // Decade rows
   '2020s': [Color(0xFF6C63FF), Color(0xFFE040FB)],
   '2010s': [Color(0xFFFF6B35), Color(0xFFFFD700)],
   '2000s': [Color(0xFF00CFDD), Color(0xFF005BEA)],
@@ -46,6 +54,13 @@ const Map<String, List<Color>> _decadeColors = {
   '70s':   [Color(0xFFD4A017), Color(0xFFB5451B)],
   '60s':   [Color(0xFF43B89C), Color(0xFFE8A838)],
   '50s':   [Color(0xFF708090), Color(0xFFB0C4DE)],
+};
+
+// Maps genre category labels to the genre bucket string used by the service.
+const Map<String, String> _genreCategories = {
+  'Pop': 'pop',
+  'Hip Hop': 'hip hop',
+  'Rock': 'rock',
 };
 
 class CollectionsPage extends StatefulWidget {
@@ -73,9 +88,7 @@ class _CollectionsPageState extends State<CollectionsPage> {
 
   Future<void> _loadSpotifyData() async {
     if (_cache.isLoaded) {
-      setState(() {
-        _loading = false;
-      });
+      setState(() => _loading = false);
       return;
     }
 
@@ -83,13 +96,27 @@ class _CollectionsPageState extends State<CollectionsPage> {
       _accessToken = await _spotifyService.getAccessToken();
       final futures = <Future<void>>[];
 
+      // Popular Now
       futures.add(
         _spotifyService.fetchTopSongs(_accessToken, limit: 15).then((tracks) {
           _cache.decadeTracks['Popular Now'] = tracks;
         }),
       );
 
-      // fetch 15 songs for each decade
+      // Genre categories
+      for (final entry in _genreCategories.entries) {
+        final label = entry.key;
+        final bucket = entry.value;
+        futures.add(
+          _spotifyService
+              .fetchTopSongsByGenre(bucket, limit: 15)
+              .then((tracks) {
+            _cache.decadeTracks[label] = tracks;
+          }),
+        );
+      }
+
+      // Decade categories
       final decades = {
         '2020s': '2020-2029',
         '2010s': '2010-2019',
@@ -114,24 +141,20 @@ class _CollectionsPageState extends State<CollectionsPage> {
           }),
         );
       }
-      //await Future.wait(futures);
+
       for (final future in futures) {
         await future;
         await Future.delayed(const Duration(milliseconds: 250));
       }
+
       _cache.isLoaded = true;
 
       if (!mounted) return;
-      setState(() {
-        _loading = false;
-      });
+      setState(() => _loading = false);
     } catch (e) {
       debugPrint('Spotify load error: $e');
-
       if (!mounted) return;
-      setState(() {
-        _loading = false;
-      });
+      setState(() => _loading = false);
     }
   }
 
@@ -156,7 +179,6 @@ class _CollectionsPageState extends State<CollectionsPage> {
             : ListView(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 children: _cache.decadeTracks.entries.map((entry) {
-                  // Popular Now is always expanded
                   final isPopularNow = entry.key == 'Popular Now';
                   return _CollectionRow(
                     title: entry.key,
@@ -168,11 +190,8 @@ class _CollectionsPageState extends State<CollectionsPage> {
                     onHeaderTapped: () {
                       if (isPopularNow) return; // cannot collapse Popular Now
                       setState(() {
-                        if (_expandedCategory == entry.key) {
-                          _expandedCategory = null;
-                        } else {
-                          _expandedCategory = entry.key;
-                        }
+                        _expandedCategory =
+                            _expandedCategory == entry.key ? null : entry.key;
                       });
                     },
                     onTrackTapped: _onTrackTapped,

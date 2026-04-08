@@ -16,6 +16,7 @@ class Track {
   final String? id;
   final String? artistId;
   final double? score;
+  final String? genre; // e.g. 'pop', 'hip hop', 'rock'
 
   Track({
     required this.name,
@@ -29,7 +30,72 @@ class Track {
     this.id,
     this.artistId,
     this.score,
+    this.genre,
   });
+}
+
+const _popArtistKeywords = [
+  'taylor swift', 'ariana grande', 'ed sheeran', 'dua lipa', 'billie eilish',
+  'harry styles', 'the weeknd', 'post malone', 'selena gomez', 'justin bieber',
+  'lady gaga', 'katy perry', 'charlie puth', 'shawn mendes', 'camila cabello',
+  'lizzo', 'olivia rodrigo', 'doja cat', 'bts', 'one direction',
+  'miley cyrus', 'sam smith', 'sia', 'halsey', 'maroon 5',
+  'carly rae jepsen', 'meghan trainor', 'bebe rexha', 'ava max', 'zara larsson',
+];
+
+const _hipHopArtistKeywords = [
+  'drake', 'kendrick lamar', 'kanye west', 'jay-z', 'eminem',
+  'lil wayne', 'nicki minaj', 'cardi b', 'travis scott', 'j. cole',
+  'a\$ap rocky', 'future', 'young thug', 'lil uzi vert', '21 savage',
+  'chance the rapper', 'mac miller', 'childish gambino', 'tyler the creator',
+  'megan thee stallion', 'roddy ricch', 'dababy', 'polo g', 'lil baby',
+  'gunna', 'juice wrld', 'xxxtentacion', 'playboi carti', 'trippie redd',
+  'rick ross', 'meek mill', 'wiz khalifa', 'snoop dogg', 'ice cube',
+];
+
+const _rockArtistKeywords = [
+  'queen', 'the beatles', 'led zeppelin', 'rolling stones', 'ac/dc',
+  'nirvana', 'foo fighters', 'red hot chili peppers', 'green day', 'linkin park',
+  'metallica', 'guns n\' roses', 'bon jovi', 'u2', 'coldplay',
+  'radiohead', 'the killers', 'imagine dragons', 'twenty one pilots', 'fall out boy',
+  'panic! at the disco', 'my chemical romance', 'blink-182', 'paramore', 'the strokes',
+  'arctic monkeys', 'muse', 'system of a down', 'rage against the machine', 'pearl jam',
+  'soundgarden', 'alice in chains', 'smashing pumpkins', 'aerosmith', 'def leppard',
+];
+
+String? _inferGenreFromArtist(String artists) {
+  final lower = artists.toLowerCase();
+
+  for (final kw in _hipHopArtistKeywords) {
+    if (lower.contains(kw)) return 'hip hop';
+  }
+  for (final kw in _rockArtistKeywords) {
+    if (lower.contains(kw)) return 'rock';
+  }
+  for (final kw in _popArtistKeywords) {
+    if (lower.contains(kw)) return 'pop';
+  }
+  return null;
+}
+
+// Normalise whatever the CSV stores so it maps to our three buckets.
+String? _normaliseGenre(String raw) {
+  final lower = raw.toLowerCase().trim();
+  if (lower.contains('hip hop') || lower.contains('hip-hop') ||
+      lower.contains('rap') || lower.contains('trap') ||
+      lower.contains('r&b') || lower.contains('rnb')) {
+    return 'hip hop';
+  }
+  if (lower.contains('rock') || lower.contains('metal') ||
+      lower.contains('punk') || lower.contains('grunge') ||
+      lower.contains('alternative') || lower.contains('indie')) {
+    return 'rock';
+  }
+  if (lower.contains('pop') || lower.contains('dance') ||
+      lower.contains('electro') || lower.contains('synth')) {
+    return 'pop';
+  }
+  return null;
 }
 
 class _CsvMusicLibrary {
@@ -141,6 +207,26 @@ class _CsvMusicLibrary {
     return _dedupe(sorted).take(limit).toList();
   }
 
+  /// Returns top tracks filtered by genre bucket ('pop', 'hip hop', 'rock').
+  /// Matching uses the parsed genre field first, then falls back to
+  /// keyword-based artist inference.
+  List<Track> topSongsByGenre(String genreBucket, {int limit = 15}) {
+    final target = genreBucket.toLowerCase().trim();
+
+    final matches = _allTracks.where((track) {
+      final g = track.genre ?? _inferGenreFromArtist(track.artists);
+      return g == target;
+    }).toList()
+      ..sort((a, b) {
+        final popularityCompare =
+            (b.popularity ?? 0).compareTo(a.popularity ?? 0);
+        if (popularityCompare != 0) return popularityCompare;
+        return a.name.compareTo(b.name);
+      });
+
+    return _dedupe(matches).take(limit).toList();
+  }
+
   List<Track> randomPopularSongs({int limit = 10, Set<String>? excludeIds}) {
     return _randomTracks(
       source: _popularTracks.isEmpty ? _allTracks : _popularTracks,
@@ -205,6 +291,16 @@ class _CsvMusicLibrary {
         ['track_album_release_date', 'release_date'],
       );
 
+      // Try to read genre from CSV; fall back to artist-keyword inference.
+      final rawGenre = _value(data, [
+        'playlist_genre',
+        'genre',
+        'track_genre',
+      ]);
+      final genre = rawGenre.isNotEmpty
+          ? _normaliseGenre(rawGenre)
+          : _inferGenreFromArtist(artists);
+
       tracks.add(
         Track(
           name: trackName,
@@ -218,6 +314,7 @@ class _CsvMusicLibrary {
           id: id.isEmpty ? null : id,
           artistId: null,
           score: popularity == null ? null : popularity / 100.0,
+          genre: genre,
         ),
       );
     }
@@ -337,7 +434,7 @@ class LocalMusicService {
       seenNameArtist.add(key);
       feed.add(track);
     }
-  
+
     final validRec = recTracks.entries
         .where((entry) => entry.key.id != null && entry.key.id!.isNotEmpty)
         .toList()
@@ -357,7 +454,8 @@ class LocalMusicService {
       }
     }
 
-    final popularTracks = _CsvMusicLibrary.instance.randomPopularSongs(limit: 3);
+    final popularTracks =
+        _CsvMusicLibrary.instance.randomPopularSongs(limit: 3);
     for (final track in popularTracks) {
       addUnique(track);
     }
@@ -377,7 +475,8 @@ class LocalMusicService {
     }
 
     if (feed.length < limit) {
-      final fallback = _CsvMusicLibrary.instance.randomSongs(limit: limit * 3);
+      final fallback =
+          _CsvMusicLibrary.instance.randomSongs(limit: limit * 3);
       for (final track in fallback) {
         if (feed.length >= limit) break;
         addUnique(track);
@@ -405,6 +504,16 @@ class LocalMusicService {
     );
   }
 
+  /// Fetches the top [limit] tracks for a given genre bucket.
+  /// [genre] should be one of: 'pop', 'hip hop', 'rock'.
+  Future<List<Track>> fetchTopSongsByGenre(
+    String genre, {
+    int limit = 15,
+  }) async {
+    await _CsvMusicLibrary.instance.ensureLoaded();
+    return _CsvMusicLibrary.instance.topSongsByGenre(genre, limit: limit);
+  }
+
   Future<List<Track>> searchSongs(String query, {int limit = 20}) async {
     await _CsvMusicLibrary.instance.ensureLoaded();
     return _CsvMusicLibrary.instance.searchSongs(query, limit: limit);
@@ -426,7 +535,7 @@ class LocalMusicService {
     return _CsvMusicLibrary.instance.trackById(trackId);
   }
 
-  Future<Map<Track, double>> fetchRecommendedSongs() async{
+  Future<Map<Track, double>> fetchRecommendedSongs() async {
     if (FirebaseAuth.instance.currentUser == null) {
       print("fetchRecommendedSongs: User not authenticated");
       return {};
@@ -442,13 +551,14 @@ class LocalMusicService {
           .doc(_uid)
           .collection('recommendations')
           .get();
-        
-      if(q1.docs.isEmpty){
-        print("fetchRecommendedSongs: No recommendations found for user $_uid");
+
+      if (q1.docs.isEmpty) {
+        print(
+            "fetchRecommendedSongs: No recommendations found for user $_uid");
         return {};
       }
 
-      for(var doc in q1.docs){
+      for (var doc in q1.docs) {
         final track = Track(
           name: doc['name'] ?? '',
           artists: doc['artists'] ?? '',
@@ -456,14 +566,16 @@ class LocalMusicService {
           explicit: doc['explicit'] ?? false,
           url: doc['url'] ?? '',
           albumImageUrl: doc['albumImageUrl'],
-          score: doc['score'] != null ? (doc['score'] as num).toDouble() : 0.0,
+          score:
+              doc['score'] != null ? (doc['score'] as num).toDouble() : 0.0,
           id: doc.id,
         );
         final score = (doc['score'] as num?)?.toDouble() ?? 0.0;
         recommendedTracks[track] = score;
       }
 
-      print("fetchRecommendedSongs: Fetched ${recommendedTracks.length} recommended tracks for user $_uid");
+      print(
+          "fetchRecommendedSongs: Fetched ${recommendedTracks.length} recommended tracks for user $_uid");
     } catch (e) {
       print("Error fetching recommendations for user $_uid: $e");
     }
