@@ -414,53 +414,15 @@ class LocalMusicService {
 
    
   
-    final validRec = recTracks.entries
-        .where((entry) => entry.key.id != null && entry.key.id!.isNotEmpty)
-        .toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
 
-    for (final entry in validRec) {
-      if (feed.length >= 8) break;
-      await addUnique(entry.key);
-    }
 
-    if (feed.length < 8) {
-      final extraRecommendations =
-          _CsvMusicLibrary.instance.randomSongs(limit: 8 - feed.length);
-      for (final track in extraRecommendations) {
-        if (feed.length >= 8) break;
-        await addUnique(track);
-      }
-    }
-
-    final popularTracks = _CsvMusicLibrary.instance.randomPopularSongs(limit: 3);
-    for (final track in popularTracks) {
+    //get 10 random songs
+    final randomTracks = _CsvMusicLibrary.instance.randomSongs(limit: 20, excludeIds: seenIds);
+    for (final track in randomTracks) {
       await addUnique(track);
+      if (feed.length >= limit) break;
     }
 
-    if (feed.length < limit) {
-      final candidates = yearRange != null
-          ? _CsvMusicLibrary.instance.topSongs(
-              yearRange: yearRange,
-              limit: max(limit * 4, 40),
-            )
-          : _CsvMusicLibrary.instance.randomSongs(limit: max(limit * 4, 40));
-
-      for (final track in candidates) {
-        if (feed.length >= limit) break;
-        await addUnique(track);
-      }
-    }
-
-    if (feed.length < limit) {
-      final fallback = _CsvMusicLibrary.instance.randomSongs(limit: limit * 3);
-      for (final track in fallback) {
-        if (feed.length >= limit) break;
-        await addUnique(track);
-      }
-    }
-
-    feed.shuffle();
     return feed.take(limit).toList();
   }
 
