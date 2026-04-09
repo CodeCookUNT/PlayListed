@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -7,6 +6,7 @@ import 'local_music_service.dart';
 
 class CoverArtService {
   static const _userAgent = 'PlayListed/1.0 (cover-art-resolver)';
+  static const _minimumScore = 75;
 
   final Map<String, String?> _coverCache = {};
 
@@ -30,35 +30,33 @@ class CoverArtService {
         continue;
       }
 
-      final mbid = await _findReleaseGroupMbid(
+      final coverUrl = await _findCoverUrl(
         artist: artist,
         releaseOrTrack: candidate,
       );
 
-      if (mbid == null) {
+      if (coverUrl == null || coverUrl.isEmpty) {
         _coverCache[cacheKey] = null;
         continue;
       }
 
-      final artUrl = 'https://coverartarchive.org/release-group/$mbid/front-250';
-      final exists = await _urlLooksReachable(artUrl);
-
-      _coverCache[cacheKey] = exists ? artUrl : null;
-      if (exists) return artUrl;
+      _coverCache[cacheKey] = coverUrl;
+      return coverUrl;
     }
 
     return null;
   }
 
-  Future<String?> _findReleaseGroupMbid({
+  Future<String?> _findCoverUrl({
     required String artist,
     required String releaseOrTrack,
   }) async {
-    final query = 'artist:"$artist" AND release:"$releaseOrTrack"';
-    final uri = Uri.https('musicbrainz.org', '/ws/2/release-group', {
+    final cleaned = _normalizeTitle(releaseOrTrack);
+    final query = 'artist:"$artist" AND release:"$cleaned"';
+    final uri = Uri.https('musicbrainz.org', '/ws/2/release', {
       'query': query,
       'fmt': 'json',
-      'limit': '5',
+      'limit': '8',
     });
 
     try {
@@ -69,31 +67,62 @@ class CoverArtService {
       if (res.statusCode != 200) return null;
 
       final payload = jsonDecode(res.body) as Map<String, dynamic>;
-      final releaseGroups = (payload['release-groups'] as List?) ?? const [];
-      if (releaseGroups.isEmpty) return null;
+      final releases = (payload['releases'] as List?) ?? const [];
+      if (releases.isEmpty) return null;
 
-      releaseGroups.sort((a, b) {
-        final aScore = int.tryParse((a['score'] ?? '0').toString()) ?? 0;
-        final bScore = int.tryParse((b['score'] ?? '0').toString()) ?? 0;
-        return bScore.compareTo(aScore);
-      });
+      final ranked = releases
+          .whereType<Map<String, dynamic>>()
+          .where((release) {
+            final score =
+                int.tryParse((release['score'] ?? '0').toString()) ?? 0;
+            return score >= _minimumScore;
+          })
+          .toList()
+        ..sort((a, b) {
+          final aScore = int.tryParse((a['score'] ?? '0').toString()) ?? 0;
+          final bScore = int.tryParse((b['score'] ?? '0').toString()) ?? 0;
+          return bScore.compareTo(aScore);
+        });
 
-      final best = releaseGroups.first as Map<String, dynamic>;
-      return best['id'] as String?;
+      if (ranked.isEmpty) return null;
+
+      final best = ranked.first;
+      final releaseId = (best['id'] as String?)?.trim();
+      if (releaseId != null && releaseId.isNotEmpty) {
+        return 'https://coverartarchive.org/release/$releaseId/front-250';
+      }
+
+      final releaseGroup = best['release-group'] as Map<String, dynamic>?;
+      final releaseGroupId = (releaseGroup?['id'] as String?)?.trim();
+      if (releaseGroupId != null && releaseGroupId.isNotEmpty) {
+        return 'https://coverartarchive.org/release-group/$releaseGroupId/front-250';
+      }
+
+      return null;
     } catch (_) {
       return null;
     }
   }
 
-  Future<bool> _urlLooksReachable(String url) async {
-    try {
-      final res = await http
-          .get(Uri.parse(url), headers: {'User-Agent': _userAgent})
-          .timeout(const Duration(seconds: 6));
-      return res.statusCode == 200;
-    } catch (_) {
-      return false;
-    }
+  String _normalizeTitle(String value) {
+    final normalized = value
+        .replaceAll(
+          RegExp(
+            r'\(.*?(deluxe|expanded|remaster|edition).*?\)',
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .replaceAll(
+          RegExp(
+            r'\[.*?(deluxe|expanded|remaster|edition).*?\]',
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return normalized.isEmpty ? value.trim() : normalized;
   }
 
   String _primaryArtist(String artists) {

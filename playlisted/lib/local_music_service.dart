@@ -523,13 +523,13 @@ class LocalMusicService {
 
     feed.shuffle();
     final selected = feed.take(limit).toList();
-    return _enrichTracksWithCoverArt(selected, maxLookups: 8);
+    return _enrichTracksWithCoverArt(selected, maxLookups: limit);
   }
 
   Future<List<Track>> getRandomPopSongs({int limit = 10}) async {
     await _CsvMusicLibrary.instance.ensureLoaded();
     final songs = _CsvMusicLibrary.instance.randomPopularSongs(limit: limit);
-    return _enrichTracksWithCoverArt(songs, maxLookups: 8);
+    return _enrichTracksWithCoverArt(songs, maxLookups: limit);
   }
 
   Future<List<Track>> fetchTopSongs(
@@ -542,7 +542,7 @@ class LocalMusicService {
       yearRange: yearRange,
       limit: limit,
     );
-    return _enrichTracksWithCoverArt(songs, maxLookups: 12);
+    return _enrichTracksWithCoverArt(songs, maxLookups: min(limit, 40));
   }
 
   /// Fetches the top [limit] tracks for a given genre bucket.
@@ -556,13 +556,13 @@ class LocalMusicService {
       genre,
       limit: limit,
     );
-    return _enrichTracksWithCoverArt(songs, maxLookups: 12);
+    return _enrichTracksWithCoverArt(songs, maxLookups: limit);
   }
 
   Future<List<Track>> searchSongs(String query, {int limit = 20}) async {
     await _CsvMusicLibrary.instance.ensureLoaded();
     final songs = _CsvMusicLibrary.instance.searchSongs(query, limit: limit);
-    return _enrichTracksWithCoverArt(songs, maxLookups: 10);
+    return _enrichTracksWithCoverArt(songs, maxLookups: limit);
   }
 
   Future<List<Track>> searchArtistTopSongs(
@@ -574,7 +574,7 @@ class LocalMusicService {
       artistName,
       limit: limit,
     );
-    return _enrichTracksWithCoverArt(songs, maxLookups: 10);
+    return _enrichTracksWithCoverArt(songs, maxLookups: limit);
   }
 
   Future<Track?> fetchTrackById(String trackId) async {
