@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 class Track {
@@ -309,8 +310,26 @@ class LocalMusicService {
   String get _uid => FirebaseAuth.instance.currentUser!.uid;
 
   Future<String> getAccessToken() async {
-    await _CsvMusicLibrary.instance.ensureLoaded();
-    return 'local-csv';
+    final clientId = dotenv.env['SPOTIFY_CLIENT_ID']!;
+    final clientSecret = dotenv.env['SPOTIFY_CLIENT_SECRET']!;
+
+    final credentials = base64Encode(utf8.encode('$clientId:$clientSecret'));
+    
+    final response = await http.post(
+      Uri.parse('https://accounts.spotify.com/api/token'),
+      headers: {
+        'Authorization': 'Basic $credentials',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: {'grant_type': 'client_credentials'},
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['access_token'];
+    } else {
+      throw Exception('Failed to get token: ${response.body}');
+    }
   }
 
   Future<List<Track>> fetchSongs(
@@ -352,6 +371,7 @@ class LocalMusicService {
 
     //get the album image from firestore, if not found get it from the spotify api and save it to firestore for future use
     Future<void> fetchAlbumImage(String accessToken, Track track) async {
+      print("Fetching album image for track ${track.name} by ${track.artists}... ");
       if(track.albumImageUrl != null) return;
       if (track.id == null || track.id!.isEmpty) return;
 
@@ -360,6 +380,7 @@ class LocalMusicService {
         if(doc.exists){
           final data = doc.data();
           if(data != null && data['albumImageUrl'] != null){
+            print("Foudn album image in Firestore for track ${track.name} by ${track.artists}");
             track.albumImageUrl = data['albumImageUrl'];
             return;
           }
@@ -368,13 +389,12 @@ class LocalMusicService {
         //if no track image is found get the album image from the spotify api and save it to firestore for future use
         track.albumImageUrl = await getAlbumImageFromAPI(accessToken, track.id!);
         if(track.albumImageUrl != null){
-          await FirebaseFirestore.instance.collection('albumCovers').doc(track.id).set({
-            'albumImageUrl': track.albumImageUrl,
-          }, SetOptions(merge: true));
+          await setAlbumImageUrl(track.id!, track.albumImageUrl!);
         }
       } catch (e) {
         print('Error in fetchAlbumImage for track ${track.id}: $e');
       }
+      print("Album image for track ${track.name} by ${track.artists}: ${track.albumImageUrl ?? 'not found'}");
     }
 
 
@@ -525,4 +545,17 @@ class LocalMusicService {
     }
     return recommendedTracks;
   }
+
+  Future<void> setAlbumImageUrl(String trackId, String albumImageUrl) async {
+    if (trackId.isEmpty) return;
+
+    try {
+      await FirebaseFirestore.instance.collection('albumCovers').doc(trackId).set({
+        'albumImageUrl': albumImageUrl,
+      }, SetOptions(merge: true));
+    } catch (e) {
+      print('Error setting album image URL for track $trackId: $e');
+    }
+  }
+
 }
