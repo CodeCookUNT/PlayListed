@@ -82,8 +82,14 @@ class MyApp extends StatelessWidget {
             foregroundColor: Colors.white,
           ),
           navigationBarTheme: const NavigationBarThemeData(
-            backgroundColor: Colors.white,
-            indicatorColor: Color(0xFF1583B7),
+            backgroundColor: Color(0xFF1583B7),  // matches your app bar color
+            indicatorColor: Colors.white24,
+            labelTextStyle: WidgetStatePropertyAll(
+              TextStyle(color: Colors.white, fontSize: 12),
+            ),
+            iconTheme: WidgetStatePropertyAll(
+              IconThemeData(color: Colors.white70),
+            ),
           ),
           ),
 
@@ -99,8 +105,14 @@ class MyApp extends StatelessWidget {
             foregroundColor: Colors.white,
           ),
           navigationBarTheme: const NavigationBarThemeData(
-            backgroundColor: Color(0xFF0A2233),
-            indicatorColor: Color(0xFF1583B7),
+          backgroundColor: Color(0xFF0A2233),
+          indicatorColor: Color(0xFF1583B7),
+          labelTextStyle: WidgetStatePropertyAll(
+            TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          iconTheme: WidgetStatePropertyAll(
+            IconThemeData(color: Colors.white70),
+            ),
           ),
           floatingActionButtonTheme: const FloatingActionButtonThemeData(
             backgroundColor: Color(0xFF1583B7),
@@ -800,25 +812,30 @@ HelpPageContent get _currentHelpContent {
                       : pages[selectedIndex],
                 )
               : pages[selectedIndex],
-          bottomNavigationBar: Container(
+            // The bottom navigation bar
+            bottomNavigationBar: Container(
             decoration: BoxDecoration(
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.5),
-                  blurRadius: 10,
-                  offset: const Offset(0, -3),
-                ),
-              ],
+              gradient: LinearGradient(
+                colors: appState.isDarkMode
+                    ? [const Color(0xFF0A2233), const Color(0xFF1583B7)]
+                    : [const Color.fromARGB(255, 31, 139, 189), const Color.fromARGB(255, 57, 27, 190)],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
             ),
             child: NavigationBar(
+              backgroundColor: Colors.transparent,
+              surfaceTintColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              indicatorColor: Colors.white24,
               labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
               destinations: const [
-                NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
-                NavigationDestination(icon: Icon(Icons.library_music), label: 'Songs'),
-                NavigationDestination(icon: Icon(Icons.search_rounded), label: 'Search'),
-                NavigationDestination(icon: Icon(Icons.people), label: 'Friends'),
-                NavigationDestination(icon: Icon(Icons.library_music_outlined), label: 'Collections'),
-                NavigationDestination(icon: Icon(Icons.person), label: 'Profile'),
+                NavigationDestination(icon: Icon(Icons.home, color: Colors.white), label: 'Home'),
+                NavigationDestination(icon: Icon(Icons.library_music, color: Colors.white), label: 'Songs'),
+                NavigationDestination(icon: Icon(Icons.search_rounded, color: Colors.white), label: 'Search'),
+                NavigationDestination(icon: Icon(Icons.people, color: Colors.white), label: 'Friends'),
+                NavigationDestination(icon: Icon(Icons.library_music_outlined, color: Colors.white), label: 'Collections'),
+                NavigationDestination(icon: Icon(Icons.person, color: Colors.white), label: 'Profile'),
               ],
               selectedIndex: selectedIndex,
               onDestinationSelected: (index) {
