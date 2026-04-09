@@ -7,12 +7,17 @@ import 'local_music_service.dart';
 class CoverArtService {
   static const _userAgent = 'PlayListed/1.0 (cover-art-resolver)';
   static const _minimumScore = 75;
+  static const _metricsPrintEvery = 25;
 
   final Map<String, String?> _coverCache = {};
+  int _lookupAttempts = 0;
+  int _lookupHits = 0;
+  int _lookupMisses = 0;
 
   Future<String?> resolveForTrack(Track track) async {
     final existing = track.albumImageUrl?.trim();
     if (existing != null && existing.isNotEmpty) return existing;
+    _lookupAttempts++;
 
     final artist = _primaryArtist(track.artists);
     if (artist.isEmpty) return null;
@@ -41,9 +46,13 @@ class CoverArtService {
       }
 
       _coverCache[cacheKey] = coverUrl;
+      _lookupHits++;
+      _maybePrintMetrics();
       return coverUrl;
     }
 
+    _lookupMisses++;
+    _maybePrintMetrics();
     return null;
   }
 
@@ -128,5 +137,16 @@ class CoverArtService {
   String _primaryArtist(String artists) {
     final first = artists.split(',').first.trim();
     return first;
+  }
+
+  void _maybePrintMetrics() {
+    final completed = _lookupHits + _lookupMisses;
+    if (completed == 0 || completed % _metricsPrintEvery != 0) return;
+
+    final rate = (_lookupHits / completed * 100).toStringAsFixed(1);
+    print(
+      'CoverArtService metrics: attempts=$_lookupAttempts '
+      'completed=$completed hits=$_lookupHits misses=$_lookupMisses hitRate=$rate%',
+    );
   }
 }

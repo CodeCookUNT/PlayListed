@@ -562,7 +562,7 @@ class LocalMusicService {
   Future<List<Track>> searchSongs(String query, {int limit = 20}) async {
     await _CsvMusicLibrary.instance.ensureLoaded();
     final songs = _CsvMusicLibrary.instance.searchSongs(query, limit: limit);
-    return _enrichTracksWithCoverArt(songs, maxLookups: limit);
+    return _enrichTracksWithCoverArt(songs, maxLookups: min(limit, 8));
   }
 
   Future<List<Track>> searchArtistTopSongs(
@@ -574,7 +574,7 @@ class LocalMusicService {
       artistName,
       limit: limit,
     );
-    return _enrichTracksWithCoverArt(songs, maxLookups: limit);
+    return _enrichTracksWithCoverArt(songs, maxLookups: min(limit, 8));
   }
 
   Future<Track?> fetchTrackById(String trackId) async {
