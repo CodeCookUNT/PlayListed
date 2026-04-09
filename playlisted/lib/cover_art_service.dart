@@ -15,6 +15,11 @@ class CoverArtService {
   int _lookupAttempts = 0;
   int _lookupHits = 0;
   int _lookupMisses = 0;
+  bool _debugLoggingEnabled = false;
+
+  void setDebugLogging(bool enabled) {
+    _debugLoggingEnabled = enabled;
+  }
 
   Future<String?> resolveForTrack(Track track) async {
     final existing = track.albumImageUrl?.trim();
@@ -23,6 +28,7 @@ class CoverArtService {
 
     final artist = _primaryArtist(track.artists);
     if (artist.isEmpty) return null;
+    final expectedYear = _extractYear(track.releaseDate);
 
     final candidates = <String>{
       if ((track.albumName ?? '').trim().isNotEmpty) track.albumName!.trim(),
@@ -40,13 +46,16 @@ class CoverArtService {
       final coverUrl = await _findCoverUrl(
         artist: artist,
         releaseOrTrack: candidate,
+        expectedYear: expectedYear,
       );
 
       if (coverUrl == null || coverUrl.isEmpty) {
+        _debug('miss candidate="$candidate" artist="$artist"');
         _storeCachedValue(cacheKey, null, _missCacheTtl);
         continue;
       }
 
+      _debug('hit candidate="$candidate" artist="$artist" -> $coverUrl');
       _storeCachedValue(cacheKey, coverUrl, _hitCacheTtl);
       _lookupHits++;
       _maybePrintMetrics();
@@ -61,6 +70,7 @@ class CoverArtService {
   Future<String?> _findCoverUrl({
     required String artist,
     required String releaseOrTrack,
+    int? expectedYear,
   }) async {
     final cleaned = _normalizeTitle(releaseOrTrack);
     final artistQuery = _normalizeArtist(artist);
@@ -71,15 +81,23 @@ class CoverArtService {
 
     try {
       for (final q in queries) {
-        final releaseIds = await _searchReleaseIds(artistQuery, q);
-        for (final releaseId in releaseIds) {
-          final url = await _coverUrlForReleaseId(releaseId);
+        final releaseIds = await _searchReleaseIds(
+          artistQuery,
+          q,
+          expectedYear: expectedYear,
+        );
+        for (final release in releaseIds) {
+          final url = await _coverUrlForReleaseId(release.id);
           if (url != null) return url;
         }
 
-        final releaseGroupIds = await _searchReleaseGroupIds(artistQuery, q);
-        for (final releaseGroupId in releaseGroupIds) {
-          final url = await _coverUrlForReleaseGroupId(releaseGroupId);
+        final releaseGroupIds = await _searchReleaseGroupIds(
+          artistQuery,
+          q,
+          expectedYear: expectedYear,
+        );
+        for (final releaseGroup in releaseGroupIds) {
+          final url = await _coverUrlForReleaseGroupId(releaseGroup.id);
           if (url != null) return url;
         }
       }
@@ -89,9 +107,12 @@ class CoverArtService {
     }
   }
 
-  Future<List<String>> _searchReleaseIds(
+  Future<List<_RankedId>> _searchReleaseIds(
     String artist,
     String releaseName,
+    {
+    int? expectedYear,
+  }
   ) async {
     final query = 'artist:"$artist" AND release:"$releaseName"';
     final uri = Uri.https('musicbrainz.org', '/ws/2/release', {
@@ -111,18 +132,28 @@ class CoverArtService {
     final ranked = releases
         .whereType<Map<String, dynamic>>()
         .where((release) => _score(release) >= _minimumScore)
+        .map((release) {
+          final id = (release['id'] as String?)?.trim() ?? '';
+          final title = (release['title'] as String?) ?? '';
+          final year = _extractYear(release['date'] as String?);
+          final quality = _score(release) +
+              _titleMatchBonus(title, releaseName) +
+              _yearMatchBonus(year, expectedYear);
+          return _RankedId(id: id, quality: quality);
+        })
+        .where((candidate) => candidate.id.isNotEmpty)
         .toList()
-      ..sort((a, b) => _score(b).compareTo(_score(a)));
+      ..sort((a, b) => b.quality.compareTo(a.quality));
 
-    return ranked
-        .map((release) => (release['id'] as String?)?.trim() ?? '')
-        .where((id) => id.isNotEmpty)
-        .toList();
+    return ranked;
   }
 
-  Future<List<String>> _searchReleaseGroupIds(
+  Future<List<_RankedId>> _searchReleaseGroupIds(
     String artist,
     String releaseName,
+    {
+    int? expectedYear,
+  }
   ) async {
     final query = 'artist:"$artist" AND releasegroup:"$releaseName"';
     final uri = Uri.https('musicbrainz.org', '/ws/2/release-group', {
@@ -141,13 +172,23 @@ class CoverArtService {
     final ranked = releaseGroups
         .whereType<Map<String, dynamic>>()
         .where((release) => _score(release) >= _minimumScore)
+        .map((group) {
+          final id = (group['id'] as String?)?.trim() ?? '';
+          final title = (group['title'] as String?) ?? '';
+          final year = _extractYear(
+            (group['first-release-date'] as String?) ??
+                (group['date'] as String?),
+          );
+          final quality = _score(group) +
+              _titleMatchBonus(title, releaseName) +
+              _yearMatchBonus(year, expectedYear);
+          return _RankedId(id: id, quality: quality);
+        })
+        .where((candidate) => candidate.id.isNotEmpty)
         .toList()
-      ..sort((a, b) => _score(b).compareTo(_score(a)));
+      ..sort((a, b) => b.quality.compareTo(a.quality));
 
-    return ranked
-        .map((group) => (group['id'] as String?)?.trim() ?? '')
-        .where((id) => id.isNotEmpty)
-        .toList();
+    return ranked;
   }
 
   Future<String?> _coverUrlForReleaseId(String releaseId) async {
@@ -257,6 +298,27 @@ class CoverArtService {
     return int.tryParse((payload['score'] ?? '0').toString()) ?? 0;
   }
 
+  int _titleMatchBonus(String foundTitle, String wantedTitle) {
+    final found = _normalizeTitle(foundTitle).toLowerCase();
+    final wanted = _normalizeTitle(wantedTitle).toLowerCase();
+    if (found.isEmpty || wanted.isEmpty) return 0;
+    if (found == wanted) return 25;
+    if (found.contains(wanted) || wanted.contains(found)) return 12;
+    return 0;
+  }
+
+  int _yearMatchBonus(int? foundYear, int? expectedYear) {
+    if (foundYear == null || expectedYear == null) return 0;
+    if (foundYear == expectedYear) return 10;
+    if ((foundYear - expectedYear).abs() == 1) return 4;
+    return 0;
+  }
+
+  int? _extractYear(String? dateValue) {
+    if (dateValue == null || dateValue.length < 4) return null;
+    return int.tryParse(dateValue.substring(0, 4));
+  }
+
   String? _cachedValue(String key) {
     final entry = _coverCache[key];
     if (entry == null) return null;
@@ -273,6 +335,11 @@ class CoverArtService {
       expiresAt: DateTime.now().add(ttl),
     );
   }
+
+  void _debug(String message) {
+    if (!_debugLoggingEnabled) return;
+    print('CoverArtService debug: $message');
+  }
 }
 
 class _CacheEntry {
@@ -282,5 +349,15 @@ class _CacheEntry {
   _CacheEntry({
     required this.url,
     required this.expiresAt,
+  });
+}
+
+class _RankedId {
+  final String id;
+  final int quality;
+
+  _RankedId({
+    required this.id,
+    required this.quality,
   });
 }

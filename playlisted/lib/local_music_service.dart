@@ -439,7 +439,10 @@ class _CsvMusicLibrary {
 
 class LocalMusicService {
   String get _uid => FirebaseAuth.instance.currentUser!.uid;
-  final CoverArtService _coverArtService = CoverArtService();
+  final CoverArtService _coverArtService = CoverArtService()
+    ..setDebugLogging(
+      const bool.fromEnvironment('COVER_ART_DEBUG', defaultValue: false),
+    );
 
   Future<String> getAccessToken() async {
     await _CsvMusicLibrary.instance.ensureLoaded();
