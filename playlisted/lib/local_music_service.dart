@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
+import 'cover_art_service.dart';
 
 class Track {
   final String name;
@@ -17,6 +18,7 @@ class Track {
   final String? artistId;
   final double? score;
   final String? genre; // e.g. 'pop', 'hip hop', 'rock'
+  final String? albumName;
 
   Track({
     required this.name,
@@ -31,7 +33,40 @@ class Track {
     this.artistId,
     this.score,
     this.genre,
+    this.albumName,
   });
+
+  Track copyWith({
+    String? name,
+    String? artists,
+    int? durationMs,
+    bool? explicit,
+    String? url,
+    String? albumImageUrl,
+    int? popularity,
+    String? releaseDate,
+    String? id,
+    String? artistId,
+    double? score,
+    String? genre,
+    String? albumName,
+  }) {
+    return Track(
+      name: name ?? this.name,
+      artists: artists ?? this.artists,
+      durationMs: durationMs ?? this.durationMs,
+      explicit: explicit ?? this.explicit,
+      url: url ?? this.url,
+      albumImageUrl: albumImageUrl ?? this.albumImageUrl,
+      popularity: popularity ?? this.popularity,
+      releaseDate: releaseDate ?? this.releaseDate,
+      id: id ?? this.id,
+      artistId: artistId ?? this.artistId,
+      score: score ?? this.score,
+      genre: genre ?? this.genre,
+      albumName: albumName ?? this.albumName,
+    );
+  }
 }
 
 const _popArtistKeywords = [
@@ -286,6 +321,7 @@ class _CsvMusicLibrary {
 
       final popularity =
           int.tryParse(_value(data, ['track_popularity', 'popularity']));
+      final albumName = _value(data, ['track_album_name', 'album_name']);
       final releaseDate = _value(
         data,
         ['track_album_release_date', 'release_date'],
@@ -315,6 +351,7 @@ class _CsvMusicLibrary {
           artistId: null,
           score: popularity == null ? null : popularity / 100.0,
           genre: genre,
+          albumName: albumName.isEmpty ? null : albumName,
         ),
       );
     }
@@ -402,6 +439,7 @@ class _CsvMusicLibrary {
 
 class LocalMusicService {
   String get _uid => FirebaseAuth.instance.currentUser!.uid;
+  final CoverArtService _coverArtService = CoverArtService();
 
   Future<String> getAccessToken() async {
     await _CsvMusicLibrary.instance.ensureLoaded();
@@ -484,12 +522,14 @@ class LocalMusicService {
     }
 
     feed.shuffle();
-    return feed.take(limit).toList();
+    final selected = feed.take(limit).toList();
+    return _enrichTracksWithCoverArt(selected, maxLookups: 8);
   }
 
   Future<List<Track>> getRandomPopSongs({int limit = 10}) async {
     await _CsvMusicLibrary.instance.ensureLoaded();
-    return _CsvMusicLibrary.instance.randomPopularSongs(limit: limit);
+    final songs = _CsvMusicLibrary.instance.randomPopularSongs(limit: limit);
+    return _enrichTracksWithCoverArt(songs, maxLookups: 8);
   }
 
   Future<List<Track>> fetchTopSongs(
@@ -498,10 +538,11 @@ class LocalMusicService {
     int limit = 500,
   }) async {
     await _CsvMusicLibrary.instance.ensureLoaded();
-    return _CsvMusicLibrary.instance.topSongs(
+    final songs = _CsvMusicLibrary.instance.topSongs(
       yearRange: yearRange,
       limit: limit,
     );
+    return _enrichTracksWithCoverArt(songs, maxLookups: 12);
   }
 
   /// Fetches the top [limit] tracks for a given genre bucket.
@@ -511,12 +552,17 @@ class LocalMusicService {
     int limit = 15,
   }) async {
     await _CsvMusicLibrary.instance.ensureLoaded();
-    return _CsvMusicLibrary.instance.topSongsByGenre(genre, limit: limit);
+    final songs = _CsvMusicLibrary.instance.topSongsByGenre(
+      genre,
+      limit: limit,
+    );
+    return _enrichTracksWithCoverArt(songs, maxLookups: 12);
   }
 
   Future<List<Track>> searchSongs(String query, {int limit = 20}) async {
     await _CsvMusicLibrary.instance.ensureLoaded();
-    return _CsvMusicLibrary.instance.searchSongs(query, limit: limit);
+    final songs = _CsvMusicLibrary.instance.searchSongs(query, limit: limit);
+    return _enrichTracksWithCoverArt(songs, maxLookups: 10);
   }
 
   Future<List<Track>> searchArtistTopSongs(
@@ -524,15 +570,20 @@ class LocalMusicService {
     int limit = 20,
   }) async {
     await _CsvMusicLibrary.instance.ensureLoaded();
-    return _CsvMusicLibrary.instance.searchArtistTopSongs(
+    final songs = _CsvMusicLibrary.instance.searchArtistTopSongs(
       artistName,
       limit: limit,
     );
+    return _enrichTracksWithCoverArt(songs, maxLookups: 10);
   }
 
   Future<Track?> fetchTrackById(String trackId) async {
     await _CsvMusicLibrary.instance.ensureLoaded();
-    return _CsvMusicLibrary.instance.trackById(trackId);
+    final track = _CsvMusicLibrary.instance.trackById(trackId);
+    if (track == null) return null;
+    final url = await _coverArtService.resolveForTrack(track);
+    if (url == null) return track;
+    return track.copyWith(albumImageUrl: url);
   }
 
   Future<Map<Track, double>> fetchRecommendedSongs() async {
@@ -580,5 +631,39 @@ class LocalMusicService {
       print("Error fetching recommendations for user $_uid: $e");
     }
     return recommendedTracks;
+  }
+
+  Future<List<Track>> _enrichTracksWithCoverArt(
+    List<Track> tracks, {
+    int maxLookups = 10,
+  }) async {
+    if (tracks.isEmpty || maxLookups <= 0) return tracks;
+
+    final enriched = <Track>[];
+    int lookups = 0;
+
+    for (final track in tracks) {
+      final existing = track.albumImageUrl?.trim();
+      if (existing != null && existing.isNotEmpty) {
+        enriched.add(track);
+        continue;
+      }
+
+      if (lookups >= maxLookups) {
+        enriched.add(track);
+        continue;
+      }
+
+      lookups++;
+      final coverUrl = await _coverArtService.resolveForTrack(track);
+      if (coverUrl == null || coverUrl.isEmpty) {
+        enriched.add(track);
+        continue;
+      }
+
+      enriched.add(track.copyWith(albumImageUrl: coverUrl));
+    }
+
+    return enriched;
   }
 }
