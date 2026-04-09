@@ -5,6 +5,7 @@ import 'profile.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'loading_vinyl.dart';
+import 'dart:async';
 
 class FriendsPage extends StatefulWidget {
   const FriendsPage({super.key});
@@ -18,11 +19,63 @@ class _FriendsPageState extends State<FriendsPage> {
   bool _isAdding = false;
   String? _error;
 
+  List<Map<String, dynamic>> _friendsSearchResults = [];
+  bool _userSearch = false;
+  Timer? _searchDebounce;
+
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _emailController.dispose();
     super.dispose();
   }
+
+  void _onFriendSearchChanged(String value) {
+    _searchDebounce?.cancel();
+
+    final query = value.trim();
+    if (query.isEmpty) {
+      setState(() {
+        _friendsSearchResults = [];
+        _userSearch = false;
+      });
+      return;
+    }
+
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () async {
+      if (!mounted) return;
+
+      setState(() => _userSearch = true);
+      try {
+        final results = await FriendsService.instance.searchUsersByQueryPrefix(
+          query,
+        );
+
+        if (!mounted) return;
+        setState(() {
+          _friendsSearchResults = results;
+          _userSearch = false;
+        });
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _friendsSearchResults = [];
+          _userSearch = false;
+        });
+      }
+    });
+  }
+
+  String _userIdentifier(Map<String, dynamic> user) {
+    final query = _emailController.text.trim();
+    final email = user['email'] as String? ?? '';
+    final username = user['username'] as String? ?? '';
+    final isEmailSearch = query.contains('@');
+    return (isEmailSearch && email != null && email.isNotEmpty)
+        ? email : username;
+  }
+
+
 
   Future<void> _addFriend() async {
     final email = _emailController.text.trim().toLowerCase();
@@ -38,7 +91,12 @@ class _FriendsPageState extends State<FriendsPage> {
 
     try {
       await FriendsService.instance.sendFriendRequest(email);
-      _emailController.clear();
+      
+      setState(() {
+        _emailController.clear();
+        _friendsSearchResults = [];
+      });
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Friend request sent!')),
@@ -71,6 +129,7 @@ class _FriendsPageState extends State<FriendsPage> {
                     labelText: 'Send Request by Username or email',
                     border: OutlineInputBorder(),
                   ),
+                  onChanged: _onFriendSearchChanged,
                   onSubmitted: (_) => _addFriend(),
                 ),
               ),
@@ -103,6 +162,55 @@ class _FriendsPageState extends State<FriendsPage> {
             child: Text(
               _error!,
               style: const TextStyle(color: Colors.red),
+            ),
+          ),
+
+        if (_userSearch)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: LinearProgressIndicator(minHeight: 2),
+          ),
+
+        if (_friendsSearchResults.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Material(
+              elevation: 1,
+              borderRadius: BorderRadius.circular(12),
+              child: ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _friendsSearchResults.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final user = _friendsSearchResults[index];
+                  final username = user['username'] as String? ?? 'Unknown';
+                  final email = user['email'] as String?;
+
+                  return ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.person_outline),
+                    title: Text(username),
+                    subtitle: email != null ? Text(email) : null,
+                    trailing: IconButton(
+                      icon: const Icon(Icons.person_add_alt_1),
+                      onPressed: _isAdding
+                          ? null
+                          : () {
+                              final selected = _userIdentifier(user);
+                              _emailController.text = selected;
+                              _onFriendSearchChanged(selected);
+                              _addFriend();
+                            },
+                    ),
+                    onTap: () {
+                      final selected = _userIdentifier(user);
+                      _emailController.text = selected;
+                      setState(() => _friendsSearchResults = []);
+                    },
+                  );
+                },
+              ),
             ),
           ),
 
