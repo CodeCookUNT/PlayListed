@@ -167,6 +167,7 @@ class MyAppState extends ChangeNotifier {
   final Map<String, double> likedOrRated = {};
   final List<String> _likedOrRatedIDs = [];
   bool isHomeFeedLoading = false;
+  bool _isLoadingMoreTracks = false;
   String? homeFeedError;
   bool isLoggingOut = false;
   int _operationId = 0;
@@ -358,11 +359,18 @@ class MyAppState extends ChangeNotifier {
   /// loaded tracks.
   Future<void> loadMoreTracks({String? yearRange}) async {
     if (isLoggingOut) return;
-    final opId = _operationId;
     if (accessToken == null) {
       print('loadMoreTracks: no access token, skipping');
       return;
     }
+
+    if (_isLoadingMoreTracks) {
+      print('loadMoreTracks: already loading, skipping duplicate request');
+      return;
+    }
+
+    _isLoadingMoreTracks = true;
+    final opId = _operationId;
 
     try {
       print(
@@ -400,6 +408,9 @@ class MyAppState extends ChangeNotifier {
       }
     } catch (e) {
       print('Error loading more tracks: $e');
+    } finally {
+      _isLoadingMoreTracks = false;
+      notifyListeners();
     }
   }
 
@@ -486,21 +497,47 @@ class MyAppState extends ChangeNotifier {
 
   void getNext() {
     if (tracks != null && tracks!.isNotEmpty) {
-      int currentIndex = tracks!.indexWhere((track) => track.name == current?.name);
-      int nextIndex = (currentIndex + 1) % tracks!.length;
+      final currentId = current?.id;
+      final currentNameArtist = current != null
+          ? '${current!.name}|${current!.artists}'.toLowerCase()
+          : null;
+
+      int currentIndex = tracks!.indexWhere((track) {
+        if (currentId != null && currentId.isNotEmpty && track.id == currentId) {
+          return true;
+        }
+        return currentNameArtist != null &&
+            '${track.name}|${track.artists}'.toLowerCase() == currentNameArtist;
+      });
+
+      if (currentIndex < 0) {
+        print('getNext: current track not found in feed, keeping current state');
+        return;
+      }
+
+      int nextIndex = currentIndex + 1;
+      if (nextIndex >= tracks!.length) {
+        if (_isLoadingMoreTracks) {
+          print('getNext: waiting for more tracks, staying on last item');
+          return;
+        }
+        nextIndex = 0;
+      }
+
       current = tracks![nextIndex];
       setTrackCounter(nextIndex);
-      //if approaching the end, load more tracks in the background
+
+      // if approaching the end, load more tracks in the background
       if (nextIndex >= tracks!.length - 3) {
         print('getNext: near end of feed (index $nextIndex/${tracks!.length}), loading more...');
-        loadMoreTracks(); //helper function to call fetchSongs and update feed dynamically
+        loadMoreTracks();
       }
-      
-      //generate new recommendation every 5 tracks
-      //update co-liked tracks every 5 tracks
+
+      // generate new recommendation every 5 tracks
+      // update co-liked tracks every 5 tracks
       //! UNCOMMENT TO ENABLE CO-LIKED UPDATES
       //! Warning: May cause slower performance due to batch writes
-      if(_trackCounter % 5 == 0){
+      if (_trackCounter % 5 == 0) {
         print('Updating co-liked tracks...');
         _updateCoLiked(_tempLikedTracks, _likedOrRatedIDs);
         generateRecommendation();
@@ -514,8 +551,26 @@ class MyAppState extends ChangeNotifier {
 
   void getPrevious() {
     if (tracks != null && tracks!.isNotEmpty) {
-      int currentIndex = tracks!.indexWhere((track) => track.name == current?.name);
+      final currentId = current?.id;
+      final currentNameArtist = current != null
+          ? '${current!.name}|${current!.artists}'.toLowerCase()
+          : null;
+
+      int currentIndex = tracks!.indexWhere((track) {
+        if (currentId != null && currentId.isNotEmpty && track.id == currentId) {
+          return true;
+        }
+        return currentNameArtist != null &&
+            '${track.name}|${track.artists}'.toLowerCase() == currentNameArtist;
+      });
+
+      if (currentIndex < 0) {
+        print('getPrevious: current track not found in feed, keeping current state');
+        return;
+      }
+
       int nextIndex = (currentIndex - 1) % tracks!.length;
+      if (nextIndex < 0) nextIndex += tracks!.length;
       current = tracks![nextIndex];
       setTrackCounter(nextIndex);
     } else {
