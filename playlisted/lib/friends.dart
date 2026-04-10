@@ -180,6 +180,83 @@ class FriendsService {
     await sendFriendRequest(email);
   }
 
+// Helper used for autonomous username/email search when sending requests.
+  Future<List<Map<String, dynamic>>> searchUsersByQueryPrefix(
+    String query, {
+    int limit = 8,
+  }) async {
+    final current = _auth.currentUser;
+    if (current == null) return [];
+
+    final normalized = query.trim().toLowerCase();
+    if (normalized.isEmpty) return [];
+
+    final usernameSnap = await _db
+        .collection('usernames')
+        .orderBy(FieldPath.documentId)
+        .startAt([normalized])
+        .endAt(['$normalized\uf8ff'])
+        .limit(limit)
+        .get();
+
+    final emailSnap = await _db
+        .collection('users')
+        .orderBy('email')
+        .startAt([normalized])
+        .endAt(['$normalized\uf8ff'])
+        .limit(limit)
+        .get();
+
+    final candidates = <String, Map<String, dynamic>>{};
+
+    for (final doc in emailSnap.docs) {
+      if (doc.id == current.uid) continue;
+      candidates[doc.id] = doc.data();
+    }
+
+    final missingFromUsernameLookup = <String>[];
+    for (final doc in usernameSnap.docs) {
+      final uid = doc.data()['uid'] as String?;
+      if (uid == null || uid == current.uid || candidates.containsKey(uid)) {
+        continue;
+      }
+      missingFromUsernameLookup.add(uid);
+    }
+
+    final missingDocs = await Future.wait(
+      missingFromUsernameLookup.map((uid) => _db.collection('users').doc(uid).get()),
+    );
+
+    for (final doc in missingDocs) {
+      if (!doc.exists) continue;
+      candidates[doc.id] = doc.data() ?? <String, dynamic>{};
+    }
+
+    final results = <Map<String, dynamic>>[];
+    for (final entry in candidates.entries) {
+      final data = entry.value;
+      final username =
+          (data['username'] as String?)?.trim().isNotEmpty == true
+              ? data['username'] as String
+              : (data['email'] as String?)?.split('@').first ?? 'Unknown';
+
+      results.add({
+        'uid': entry.key,
+        'username': username,
+        'email': data['email'],
+      });
+    }
+
+    results.sort((a, b) {
+
+      final usernameA = (a['username'] as String).toLowerCase();
+      final usernameB = (b['username'] as String).toLowerCase();
+      return usernameA.compareTo(usernameB);
+    });
+
+    return results;
+  }
+
   // Friend request features to work on
 
 Stream<List<Map<String, dynamic>>> incomingRequestsStream() {
