@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'account_deletion_service.dart';
 import 'profilefunctions.dart';
 import 'loading_vinyl.dart';
 import 'track_artwork.dart';
 
 class ProfilePage extends StatelessWidget {
+  static final Uri _hostedDeletionInfoUri = Uri.parse(
+    'https://playlisted-b5056.web.app/account-deletion.html',
+  );
+
   final String uid;
   const ProfilePage({super.key, required this.uid});
   @override
@@ -100,6 +106,21 @@ class ProfilePage extends StatelessWidget {
                     },
                     icon: const Icon(Icons.edit),
                     label: const Text('Edit avatar'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () => _openAccountDeletionInfoPage(context),
+                    icon: const Icon(Icons.link),
+                    label: const Text('Account deletion link'),
+                  ),
+                  const SizedBox(height: 8),
+                  FilledButton.tonalIcon(
+                    onPressed: () => _confirmDeleteAccount(context),
+                    icon: const Icon(Icons.delete_forever),
+                    label: const Text('Delete my account'),
+                    style: FilledButton.styleFrom(
+                      foregroundColor: Colors.red,
+                    ),
                   ),
                 ],
                 ],
@@ -413,6 +434,105 @@ class ProfilePage extends StatelessWidget {
     );
       },
     );
+  }
+
+  Future<void> _openAccountDeletionInfoPage(BuildContext context) async {
+    final launched = await launchUrl(
+      _hostedDeletionInfoUri,
+      mode: LaunchMode.externalApplication,
+    );
+    if (!launched && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open account deletion link.')),
+      );
+    }
+  }
+
+  Future<void> _confirmDeleteAccount(BuildContext context) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete account?'),
+        content: const Text(
+          'Are you sure? This permanently deletes your account and wipes your data.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Yes, delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true || !context.mounted) return;
+    final password = await _askForPassword(context);
+    if (password == null || password.isEmpty || !context.mounted) return;
+
+    try {
+      await AccountDeletionService.instance.reauthenticateAndDelete(
+        password: password,
+      );
+    } on FirebaseAuthException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Delete failed: ${e.message ?? e.code}')),
+        );
+      }
+      return;
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Delete failed: $e')),
+        );
+      }
+      return;
+    }
+  }
+
+  Future<String?> _askForPassword(BuildContext context) async {
+    final controller = TextEditingController();
+    bool obscure = true;
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => AlertDialog(
+          title: const Text('Confirm password'),
+          content: TextField(
+            controller: controller,
+            obscureText: obscure,
+            decoration: InputDecoration(
+              labelText: 'Password',
+              suffixIcon: IconButton(
+                onPressed: () => setModalState(() => obscure = !obscure),
+                icon: Icon(obscure ? Icons.visibility : Icons.visibility_off),
+              ),
+            ),
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    controller.dispose();
+    return result;
   }
   Future<void> _showEditAvatarSheet(
     BuildContext context, {
