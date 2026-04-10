@@ -337,6 +337,8 @@ class MyAppState extends ChangeNotifier {
         recTracks,
         yearRange: yearRange,
         limit: 20,
+        excludeIds: _seenTrackIds,
+        excludeNameArtist: _seenTrackNameArtist,
       );
 
       tracks = newTracks;
@@ -345,7 +347,6 @@ class MyAppState extends ChangeNotifier {
 
         // track all returned tracks so we don't serve them again
         // Note: Do not clear _seenTrackIds here, as it contains liked track IDs from initializeSeenIds
-        _seenTrackNameArtist.clear();
         for (final track in tracks!) {
           if (track.id != null && track.id!.isNotEmpty) {
             _seenTrackIds.add(track.id!);
@@ -471,8 +472,14 @@ class MyAppState extends ChangeNotifier {
       }
     } else {
       likedOrRated[k] = r;
-      _likedOrRatedIDs.add(t.id!);
+      if (t.id != null && t.id!.isNotEmpty && !_likedOrRatedIDs.contains(t.id!)) {
+        _likedOrRatedIDs.add(t.id!);
+        _seenTrackIds.add(t.id!);
+      }
+
+      _seenTrackNameArtist.add('${t.name}|${t.artists}'.toLowerCase());
       _tempLikedTracks.add(current!.id!);
+
       if (!favorites.any((x) => keyOf(x) == k)) {
         favorites.add(t);
       }
@@ -601,8 +608,17 @@ class MyAppState extends ChangeNotifier {
     if (isFavNow) {
       favorites.add(current!);
       likedOrRated[current!.name] = 0.0;
-      _likedOrRatedIDs.add(current!.id!);
-      _tempLikedTracks.add(current!.id!);
+      if (current!.id != null && current!.id!.isNotEmpty) {
+        if (!_likedOrRatedIDs.contains(current!.id!)) {
+          _likedOrRatedIDs.add(current!.id!);
+        }
+        _seenTrackIds.add(current!.id!);
+        _tempLikedTracks.add(current!.id!);
+      }
+
+      _seenTrackNameArtist.add(
+        '${current!.name}|${current!.artists}'.toLowerCase(),
+      );
     } else {
       removeTrack(current!, FirebaseAuth.instance.currentUser!.uid);
       Recommendations.instance.removeOneSongFromSource(current!.id!);
@@ -626,13 +642,16 @@ class MyAppState extends ChangeNotifier {
     if (isLoggingOut) return;
     final String? trackId;
     final String? trackName;
+    final String? trackArtists;
 
     if (track is Map<String, dynamic>) {
       trackId = track['id'] as String?;
       trackName = track['name'] as String?;
+      trackArtists = track['artists'] as String?;
     } else {
       trackId = track.id as String?;
       trackName = track.name as String?;
+      trackArtists = track.artists as String?;
     }
 
     print('Removing track: $trackName (ID: $trackId)');
@@ -645,10 +664,16 @@ class MyAppState extends ChangeNotifier {
     if (trackId != null && trackId.isNotEmpty) {
       _likedOrRatedIDs.remove(trackId);
       _tempLikedTracks.remove(trackId);
+      _seenTrackIds.remove(trackId);
       Recommendations.instance.removeOneSongFromSource(trackId);
     }
 
-    //now remove from the firestore
+    if (trackName != null && trackArtists != null) {
+      _seenTrackNameArtist.remove(
+        '${trackName}|${trackArtists}'.toLowerCase(),
+      );
+    }
+
     try {
       final currentUserId = FirebaseAuth.instance.currentUser?.uid;
       if (currentUserId != null && trackId != null && trackId.isNotEmpty) {
