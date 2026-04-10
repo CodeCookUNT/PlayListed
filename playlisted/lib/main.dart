@@ -775,7 +775,19 @@ HelpPageContent get _currentHelpContent {
       builder: (context, constraints) {
         return Scaffold(
           appBar: AppBar(
-            leading: IconButton(
+            backgroundColor: Colors.transparent, 
+            flexibleSpace: Container(           
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: appState.isDarkMode
+                      ? [const Color(0xFF0A2233), const Color(0xFF1583B7)]
+                      : [const Color.fromARGB(255, 31, 139, 189), const Color.fromARGB(255, 57, 27, 190)],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+              ),
+            ),
+            leading: IconButton(                 
               icon: const Icon(Icons.settings),
               onPressed: () => _openSettings(context, _currentHelpContent),
             ),
@@ -1670,86 +1682,92 @@ class GlobalRatingDisplay extends StatelessWidget {
   }
 }
 
-void _openSettings(BuildContext context, HelpPageContent helpContent) {
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: Colors.transparent,
-    builder: (context) {
-      final isDark = Theme.of(context).brightness == Brightness.dark;
-      final appState = context.read<MyAppState>();
-      return Align(
-        alignment: Alignment.bottomCenter,
-        child: Container(
-          width: 210,
-          height:200,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const Text(
-                  'Settings',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  child: const Text('Logout'),
-                  onPressed: () async {
-                    Navigator.of(context).pop();
-                    await context.read<MyAppState>().logout();
-                    try {
-                      await FirebaseAuth.instance.signOut();
-                    } catch (e) {
-                      print('Sign out failed: $e');
-                    }
-                  },
-                ),
-                const SizedBox(height: 20),
-                Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // dark/light mode button
-                  CircleAvatar(
-                    radius: 25,
-                    backgroundColor: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
-                    child: IconButton(
-                      iconSize: 32,
-                      icon: Icon(
-                        isDark ? Icons.dark_mode : Icons.light_mode,
-                        color: isDark ? Colors.white : Colors.black,
-                      ),
-                      onPressed: () => appState.toggleDarkMode(!isDark),
-                    ),
+    // Opens the settings bottom sheet with options to logout, toggle dark mode, and view help.
+    void _openSettings(BuildContext context, HelpPageContent helpContent) {
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (context) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          final appState = context.read<MyAppState>();
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => Navigator.of(context).pop(),
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: GestureDetector(
+                onTap: () {},
+                child: Container(
+                  width: 210,
+                  height: 200,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
                   ),
-                  const SizedBox(width: 2),
-                  // help button
-                  CircleAvatar(
-                    radius: 25,
-                    backgroundColor: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
-                    child: IconButton(
-                      iconSize: 32,
-                      icon: Icon(
-                        Icons.question_mark,
-                        color: isDark ? Colors.white : Colors.black,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'Settings',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        Navigator.of(context).push(HelpOverlay.route(helpContent));
-                      },
-                    ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        child: const Text('Logout'),
+                        onPressed: () async {
+                          Navigator.of(context).pop();
+                          await context.read<MyAppState>().logout();
+                          try {
+                            await FirebaseAuth.instance.signOut();
+                          } catch (e) {
+                            print('Sign out failed: $e');
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircleAvatar(
+                            radius: 25,
+                            backgroundColor: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                            child: IconButton(
+                              iconSize: 32,
+                              icon: Icon(
+                                isDark ? Icons.dark_mode : Icons.light_mode,
+                                color: isDark ? Colors.white : Colors.black,
+                              ),
+                              onPressed: () => appState.toggleDarkMode(!isDark),
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+                          CircleAvatar(
+                            radius: 25,
+                            backgroundColor: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                            child: IconButton(
+                              iconSize: 32,
+                              icon: Icon(
+                                Icons.question_mark,
+                                color: isDark ? Colors.white : Colors.black,
+                              ),
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                Navigator.of(context).push(HelpOverlay.route(helpContent));
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ],
-          ),  
-        ),
+            ),
+          );
+        },
       );
-    },
-  );
-}
+    }
 
 class StarRating extends StatelessWidget {
   final double rating;
