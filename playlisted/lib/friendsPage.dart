@@ -165,12 +165,14 @@ class _FriendsPageState extends State<FriendsPage> {
             ),
           ),
 
+// Search results container, with email shown if the search query looks like an email, otherwise show username
         if (_userSearch)
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: LinearProgressIndicator(minHeight: 2),
           ),
 
+// Search results list, tapping a result will fill the text field with the selected user's email or username and show the add button
         if (_friendsSearchResults.isNotEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -185,13 +187,11 @@ class _FriendsPageState extends State<FriendsPage> {
                 itemBuilder: (context, index) {
                   final user = _friendsSearchResults[index];
                   final username = user['username'] as String? ?? 'Unknown';
-                  final email = user['email'] as String?;
 
                   return ListTile(
                     dense: true,
                     leading: const Icon(Icons.person_outline),
                     title: Text(username),
-                    subtitle: email != null ? Text(email) : null,
                     trailing: IconButton(
                       icon: const Icon(Icons.person_add_alt_1),
                       onPressed: _isAdding
