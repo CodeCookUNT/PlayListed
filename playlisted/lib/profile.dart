@@ -452,10 +452,12 @@ class ProfilePage extends StatelessWidget {
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete account?'),
+        title: const Center(child: Text('Delete Account?')),
         content: const Text(
-          'Are you sure? This permanently deletes your account and wipes your data.',
+          'Are You Sure? This Is Permanent and Deletes your Account Data.',
+          textAlign: TextAlign.center,
         ),
+        actionsAlignment: MainAxisAlignment.center,
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -464,7 +466,7 @@ class ProfilePage extends StatelessWidget {
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Yes, delete'),
+            child: const Text('Yes, Delete'),
           ),
         ],
       ),
@@ -515,6 +517,7 @@ class ProfilePage extends StatelessWidget {
               ),
             ),
           ),
+          actionsAlignment: MainAxisAlignment.center,
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
