@@ -452,9 +452,13 @@ class ProfilePage extends StatelessWidget {
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete account?'),
+        title: const Align(
+          alignment: Alignment.center,
+          child: Text('Delete Account?'),
+        ),
         content: const Text(
-          'Are you sure? This permanently deletes your account and wipes your data.',
+          'Are You Sure? This Is Permanent And Wipes All Your Account Data.',
+          textAlign: TextAlign.center,
         ),
         actions: [
           TextButton(
