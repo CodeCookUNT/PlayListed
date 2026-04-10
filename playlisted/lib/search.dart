@@ -22,16 +22,21 @@ class _SearchPageState extends State<SearchPage> {
   bool _isLoading = false;
   List<Track> _results = [];
   Timer? _searchDebounce;
+  int _activeSearchToken = 0;
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
   void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    final query = value.trim();
 
-    if (value.trim().isEmpty) {
+    if (query.isEmpty) {
+      _activeSearchToken++;
       setState(() {
         _results = [];
         _isLoading = false;
@@ -39,12 +44,15 @@ class _SearchPageState extends State<SearchPage> {
       return;
     }
 
-    _doSearch();
-  } 
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      _doSearch(query);
+    });
+  }
 
-  Future<void> _doSearch() async {
-    final query = _controller.text.trim();
+  Future<void> _doSearch([String? rawQuery]) async {
+    final query = (rawQuery ?? _controller.text).trim();
     if (query.isEmpty) return;
+    final token = ++_activeSearchToken;
 
     setState(() {
       _isLoading = true;
@@ -54,6 +62,8 @@ class _SearchPageState extends State<SearchPage> {
     try {
       // Try song search first
       final songs = await _musicService.searchSongs(query);
+      if (!mounted || token != _activeSearchToken) return;
+      if (_controller.text.trim() != query) return;
 
       if (songs.isNotEmpty) {
         setState(() {
@@ -64,12 +74,15 @@ class _SearchPageState extends State<SearchPage> {
       }
 
       final artistTracks = await _musicService.searchArtistTopSongs(query);
+      if (!mounted || token != _activeSearchToken) return;
+      if (_controller.text.trim() != query) return;
 
       setState(() {
         _results = artistTracks;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted || token != _activeSearchToken) return;
       setState(() {
         _isLoading = false;
       });
