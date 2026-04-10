@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class AccountDeletionService {
   AccountDeletionService._();
   static final AccountDeletionService instance = AccountDeletionService._();
+  static const Duration _cleanupTimeout = Duration(seconds: 12);
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -40,39 +43,9 @@ class AccountDeletionService {
     final username = (userDoc.data()?['username'] as String?)?.toLowerCase();
 
     try {
-      await _deleteCollection(_db.collection('users').doc(uid).collection('ratings'));
-      await _deleteCollection(_db.collection('users').doc(uid).collection('recommendations'));
-      await _deleteCollection(_db.collection('users').doc(uid).collection('friends'));
-      await _deleteCollection(_db.collection('users').doc(uid).collection('incoming_requests'));
-      await _deleteCollection(_db.collection('users').doc(uid).collection('outgoing_requests'));
-      await _deleteCollection(_db.collection('users').doc(uid).collection('co_liked'));
-
-      await _deleteDocsFromQuery(
-        _db.collection('song_reviews').where('userId', isEqualTo: uid),
-      );
-
-      // Best-effort cleanups for shared/cross-user areas.
-      // These may be blocked by security rules; do not stop auth deletion if so.
-      await _bestEffortDeleteDocsFromQuery(
-        _db.collection('conversations').where('participants', arrayContains: uid),
-        deleteSubcollections: const ['messages'],
-      );
-
-      await _bestEffortDeleteDocsFromQuery(
-        _db.collectionGroup('friends').where('friendUid', isEqualTo: uid),
-      );
-      await _bestEffortDeleteDocsFromQuery(
-        _db.collectionGroup('incoming_requests').where('fromUid', isEqualTo: uid),
-      );
-      await _bestEffortDeleteDocsFromQuery(
-        _db.collectionGroup('outgoing_requests').where('toUid', isEqualTo: uid),
-      );
-
-      await _db.collection('users').doc(uid).delete();
-
-      if (username != null && username.isNotEmpty) {
-        await _db.collection('usernames').doc(username).delete().catchError((_) {});
-      }
+      await _cleanupFirestoreData(uid: uid, username: username).timeout(_cleanupTimeout);
+    } on TimeoutException {
+      // Do not block auth deletion if data cleanup is slow on mobile networks/devices.
     } on FirebaseException catch (e) {
       if (e.code != 'permission-denied') {
         rethrow;
@@ -82,6 +55,42 @@ class AccountDeletionService {
 
     await user.delete();
     await _auth.signOut();
+  }
+
+  Future<void> _cleanupFirestoreData({
+    required String uid,
+    required String? username,
+  }) async {
+    await Future.wait([
+      _deleteCollection(_db.collection('users').doc(uid).collection('ratings')),
+      _deleteCollection(_db.collection('users').doc(uid).collection('recommendations')),
+      _deleteCollection(_db.collection('users').doc(uid).collection('friends')),
+      _deleteCollection(_db.collection('users').doc(uid).collection('incoming_requests')),
+      _deleteCollection(_db.collection('users').doc(uid).collection('outgoing_requests')),
+      _deleteCollection(_db.collection('users').doc(uid).collection('co_liked')),
+      _deleteDocsFromQuery(_db.collection('song_reviews').where('userId', isEqualTo: uid)),
+      // Best-effort cleanups for shared/cross-user areas.
+      // These may be blocked by security rules; do not stop auth deletion if so.
+      _bestEffortDeleteDocsFromQuery(
+        _db.collection('conversations').where('participants', arrayContains: uid),
+        deleteSubcollections: const ['messages'],
+      ),
+      _bestEffortDeleteDocsFromQuery(
+        _db.collectionGroup('friends').where('friendUid', isEqualTo: uid),
+      ),
+      _bestEffortDeleteDocsFromQuery(
+        _db.collectionGroup('incoming_requests').where('fromUid', isEqualTo: uid),
+      ),
+      _bestEffortDeleteDocsFromQuery(
+        _db.collectionGroup('outgoing_requests').where('toUid', isEqualTo: uid),
+      ),
+    ]);
+
+    await _db.collection('users').doc(uid).delete();
+
+    if (username != null && username.isNotEmpty) {
+      await _db.collection('usernames').doc(username).delete().catchError((_) {});
+    }
   }
 
   Future<void> _deleteCollection(CollectionReference<Map<String, dynamic>> colRef) async {
