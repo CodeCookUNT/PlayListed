@@ -220,6 +220,15 @@ class MyAppState extends ChangeNotifier {
     return isLoggingOut || opId != _operationId;
   }
 
+  void initializeSeenIds(List<String>? seenIds, List<String>? seenNameArtist) {
+    if (seenIds != null) {
+      _seenTrackIds.addAll(seenIds);
+    }
+    if (seenNameArtist != null) {
+      _seenTrackNameArtist.addAll(seenNameArtist);
+    }
+  }
+
   Future<void> loadUserRatings() async {
     if (isLoggingOut) return;
     final opId = _operationId;
@@ -251,9 +260,13 @@ class MyAppState extends ChangeNotifier {
       
       notifyListeners();
       print('Finished loading ${likedOrRated.length} ratings');
+      // Initialize seen tracks after loading user ratings
     } catch (e) {
       print('Error loading user ratings: $e');
     }
+    // Initialize seen tracks after loading user ratings
+    initializeSeenIds(_likedOrRatedIDs.toList(), _seenTrackNameArtist.toList());
+
   }
 
   Future<List<String>> getFriendsUids() async {
@@ -323,7 +336,7 @@ class MyAppState extends ChangeNotifier {
         accessToken!,
         recTracks,
         yearRange: yearRange,
-        limit: 10,
+        limit: 20,
       );
 
       tracks = newTracks;
@@ -331,7 +344,7 @@ class MyAppState extends ChangeNotifier {
         current = tracks![0];
 
         // track all returned tracks so we don't serve them again
-        _seenTrackIds.clear();
+        // Note: Do not clear _seenTrackIds here, as it contains liked track IDs from initializeSeenIds
         _seenTrackNameArtist.clear();
         for (final track in tracks!) {
           if (track.id != null && track.id!.isNotEmpty) {
@@ -380,7 +393,7 @@ class MyAppState extends ChangeNotifier {
         accessToken!,
         recTracks,
         yearRange: yearRange,
-        limit: 10,
+        limit: 20,
         excludeIds: _seenTrackIds,
         excludeNameArtist: _seenTrackNameArtist,
       );
@@ -528,7 +541,7 @@ class MyAppState extends ChangeNotifier {
       setTrackCounter(nextIndex);
 
       // if approaching the end, load more tracks in the background
-      if (nextIndex >= tracks!.length - 3) {
+      if (nextIndex >= tracks!.length - 8) {
         print('getNext: near end of feed (index $nextIndex/${tracks!.length}), loading more...');
         loadMoreTracks();
       }
