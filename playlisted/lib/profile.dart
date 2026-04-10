@@ -473,13 +473,6 @@ class ProfilePage extends StatelessWidget {
     if (shouldDelete != true || !context.mounted) return;
     final password = await _askForPassword(context);
     if (password == null || password.isEmpty || !context.mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(
-      const SnackBar(
-        duration: Duration(minutes: 1),
-        content: Text('Deleting account...'),
-      ),
-    );
 
     try {
       await AccountDeletionService.instance.reauthenticateAndDelete(
@@ -487,24 +480,18 @@ class ProfilePage extends StatelessWidget {
       );
     } on FirebaseAuthException catch (e) {
       if (context.mounted) {
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Delete failed: ${e.message ?? e.code}')),
         );
       }
       return;
     } catch (e) {
       if (context.mounted) {
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Delete failed: $e')),
         );
       }
       return;
-    }
-
-    if (context.mounted) {
-      messenger.hideCurrentSnackBar();
     }
   }
 
