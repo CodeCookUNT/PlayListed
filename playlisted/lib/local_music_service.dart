@@ -120,7 +120,7 @@ class _CsvMusicLibrary {
     return _dedupe(matches).take(limit).toList();
   }
 
-  List<Track> topSongs({String? yearRange, int limit = 50}) {
+  Future<List<Track>> topSongs({String? yearRange, int limit = 50}) async {
     Iterable<Track> source = _allTracks;
 
     if (yearRange != null) {
@@ -141,7 +141,19 @@ class _CsvMusicLibrary {
         return a.name.compareTo(b.name);
       });
 
-    return _dedupe(sorted).take(limit).toList();
+    final deduped = _dedupe(sorted).take(limit).toList();
+
+    for (final track in deduped) {
+      if (track.id != null && track.albumImageUrl == null) {
+        final imageUrl = await fetchAlbumImage(track.id!);
+        if (imageUrl != null && imageUrl.isNotEmpty) {
+          track.albumImageUrl = imageUrl;
+        }
+      }
+    }
+
+    return deduped;
+
   }
 
   List<Track> randomPopularSongs({int limit = 10, Set<String>? excludeIds}) {
@@ -177,7 +189,23 @@ class _CsvMusicLibrary {
     return pool.take(limit).toList();
   }
 
+   Future<String?> fetchAlbumImage(String trackId) async {
+      try {
+        final doc = await FirebaseFirestore.instance.collection('albumCovers').doc(trackId).get();
+        if(doc.exists){
+          final data = doc.data();
+          if(data != null && data['albumImageUrl'] != null){
+            return data['albumImageUrl'] as String;
+          }
+        }
+      } catch (e) {
+        print('Error fetching album image for track $trackId: $e');
+      }
+      return null;
+    }
+
   List<Track> _parseCsv(String rawCsv) {
+       
     final rows = rawCsv
         .split(RegExp(r'\r?\n'))
         .where((line) => line.trim().isNotEmpty)
@@ -371,7 +399,6 @@ class LocalMusicService {
 
     //get the album image from firestore, if not found get it from the spotify api and save it to firestore for future use
     Future<void> fetchAlbumImage(String accessToken, Track track) async {
-      print("Fetching album image for track ${track.name} by ${track.artists}... ");
       if(track.albumImageUrl != null) return;
       if (track.id == null || track.id!.isEmpty) return;
 
@@ -380,7 +407,6 @@ class LocalMusicService {
         if(doc.exists){
           final data = doc.data();
           if(data != null && data['albumImageUrl'] != null){
-            print("Foudn album image in Firestore for track ${track.name} by ${track.artists}");
             track.albumImageUrl = data['albumImageUrl'];
             return;
           }
@@ -440,7 +466,7 @@ class LocalMusicService {
 
     if (feed.length < limit) {
       final candidates = yearRange != null
-          ? _CsvMusicLibrary.instance.topSongs(
+          ? await _CsvMusicLibrary.instance.topSongs(
               yearRange: yearRange,
               limit: max(limit * 4, 40),
             )
