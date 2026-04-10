@@ -171,28 +171,49 @@ class SongInteractionPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: theme.appBarTheme.backgroundColor ?? theme.primaryColor,
-        title: Text(
-          'Playlistd',
-          style: GoogleFonts.montserrat(
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-            color: theme.appBarTheme.foregroundColor ?? Colors.white,
-            letterSpacing: 0.5,
+    return Consumer<MyAppState>(
+      builder: (context, appState, _) {
+        final isDark = appState.isDarkMode;
+        final vinyl = appState.vinylColor;
+
+        final gradientTop = isDark
+            ? Color.alphaBlend(vinyl.withOpacity(0.40), const Color(0xFF0A1628))
+            : Color.alphaBlend(vinyl.withOpacity(0.50), Colors.white);
+        final gradientBottom = isDark
+            ? const Color(0xFF0A1628)
+            : Colors.white;
+
+        return Scaffold(
+          appBar: AppBar(
+            backgroundColor: theme.appBarTheme.backgroundColor ?? theme.primaryColor,
+            title: Text(
+              'Playlistd',
+              style: GoogleFonts.montserrat(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: theme.appBarTheme.foregroundColor ?? Colors.white,
+                letterSpacing: 0.5,
+              ),
+            ),
+            iconTheme: theme.appBarTheme.iconTheme ?? const IconThemeData(color: Colors.white),
           ),
-        ),
-        iconTheme: theme.appBarTheme.iconTheme ?? const IconThemeData(color: Colors.white),
-      ),
-      body: Container(
-        color: theme.scaffoldBackgroundColor,
-        child: const GeneratorPage(
-          showScrollButtons: false,
-          centerVertically: true,
-        ),
-      ),
+          body: AnimatedContainer(
+            duration: const Duration(milliseconds: 900),
+            curve: Curves.easeInOut,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [gradientTop, gradientBottom],
+              ),
+            ),
+            child: const GeneratorPage(
+              showScrollButtons: false,
+              centerVertically: true,
+            ),
+          ),
+        );
+      },
     );
   }
 }

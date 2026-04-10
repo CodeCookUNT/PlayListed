@@ -1,7 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'local_music_service.dart';
 import 'package:provider/provider.dart';
 import 'main.dart';
@@ -17,6 +14,9 @@ class SpotifyCache {
 
   final Map<String, List<Track>> decadeTracks = {
     'Popular Now': [],
+    'Pop': [],
+    'Hip Hop': [],
+    'Rock': [],
     '2020s': [],
     '2010s': [],
     '2000s': [],
@@ -36,6 +36,32 @@ class SpotifyCache {
     isLoaded = false;
   }
 }
+
+// Color bars shown behind each decade/category title.
+// Each entry is a list of 2 colors that form a gradient strip.
+const Map<String, List<Color>> _decadeColors = {
+  'Popular Now': [Color(0xFF1DB954), Color(0xFF1583B7)],
+  // Genre rows
+  'Pop':     [Color(0xFFFF4E8C), Color(0xFFFF9A9E)],
+  'Hip Hop': [Color(0xFF1A1A2E), Color(0xFF8B5CF6)],
+  'Rock':    [Color(0xFF991B1B), Color(0xFFD97706)],
+  // Decade rows
+  '2020s': [Color(0xFF6C63FF), Color(0xFFE040FB)],
+  '2010s': [Color(0xFFFF6B35), Color(0xFFFFD700)],
+  '2000s': [Color(0xFF00CFDD), Color(0xFF005BEA)],
+  '90s':   [Color(0xFFFF0080), Color(0xFF7928CA)],
+  '80s':   [Color(0xFFFF6EC7), Color(0xFFFFD700)],
+  '70s':   [Color(0xFFD4A017), Color(0xFFB5451B)],
+  '60s':   [Color(0xFF43B89C), Color(0xFFE8A838)],
+  '50s':   [Color(0xFF708090), Color(0xFFB0C4DE)],
+};
+
+// Maps genre category labels to the genre bucket string used by the service.
+const Map<String, String> _genreCategories = {
+  'Pop': 'pop',
+  'Hip Hop': 'hip hop',
+  'Rock': 'rock',
+};
 
 class CollectionsPage extends StatefulWidget {
   const CollectionsPage({super.key});
@@ -62,9 +88,7 @@ class _CollectionsPageState extends State<CollectionsPage> {
 
   Future<void> _loadSpotifyData() async {
     if (_cache.isLoaded) {
-      setState(() {
-        _loading = false;
-      });
+      setState(() => _loading = false);
       return;
     }
 
@@ -72,13 +96,27 @@ class _CollectionsPageState extends State<CollectionsPage> {
       _accessToken = await _spotifyService.getAccessToken();
       final futures = <Future<void>>[];
 
+      // Popular Now
       futures.add(
         _spotifyService.fetchTopSongs(_accessToken, limit: 15).then((tracks) {
           _cache.decadeTracks['Popular Now'] = tracks;
         }),
       );
 
-      // fetch 15 songs for each decade
+      // Genre categories
+      for (final entry in _genreCategories.entries) {
+        final label = entry.key;
+        final bucket = entry.value;
+        futures.add(
+          _spotifyService
+              .fetchTopSongsByGenre(bucket, limit: 15)
+              .then((tracks) {
+            _cache.decadeTracks[label] = tracks;
+          }),
+        );
+      }
+
+      // Decade categories
       final decades = {
         '2020s': '2020-2029',
         '2010s': '2010-2019',
@@ -103,24 +141,20 @@ class _CollectionsPageState extends State<CollectionsPage> {
           }),
         );
       }
-      //await Future.wait(futures);
+
       for (final future in futures) {
         await future;
         await Future.delayed(const Duration(milliseconds: 250));
       }
+
       _cache.isLoaded = true;
 
       if (!mounted) return;
-      setState(() {
-        _loading = false;
-      });
+      setState(() => _loading = false);
     } catch (e) {
       debugPrint('Spotify load error: $e');
-
       if (!mounted) return;
-      setState(() {
-        _loading = false;
-      });
+      setState(() => _loading = false);
     }
   }
 
@@ -145,7 +179,6 @@ class _CollectionsPageState extends State<CollectionsPage> {
             : ListView(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 children: _cache.decadeTracks.entries.map((entry) {
-                  // Popular Now is always expanded
                   final isPopularNow = entry.key == 'Popular Now';
                   return _CollectionRow(
                     title: entry.key,
@@ -157,11 +190,8 @@ class _CollectionsPageState extends State<CollectionsPage> {
                     onHeaderTapped: () {
                       if (isPopularNow) return; // cannot collapse Popular Now
                       setState(() {
-                        if (_expandedCategory == entry.key) {
-                          _expandedCategory = null;
-                        } else {
-                          _expandedCategory = entry.key;
-                        }
+                        _expandedCategory =
+                            _expandedCategory == entry.key ? null : entry.key;
                       });
                     },
                     onTrackTapped: _onTrackTapped,
@@ -225,6 +255,8 @@ class _CollectionRowState extends State<_CollectionRow> {
   Widget build(BuildContext context) {
     if (widget.tracks.isEmpty) return const SizedBox.shrink();
 
+    final colors = _decadeColors[widget.title] ?? [const Color(0xFF1583B7)];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -232,23 +264,51 @@ class _CollectionRowState extends State<_CollectionRow> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: InkWell(
             onTap: widget.onHeaderTapped,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  widget.title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 20,
+            child: SizedBox(
+              height: 32,
+              child: Stack(
+                alignment: Alignment.centerLeft,
+                children: [
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(6),
+                        gradient: LinearGradient(
+                          colors: colors,
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                        ),
                       ),
-                ),
-                if (widget.title != 'Popular Now') // only show arrow for collapsible
-                  Icon(
-                    widget.isExpanded
-                        ? Icons.keyboard_arrow_up
-                        : Icons.keyboard_arrow_down,
+                    ),
                   ),
-              ],
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          widget.title,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 20,
+                                color: Colors.white,
+                              ),
+                        ),
+                        if (widget.title != 'Popular Now')
+                          Icon(
+                            widget.isExpanded
+                                ? Icons.keyboard_arrow_up
+                                : Icons.keyboard_arrow_down,
+                            color: Colors.white,
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -262,7 +322,7 @@ class _CollectionRowState extends State<_CollectionRow> {
                   padding: const EdgeInsets.symmetric(horizontal: 40),
                   scrollDirection: Axis.horizontal,
                   itemCount: widget.tracks.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  separatorBuilder: (_, _) => const SizedBox(width: 12),
                   itemBuilder: (context, index) {
                     return _AlbumCover(
                       track: widget.tracks[index],

@@ -1,5 +1,4 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'local_music_service.dart';
@@ -30,9 +29,11 @@ import 'notification_service.dart';
 import 'help_overlay.dart';
 import 'help_content.dart';
 import 'track_artwork.dart';
+import 'friend_likes_widget.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load();
   await SystemChrome.setPreferredOrientations(
     [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown],
   );
@@ -82,8 +83,14 @@ class MyApp extends StatelessWidget {
             foregroundColor: Colors.white,
           ),
           navigationBarTheme: const NavigationBarThemeData(
-            backgroundColor: Colors.white,
-            indicatorColor: Color(0xFF1583B7),
+            backgroundColor: Color(0xFF1583B7),  // matches your app bar color
+            indicatorColor: Colors.white24,
+            labelTextStyle: WidgetStatePropertyAll(
+              TextStyle(color: Colors.white, fontSize: 12),
+            ),
+            iconTheme: WidgetStatePropertyAll(
+              IconThemeData(color: Colors.white70),
+            ),
           ),
           ),
 
@@ -99,8 +106,14 @@ class MyApp extends StatelessWidget {
             foregroundColor: Colors.white,
           ),
           navigationBarTheme: const NavigationBarThemeData(
-            backgroundColor: Color(0xFF0A2233),
-            indicatorColor: Color(0xFF1583B7),
+          backgroundColor: Color(0xFF0A2233),
+          indicatorColor: Color(0xFF1583B7),
+          labelTextStyle: WidgetStatePropertyAll(
+            TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          iconTheme: WidgetStatePropertyAll(
+            IconThemeData(color: Colors.white70),
+            ),
           ),
           floatingActionButtonTheme: const FloatingActionButtonThemeData(
             backgroundColor: Color(0xFF1583B7),
@@ -155,7 +168,9 @@ class MyAppState extends ChangeNotifier {
   final List<String> _likedOrRatedIDs = [];
   bool isHomeFeedLoading = false;
   String? homeFeedError;
-  
+  bool isLoggingOut = false;
+  int _operationId = 0;
+
   //track which tracks have been seen to avoid serving them again
   final Set<String> _seenTrackIds = <String>{};
   final Set<String> _seenTrackNameArtist = <String>{};
@@ -176,14 +191,37 @@ class MyAppState extends ChangeNotifier {
     }
   }
 
-  void logout() {
+  Future<void> logout() async {
+    isLoggingOut = true;
+    _operationId++;
+    _deleteTimer?.cancel();
+    _deleteTimer = null;
+    _deltracks.clear();
     accessToken = null;
+    recTracks.clear();
+    _seenTrackIds.clear();
+    _seenTrackNameArtist.clear();
+    _tempLikedTracks.clear();
+    _likedOrRatedIDs.clear();
+    likedOrRated.clear();
+    favorites.clear();
+    tracks?.clear();
+    tracks = [];
+    current = null;
     vinylColor = Colors.black;
+    homeFeedError = null;
+    isHomeFeedLoading = false;
     SpotifyCache().clear();
     notifyListeners();
   }
 
+  bool _isOperationCanceled(int opId) {
+    return isLoggingOut || opId != _operationId;
+  }
+
   Future<void> loadUserRatings() async {
+    if (isLoggingOut) return;
+    final opId = _operationId;
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) {
       print('No user logged in, cannot load ratings');
@@ -196,6 +234,7 @@ class MyAppState extends ChangeNotifier {
           .doc(userId)
           .collection('ratings')
           .get();
+      if (_isOperationCanceled(opId)) return;
 
       print('Loading ${snapshot.docs.length} ratings from Firestore');
 
@@ -217,6 +256,7 @@ class MyAppState extends ChangeNotifier {
   }
 
   Future<List<String>> getFriendsUids() async {
+    if (isLoggingOut) return [];
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) return [];
 
@@ -230,24 +270,13 @@ class MyAppState extends ChangeNotifier {
     return snapshot.docs.map((doc) => doc.id).toList();
   }
 
-  Future<void> checkIfFriendLikedTrack(String trackId) async {
-    final friendsUids = await getFriendsUids();
-    for (String friendUid in friendsUids) {
-      final ratingDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(friendUid)
-          .collection('ratings')
-          .doc(trackId)
-          .get();
-      if (ratingDoc.exists) {
-        print('Friend $friendUid liked track $trackId');
-        return; // Just print once for now
-      }
-    }
-  }
 
   Future<void> loadRecommendations() async {
-    recTracks = await LocalMusicService().fetchRecommendedSongs();
+    if (isLoggingOut) return;
+    final opId = _operationId;
+    final recommended = await LocalMusicService().fetchRecommendedSongs();
+    if (_isOperationCanceled(opId)) return;
+    recTracks = recommended;
     print('loadRecommendations completed: ${recTracks.length} tracks loaded');
   }
 
@@ -259,10 +288,13 @@ class MyAppState extends ChangeNotifier {
   /// `tracks` list and `current` track are updated and listeners are
   /// notified.
   Future<void> loadFeed({String? yearRange}) async {
+    if (isLoggingOut) return;
+    final opId = _operationId;
     // grab token if we don't already have one
     if (accessToken == null) {
       try {
         accessToken = await LocalMusicService().getAccessToken();
+        if (_isOperationCanceled(opId)) return;
         print('Spotify token obtained in loadFeed');
       } catch (e) {
         homeFeedError = 'Unable to acquire Spotify token: $e';
@@ -276,6 +308,7 @@ class MyAppState extends ChangeNotifier {
     if (recTracks.isEmpty) {
       print('loadFeed: recTracks is empty, fetching recommendations...');
       await loadRecommendations();
+      if (_isOperationCanceled(opId)) return;
       print(
         'loadFeed: after loadRecommendations, recTracks has ${recTracks.length} items',
       );
@@ -295,9 +328,6 @@ class MyAppState extends ChangeNotifier {
       tracks = newTracks;
       if (tracks != null && tracks!.isNotEmpty) {
         current = tracks![0];
-        if (current!.id != null) {
-          checkIfFriendLikedTrack(current!.id!);
-        }
 
         // track all returned tracks so we don't serve them again
         _seenTrackIds.clear();
@@ -327,6 +357,8 @@ class MyAppState extends ChangeNotifier {
   /// recommendation/popular/random mix as loadFeed but excludes already
   /// loaded tracks.
   Future<void> loadMoreTracks({String? yearRange}) async {
+    if (isLoggingOut) return;
+    final opId = _operationId;
     if (accessToken == null) {
       print('loadMoreTracks: no access token, skipping');
       return;
@@ -344,6 +376,7 @@ class MyAppState extends ChangeNotifier {
         excludeIds: _seenTrackIds,
         excludeNameArtist: _seenTrackNameArtist,
       );
+      if (_isOperationCanceled(opId)) return;
 
       if (moreTracks.isNotEmpty) {
         tracks!.addAll(moreTracks);
@@ -400,10 +433,7 @@ class MyAppState extends ChangeNotifier {
     final k = keyOf(t);
 
     if (r <= 0) {
-      likedOrRated.remove(k);
-      favorites.removeWhere((x) => keyOf(x) == k);
-      _likedOrRatedIDs.remove(t.id!);
-      _tempLikedTracks.remove(current!.id!);
+      removeTrack(t, FirebaseAuth.instance.currentUser!.uid);
       Recommendations.instance.removeOneSongFromSource(current!.id!);
       if (t.id != null) {
         final userId = FirebaseAuth.instance.currentUser?.uid;
@@ -451,9 +481,6 @@ class MyAppState extends ChangeNotifier {
 
   void setCurrentTrack(Track track) {
     current = track;
-    if (track.id != null) {
-      checkIfFriendLikedTrack(track.id!);
-    }
     notifyListeners();
   }
 
@@ -462,9 +489,6 @@ class MyAppState extends ChangeNotifier {
       int currentIndex = tracks!.indexWhere((track) => track.name == current?.name);
       int nextIndex = (currentIndex + 1) % tracks!.length;
       current = tracks![nextIndex];
-      if (current!.id != null) {
-        checkIfFriendLikedTrack(current!.id!);
-      }
       setTrackCounter(nextIndex);
       //if approaching the end, load more tracks in the background
       if (nextIndex >= tracks!.length - 3) {
@@ -493,9 +517,6 @@ class MyAppState extends ChangeNotifier {
       int currentIndex = tracks!.indexWhere((track) => track.name == current?.name);
       int nextIndex = (currentIndex - 1) % tracks!.length;
       current = tracks![nextIndex];
-      if (current!.id != null) {
-        checkIfFriendLikedTrack(current!.id!);
-      }
       setTrackCounter(nextIndex);
     } else {
       current = null;
@@ -515,10 +536,7 @@ class MyAppState extends ChangeNotifier {
       _likedOrRatedIDs.add(current!.id!);
       _tempLikedTracks.add(current!.id!);
     } else {
-      favorites.removeWhere((t) => t.name == current!.name);
-      likedOrRated.remove(current!.name);
-      _likedOrRatedIDs.remove(current!.id!);
-      _tempLikedTracks.remove(current!.id!);
+      removeTrack(current!, FirebaseAuth.instance.currentUser!.uid);
       Recommendations.instance.removeOneSongFromSource(current!.id!);
     }
     notifyListeners();
@@ -535,23 +553,53 @@ class MyAppState extends ChangeNotifier {
     }
   }
   
-  void removeFavorite(String idToRemove) {
-    favorites.removeWhere((fav) => fav.id == idToRemove);
-    notifyListeners();
-  }
+  //one big function to remove from our caches, and the firestore
+  Future<void> removeTrack(dynamic track, String userId) async {
+    if (isLoggingOut) return;
+    final String? trackId;
+    final String? trackName;
 
-  void removeFromLikedOrRated(String idToRemove) {
-    _likedOrRatedIDs.remove(idToRemove);
-    final index = favorites.indexWhere((fav) => fav.id == idToRemove);
-    if (index != -1) {
-      final trackToRemove = favorites[index];
-      likedOrRated.remove(keyOf(trackToRemove));
-      favorites.removeAt(index);
+    if (track is Map<String, dynamic>) {
+      trackId = track['id'] as String?;
+      trackName = track['name'] as String?;
+    } else {
+      trackId = track.id as String?;
+      trackName = track.name as String?;
+    }
+
+    print('Removing track: $trackName (ID: $trackId)');
+
+    if (trackName != null) {
+      favorites.removeWhere((t) => t.name == trackName);
+      likedOrRated.remove(trackName);
+    }
+
+    if (trackId != null && trackId.isNotEmpty) {
+      _likedOrRatedIDs.remove(trackId);
+      _tempLikedTracks.remove(trackId);
+      Recommendations.instance.removeOneSongFromSource(trackId);
+    }
+
+    //now remove from the firestore
+    try {
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      if (currentUserId != null && trackId != null && trackId.isNotEmpty) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(currentUserId)
+            .collection('ratings')
+            .doc(trackId)
+            .delete();
+      }
+    } catch (e) {
+      print('Failed to remove track rating from Firestore: $e');
     }
     notifyListeners();
   }
 
   Future<void> generateRecommendation() async {
+    if (isLoggingOut) return;
+    final opId = _operationId;
     if (current == null || accessToken == null) {
       print('No liked track available for recommendations.');
       return;
@@ -559,14 +607,17 @@ class MyAppState extends ChangeNotifier {
 
     //run the recommendation algorithm (writes to Firestore)
     await recommendService.getRec(_tempLikedTracks, accessToken);
+    if (_isOperationCanceled(opId)) return;
 
     //pull the updated recommendations back into memory
     await loadRecommendations();
+    if (_isOperationCanceled(opId)) return;
 
     // f there is room in the current feed, fetch some new tracks now so
     //the user can immediately see the fresh recommendations
     if (tracks != null && tracks!.length < 5) {
       await loadMoreTracks();
+      if (_isOperationCanceled(opId)) return;
     }
 
     // don't clear _tempLikedTracks here; it is managed elsewhere
@@ -579,6 +630,8 @@ class MyAppState extends ChangeNotifier {
   }
 
   Future<void> _updateCoLiked(List<String> tempLikedTracks, List<String> likedOrRatedIDs) async {
+    if (isLoggingOut) return;
+    final opId = _operationId;
     final newTracks = List<String>.from(tempLikedTracks);
     if (newTracks.isEmpty) return;
 
@@ -591,18 +644,21 @@ class MyAppState extends ChangeNotifier {
             .doc(userId)
             .collection('co_liked')
             .get();
+        if (_isOperationCanceled(opId)) return;
         existingPairIds = snap.docs.map((d) => d.id).toSet();
       } catch (e) {
         print('Error fetching existing user co_likes: $e');
       }
     }
 
+    if (_isOperationCanceled(opId)) return;
     print('Updating co-liked for ${newTracks.length} new songs');
     await colikeService.updateCoLikedBatch(
       newSongIds: List.from(newTracks),
       existingLikedSongs: likedOrRatedIDs,
       existingPairIds: existingPairIds,
     );
+    if (_isOperationCanceled(opId)) return;
   }
 
   void toggleDarkMode(bool enabled) {
@@ -611,14 +667,19 @@ class MyAppState extends ChangeNotifier {
   }
 
   Future<void> initializeHomeFeed({String? yearRange}) async {
+    isLoggingOut = false;
     isHomeFeedLoading = true;
     homeFeedError = null;
     notifyListeners();
 
+    final opId = _operationId;
     try {
       await loadUserRatings();
+      if (_isOperationCanceled(opId)) return;
       await loadRecommendations();
+      if (_isOperationCanceled(opId)) return;
       await loadFeed(yearRange: yearRange);
+      if (_isOperationCanceled(opId)) return;
 
       if (current == null) {
         homeFeedError = 'No tracks returned.';
@@ -714,7 +775,19 @@ HelpPageContent get _currentHelpContent {
       builder: (context, constraints) {
         return Scaffold(
           appBar: AppBar(
-            leading: IconButton(
+            backgroundColor: Colors.transparent, 
+            flexibleSpace: Container(           
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: appState.isDarkMode
+                      ? [const Color(0xFF0A2233), const Color(0xFF1583B7)]
+                      : [const Color.fromARGB(255, 31, 139, 189), const Color.fromARGB(255, 57, 27, 190)],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+              ),
+            ),
+            leading: IconButton(                 
               icon: const Icon(Icons.settings),
               onPressed: () => _openSettings(context, _currentHelpContent),
             ),
@@ -752,25 +825,30 @@ HelpPageContent get _currentHelpContent {
                       : pages[selectedIndex],
                 )
               : pages[selectedIndex],
-          bottomNavigationBar: Container(
+            // The bottom navigation bar
+            bottomNavigationBar: Container(
             decoration: BoxDecoration(
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.5),
-                  blurRadius: 10,
-                  offset: const Offset(0, -3),
-                ),
-              ],
+              gradient: LinearGradient(
+                colors: appState.isDarkMode
+                    ? [const Color(0xFF0A2233), const Color(0xFF1583B7)]
+                    : [const Color.fromARGB(255, 31, 139, 189), const Color.fromARGB(255, 57, 27, 190)],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
             ),
             child: NavigationBar(
+              backgroundColor: Colors.transparent,
+              surfaceTintColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              indicatorColor: Colors.white24,
               labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
               destinations: const [
-                NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
-                NavigationDestination(icon: Icon(Icons.library_music), label: 'Songs'),
-                NavigationDestination(icon: Icon(Icons.search_rounded), label: 'Search'),
-                NavigationDestination(icon: Icon(Icons.people), label: 'Friends'),
-                NavigationDestination(icon: Icon(Icons.library_music_outlined), label: 'Collections'),
-                NavigationDestination(icon: Icon(Icons.person), label: 'Profile'),
+                NavigationDestination(icon: Icon(Icons.home, color: Colors.white), label: 'Home'),
+                NavigationDestination(icon: Icon(Icons.library_music, color: Colors.white), label: 'Songs'),
+                NavigationDestination(icon: Icon(Icons.search_rounded, color: Colors.white), label: 'Search'),
+                NavigationDestination(icon: Icon(Icons.people, color: Colors.white), label: 'Friends'),
+                NavigationDestination(icon: Icon(Icons.library_music_outlined, color: Colors.white), label: 'Collections'),
+                NavigationDestination(icon: Icon(Icons.person, color: Colors.white), label: 'Profile'),
               ],
               selectedIndex: selectedIndex,
               onDestinationSelected: (index) {
@@ -820,19 +898,20 @@ class GeneratorPage extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (track != null) ...[
-                      FutureBuilder<Map<String, dynamic>>(
-                        future: track.id != null 
-                          ? GlobalRatings.instance.getAverageRating(track.id!)
-                          : Future.value({'averageRating': 0.0, 'totalRatings': 0}),
+                      // Stream the global rating so BigCard always has the
+                      // latest community value to drive the vinyl colour.
+                      StreamBuilder<Map<String, dynamic>>(
+                        stream: track.id != null
+                            ? GlobalRatings.instance.watchAverageRating(track.id!)
+                            : Stream.value({'averageRating': 0.0, 'totalRatings': 0}),
                         builder: (context, snapshot) {
-                          final globalRating = snapshot.hasData 
-                            ? (snapshot.data!['averageRating'] as num?)?.toDouble() ?? 0.0
-                            : 0.0;
-                          
+                          final globalRating = snapshot.hasData
+                              ? (snapshot.data!['averageRating'] as num?)?.toDouble() ?? 0.0
+                              : 0.0;
+
                           return BigCard(
                             track: track,
                             globalRating: globalRating,
-                            userRating: appState.ratingFor(track),
                           );
                         },
                       ),
@@ -927,6 +1006,10 @@ class GeneratorPage extends StatelessWidget {
                     if (track != null && track.id != null) ...[
                       const SizedBox(height: 10),
                       GlobalRatingDisplay(trackId: track.id!),
+                      FriendLikesWidget(
+                        trackId: track.id!,
+                        trackName: track.name,
+                      ),
                     ],
 
                     const SizedBox(height: 24),
@@ -1294,11 +1377,16 @@ class _ReviewDialogState extends State<ReviewDialog> {
 }
 
 class BigCard extends StatefulWidget {
-  const BigCard({super.key, required this.track, this.globalRating = 0.0, this.userRating = 0.0});
+  // userRating is kept for the star display row above, but no longer
+  // influences the vinyl colour — that is driven by globalRating only.
+  const BigCard({
+    super.key,
+    required this.track,
+    this.globalRating = 0.0,
+  });
 
   final Track track;
   final double globalRating;
-  final double userRating;
 
   @override
   State<BigCard> createState() => _BigCardState();
@@ -1309,7 +1397,6 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
   late Animation<double> _slideAnimation;
   Track? _previousTrack;
   Color _currentVinylColor = Colors.black;
-  double _previousRating = 0.0;
 
   @override
   void initState() {
@@ -1325,11 +1412,10 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
       ),
     );
     _previousTrack = widget.track;
-    _previousRating = widget.globalRating;
-    _currentVinylColor = _getVinylColor(_effectiveRating());
+    // Vinyl colour is always driven by the global (community) rating.
+    _currentVinylColor = _getVinylColor(widget.globalRating);
     _animationController.forward();
 
-    // Push initial vinyl color to app state
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         context.read<MyAppState>().setVinylColor(_currentVinylColor);
@@ -1342,25 +1428,24 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
     super.didUpdateWidget(oldWidget);
 
     if (oldWidget.track.id != widget.track.id) {
+      // Track changed — reset animation and recalculate colour.
       _previousTrack = oldWidget.track;
-      _previousRating = oldWidget.globalRating;
       setState(() {
-        _currentVinylColor = _getVinylColor(_effectiveRating());
+        _currentVinylColor = _getVinylColor(widget.globalRating);
       });
       _animationController.reset();
       _animationController.forward();
 
-      // Notify app state of new vinyl color
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           context.read<MyAppState>().setVinylColor(_currentVinylColor);
         }
       });
-    } else if (oldWidget.globalRating != widget.globalRating || oldWidget.userRating != widget.userRating) {
+    } else if (oldWidget.globalRating != widget.globalRating) {
+      // Same track but community rating updated — update colour.
       setState(() {
-        _currentVinylColor = _getVinylColor(_effectiveRating());
+        _currentVinylColor = _getVinylColor(widget.globalRating);
       });
-      // Notify app state when rating changes color
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           context.read<MyAppState>().setVinylColor(_currentVinylColor);
@@ -1373,14 +1458,6 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
   void dispose() {
     _animationController.dispose();
     super.dispose();
-  }
-  
-  double _effectiveRating() {
-    // Combine global and user rating for vinyl color
-    if (widget.userRating > 0) {
-      return widget.userRating;
-    }
-    return widget.globalRating;
   }
 
   Color _getVinylColor(double rating) {
@@ -1605,82 +1682,92 @@ class GlobalRatingDisplay extends StatelessWidget {
   }
 }
 
-void _openSettings(BuildContext context, HelpPageContent helpContent) {
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: Colors.transparent,
-    builder: (context) {
-      final isDark = Theme.of(context).brightness == Brightness.dark;
-      final appState = context.read<MyAppState>();
-      return Align(
-        alignment: Alignment.bottomCenter,
-        child: Container(
-          width: 210,
-          height:200,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const Text(
-                  'Settings',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  child: const Text('Logout'),
-                  onPressed: () async {
-                    context.read<MyAppState>().logout();
-                    await FirebaseAuth.instance.signOut();
-                    Navigator.of(context).pop();
-                  },
-                ),
-                const SizedBox(height: 20),
-                Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // dark/light mode button
-                  CircleAvatar(
-                    radius: 25,
-                    backgroundColor: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
-                    child: IconButton(
-                      iconSize: 32,
-                      icon: Icon(
-                        isDark ? Icons.dark_mode : Icons.light_mode,
-                        color: isDark ? Colors.white : Colors.black,
-                      ),
-                      onPressed: () => appState.toggleDarkMode(!isDark),
-                    ),
+    // Opens the settings bottom sheet with options to logout, toggle dark mode, and view help.
+    void _openSettings(BuildContext context, HelpPageContent helpContent) {
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (context) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          final appState = context.read<MyAppState>();
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => Navigator.of(context).pop(),
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: GestureDetector(
+                onTap: () {},
+                child: Container(
+                  width: 210,
+                  height: 200,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
                   ),
-                  const SizedBox(width: 2),
-                  // help button
-                  CircleAvatar(
-                    radius: 25,
-                    backgroundColor: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
-                    child: IconButton(
-                      iconSize: 32,
-                      icon: Icon(
-                        Icons.question_mark,
-                        color: isDark ? Colors.white : Colors.black,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'Settings',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        Navigator.of(context).push(HelpOverlay.route(helpContent));
-                      },
-                    ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        child: const Text('Logout'),
+                        onPressed: () async {
+                          Navigator.of(context).pop();
+                          await context.read<MyAppState>().logout();
+                          try {
+                            await FirebaseAuth.instance.signOut();
+                          } catch (e) {
+                            print('Sign out failed: $e');
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircleAvatar(
+                            radius: 25,
+                            backgroundColor: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                            child: IconButton(
+                              iconSize: 32,
+                              icon: Icon(
+                                isDark ? Icons.dark_mode : Icons.light_mode,
+                                color: isDark ? Colors.white : Colors.black,
+                              ),
+                              onPressed: () => appState.toggleDarkMode(!isDark),
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+                          CircleAvatar(
+                            radius: 25,
+                            backgroundColor: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                            child: IconButton(
+                              iconSize: 32,
+                              icon: Icon(
+                                Icons.question_mark,
+                                color: isDark ? Colors.white : Colors.black,
+                              ),
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                Navigator.of(context).push(HelpOverlay.route(helpContent));
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ],
-          ),  
-        ),
+            ),
+          );
+        },
       );
-    },
-  );
-}
+    }
 
 class StarRating extends StatelessWidget {
   final double rating;

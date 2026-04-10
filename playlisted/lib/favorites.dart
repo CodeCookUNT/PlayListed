@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'main.dart' show MyAppState;
 
 class Favorites {
   Favorites._();
@@ -133,7 +134,8 @@ class Favorites {
 
   // Delete the song from the database
   Future<void> deleteTrack({required String trackId}) async {
-    await _col.doc(trackId).delete();
+  await _col.doc(trackId).delete();
+
     // Also delete from global reviews
     // try {
     //   await FirebaseFirestore.instance

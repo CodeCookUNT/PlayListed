@@ -1,8 +1,11 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
 
 class Track {
   final String name;
@@ -10,12 +13,13 @@ class Track {
   final int durationMs;
   final bool explicit;
   final String url;
-  final String? albumImageUrl;
+  String? albumImageUrl;
   final int? popularity;
   final String? releaseDate;
   final String? id;
   final String? artistId;
   final double? score;
+  final String? genre; // e.g. 'pop', 'hip hop', 'rock'
 
   Track({
     required this.name,
@@ -29,7 +33,72 @@ class Track {
     this.id,
     this.artistId,
     this.score,
+    this.genre,
   });
+}
+
+const _popArtistKeywords = [
+  'taylor swift', 'ariana grande', 'ed sheeran', 'dua lipa', 'billie eilish',
+  'harry styles', 'the weeknd', 'post malone', 'selena gomez', 'justin bieber',
+  'lady gaga', 'katy perry', 'charlie puth', 'shawn mendes', 'camila cabello',
+  'lizzo', 'olivia rodrigo', 'doja cat', 'bts', 'one direction',
+  'miley cyrus', 'sam smith', 'sia', 'halsey', 'maroon 5',
+  'carly rae jepsen', 'meghan trainor', 'bebe rexha', 'ava max', 'zara larsson',
+];
+
+const _hipHopArtistKeywords = [
+  'drake', 'kendrick lamar', 'kanye west', 'jay-z', 'eminem',
+  'lil wayne', 'nicki minaj', 'cardi b', 'travis scott', 'j. cole',
+  'a\$ap rocky', 'future', 'young thug', 'lil uzi vert', '21 savage',
+  'chance the rapper', 'mac miller', 'childish gambino', 'tyler the creator',
+  'megan thee stallion', 'roddy ricch', 'dababy', 'polo g', 'lil baby',
+  'gunna', 'juice wrld', 'xxxtentacion', 'playboi carti', 'trippie redd',
+  'rick ross', 'meek mill', 'wiz khalifa', 'snoop dogg', 'ice cube',
+];
+
+const _rockArtistKeywords = [
+  'queen', 'the beatles', 'led zeppelin', 'rolling stones', 'ac/dc',
+  'nirvana', 'foo fighters', 'red hot chili peppers', 'green day', 'linkin park',
+  'metallica', 'guns n\' roses', 'bon jovi', 'u2', 'coldplay',
+  'radiohead', 'the killers', 'imagine dragons', 'twenty one pilots', 'fall out boy',
+  'panic! at the disco', 'my chemical romance', 'blink-182', 'paramore', 'the strokes',
+  'arctic monkeys', 'muse', 'system of a down', 'rage against the machine', 'pearl jam',
+  'soundgarden', 'alice in chains', 'smashing pumpkins', 'aerosmith', 'def leppard',
+];
+
+String? _inferGenreFromArtist(String artists) {
+  final lower = artists.toLowerCase();
+
+  for (final kw in _hipHopArtistKeywords) {
+    if (lower.contains(kw)) return 'hip hop';
+  }
+  for (final kw in _rockArtistKeywords) {
+    if (lower.contains(kw)) return 'rock';
+  }
+  for (final kw in _popArtistKeywords) {
+    if (lower.contains(kw)) return 'pop';
+  }
+  return null;
+}
+
+// Normalise whatever the CSV stores so it maps to our three buckets.
+String? _normaliseGenre(String raw) {
+  final lower = raw.toLowerCase().trim();
+  if (lower.contains('hip hop') || lower.contains('hip-hop') ||
+      lower.contains('rap') || lower.contains('trap') ||
+      lower.contains('r&b') || lower.contains('rnb')) {
+    return 'hip hop';
+  }
+  if (lower.contains('rock') || lower.contains('metal') ||
+      lower.contains('punk') || lower.contains('grunge') ||
+      lower.contains('alternative') || lower.contains('indie')) {
+    return 'rock';
+  }
+  if (lower.contains('pop') || lower.contains('dance') ||
+      lower.contains('electro') || lower.contains('synth')) {
+    return 'pop';
+  }
+  return null;
 }
 
 class _CsvMusicLibrary {
@@ -117,7 +186,7 @@ class _CsvMusicLibrary {
     return _dedupe(matches).take(limit).toList();
   }
 
-  List<Track> topSongs({String? yearRange, int limit = 50}) {
+  Future<List<Track>> topSongs({String? yearRange, int limit = 50}) async {
     Iterable<Track> source = _allTracks;
 
     if (yearRange != null) {
@@ -138,7 +207,39 @@ class _CsvMusicLibrary {
         return a.name.compareTo(b.name);
       });
 
-    return _dedupe(sorted).take(limit).toList();
+    final deduped = _dedupe(sorted).take(limit).toList();
+
+    for (final track in deduped) {
+      if (track.id != null && track.albumImageUrl == null) {
+        final imageUrl = await fetchAlbumImage(track.id!);
+        if (imageUrl != null && imageUrl.isNotEmpty) {
+          track.albumImageUrl = imageUrl;
+        }
+      }
+    }
+
+    return deduped;
+
+  }
+
+  /// Returns top tracks filtered by genre bucket ('pop', 'hip hop', 'rock').
+  /// Matching uses the parsed genre field first, then falls back to
+  /// keyword-based artist inference.
+  List<Track> topSongsByGenre(String genreBucket, {int limit = 15}) {
+    final target = genreBucket.toLowerCase().trim();
+
+    final matches = _allTracks.where((track) {
+      final g = track.genre ?? _inferGenreFromArtist(track.artists);
+      return g == target;
+    }).toList()
+      ..sort((a, b) {
+        final popularityCompare =
+            (b.popularity ?? 0).compareTo(a.popularity ?? 0);
+        if (popularityCompare != 0) return popularityCompare;
+        return a.name.compareTo(b.name);
+      });
+
+    return _dedupe(matches).take(limit).toList();
   }
 
   List<Track> randomPopularSongs({int limit = 10, Set<String>? excludeIds}) {
@@ -174,7 +275,23 @@ class _CsvMusicLibrary {
     return pool.take(limit).toList();
   }
 
+   Future<String?> fetchAlbumImage(String trackId) async {
+      try {
+        final doc = await FirebaseFirestore.instance.collection('albumCovers').doc(trackId).get();
+        if(doc.exists){
+          final data = doc.data();
+          if(data != null && data['albumImageUrl'] != null){
+            return data['albumImageUrl'] as String;
+          }
+        }
+      } catch (e) {
+        print('Error fetching album image for track $trackId: $e');
+      }
+      return null;
+    }
+
   List<Track> _parseCsv(String rawCsv) {
+       
     final rows = rawCsv
         .split(RegExp(r'\r?\n'))
         .where((line) => line.trim().isNotEmpty)
@@ -205,6 +322,16 @@ class _CsvMusicLibrary {
         ['track_album_release_date', 'release_date'],
       );
 
+      // Try to read genre from CSV; fall back to artist-keyword inference.
+      final rawGenre = _value(data, [
+        'playlist_genre',
+        'genre',
+        'track_genre',
+      ]);
+      final genre = rawGenre.isNotEmpty
+          ? _normaliseGenre(rawGenre)
+          : _inferGenreFromArtist(artists);
+
       tracks.add(
         Track(
           name: trackName,
@@ -218,6 +345,7 @@ class _CsvMusicLibrary {
           id: id.isEmpty ? null : id,
           artistId: null,
           score: popularity == null ? null : popularity / 100.0,
+          genre: genre,
         ),
       );
     }
@@ -307,8 +435,26 @@ class LocalMusicService {
   String get _uid => FirebaseAuth.instance.currentUser!.uid;
 
   Future<String> getAccessToken() async {
-    await _CsvMusicLibrary.instance.ensureLoaded();
-    return 'local-csv';
+    final clientId = dotenv.env['SPOTIFY_CLIENT_ID']!;
+    final clientSecret = dotenv.env['SPOTIFY_CLIENT_SECRET']!;
+
+    final credentials = base64Encode(utf8.encode('$clientId:$clientSecret'));
+    
+    final response = await http.post(
+      Uri.parse('https://accounts.spotify.com/api/token'),
+      headers: {
+        'Authorization': 'Basic $credentials',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: {'grant_type': 'client_credentials'},
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['access_token'];
+    } else {
+      throw Exception('Failed to get token: ${response.body}');
+    }
   }
 
   Future<List<Track>> fetchSongs(
@@ -325,7 +471,57 @@ class LocalMusicService {
     final seenNameArtist = <String>{...(excludeNameArtist ?? {})};
     final feed = <Track>[];
 
-    void addUnique(Track track) {
+     Future<String?> getAlbumImageFromAPI(String accessToken, String trackId) async {
+      try {
+        final response = await http.get(
+          Uri.parse('https://api.spotify.com/v1/tracks/$trackId'),
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+            'Content-Type': 'application/json',
+          },
+        );
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final images = data['album']?['images'] as List?;
+          if (images != null && images.isNotEmpty) {
+            return images[0]['url'] as String?;
+          }
+        }
+      } catch (e) {
+        print('Error fetching album image: $e');
+      }
+      return null;
+    }
+
+    //get the album image from firestore, if not found get it from the spotify api and save it to firestore for future use
+    Future<void> fetchAlbumImage(String accessToken, Track track) async {
+      if(track.albumImageUrl != null) return;
+      if (track.id == null || track.id!.isEmpty) return;
+
+      try {
+        final doc = await FirebaseFirestore.instance.collection('albumCovers').doc(track.id).get();
+        if(doc.exists){
+          final data = doc.data();
+          if(data != null && data['albumImageUrl'] != null){
+            track.albumImageUrl = data['albumImageUrl'];
+            return;
+          }
+        }
+        
+        //if no track image is found get the album image from the spotify api and save it to firestore for future use
+        track.albumImageUrl = await getAlbumImageFromAPI(accessToken, track.id!);
+        if(track.albumImageUrl != null){
+          await setAlbumImageUrl(track.id!, track.albumImageUrl!);
+        }
+      } catch (e) {
+        print('Error in fetchAlbumImage for track ${track.id}: $e');
+      }
+      print("Album image for track ${track.name} by ${track.artists}: ${track.albumImageUrl ?? 'not found'}");
+    }
+
+
+    Future<void> addUnique(Track track) async {
       final key = '${track.name}|${track.artists}'.toLowerCase();
 
       if (track.id != null && track.id!.isNotEmpty) {
@@ -335,9 +531,10 @@ class LocalMusicService {
 
       if (seenNameArtist.contains(key)) return;
       seenNameArtist.add(key);
+      await fetchAlbumImage(accessToken, track);
       feed.add(track);
     }
-  
+
     final validRec = recTracks.entries
         .where((entry) => entry.key.id != null && entry.key.id!.isNotEmpty)
         .toList()
@@ -345,7 +542,7 @@ class LocalMusicService {
 
     for (final entry in validRec) {
       if (feed.length >= 8) break;
-      addUnique(entry.key);
+      await addUnique(entry.key);
     }
 
     if (feed.length < 8) {
@@ -353,18 +550,19 @@ class LocalMusicService {
           _CsvMusicLibrary.instance.randomSongs(limit: 8 - feed.length);
       for (final track in extraRecommendations) {
         if (feed.length >= 8) break;
-        addUnique(track);
+        await addUnique(track);
       }
     }
 
-    final popularTracks = _CsvMusicLibrary.instance.randomPopularSongs(limit: 3);
+    final popularTracks =
+        _CsvMusicLibrary.instance.randomPopularSongs(limit: 3);
     for (final track in popularTracks) {
-      addUnique(track);
+      await addUnique(track);
     }
 
     if (feed.length < limit) {
       final candidates = yearRange != null
-          ? _CsvMusicLibrary.instance.topSongs(
+          ? await _CsvMusicLibrary.instance.topSongs(
               yearRange: yearRange,
               limit: max(limit * 4, 40),
             )
@@ -372,15 +570,16 @@ class LocalMusicService {
 
       for (final track in candidates) {
         if (feed.length >= limit) break;
-        addUnique(track);
+        await addUnique(track);
       }
     }
 
     if (feed.length < limit) {
-      final fallback = _CsvMusicLibrary.instance.randomSongs(limit: limit * 3);
+      final fallback =
+          _CsvMusicLibrary.instance.randomSongs(limit: limit * 3);
       for (final track in fallback) {
         if (feed.length >= limit) break;
-        addUnique(track);
+        await addUnique(track);
       }
     }
 
@@ -405,6 +604,16 @@ class LocalMusicService {
     );
   }
 
+  /// Fetches the top [limit] tracks for a given genre bucket.
+  /// [genre] should be one of: 'pop', 'hip hop', 'rock'.
+  Future<List<Track>> fetchTopSongsByGenre(
+    String genre, {
+    int limit = 15,
+  }) async {
+    await _CsvMusicLibrary.instance.ensureLoaded();
+    return _CsvMusicLibrary.instance.topSongsByGenre(genre, limit: limit);
+  }
+
   Future<List<Track>> searchSongs(String query, {int limit = 20}) async {
     await _CsvMusicLibrary.instance.ensureLoaded();
     return _CsvMusicLibrary.instance.searchSongs(query, limit: limit);
@@ -426,7 +635,7 @@ class LocalMusicService {
     return _CsvMusicLibrary.instance.trackById(trackId);
   }
 
-  Future<Map<Track, double>> fetchRecommendedSongs() async{
+  Future<Map<Track, double>> fetchRecommendedSongs() async {
     if (FirebaseAuth.instance.currentUser == null) {
       print("fetchRecommendedSongs: User not authenticated");
       return {};
@@ -442,13 +651,14 @@ class LocalMusicService {
           .doc(_uid)
           .collection('recommendations')
           .get();
-        
-      if(q1.docs.isEmpty){
-        print("fetchRecommendedSongs: No recommendations found for user $_uid");
+
+      if (q1.docs.isEmpty) {
+        print(
+            "fetchRecommendedSongs: No recommendations found for user $_uid");
         return {};
       }
 
-      for(var doc in q1.docs){
+      for (var doc in q1.docs) {
         final track = Track(
           name: doc['name'] ?? '',
           artists: doc['artists'] ?? '',
@@ -456,17 +666,32 @@ class LocalMusicService {
           explicit: doc['explicit'] ?? false,
           url: doc['url'] ?? '',
           albumImageUrl: doc['albumImageUrl'],
-          score: doc['score'] != null ? (doc['score'] as num).toDouble() : 0.0,
+          score:
+              doc['score'] != null ? (doc['score'] as num).toDouble() : 0.0,
           id: doc.id,
         );
         final score = (doc['score'] as num?)?.toDouble() ?? 0.0;
         recommendedTracks[track] = score;
       }
 
-      print("fetchRecommendedSongs: Fetched ${recommendedTracks.length} recommended tracks for user $_uid");
+      print(
+          "fetchRecommendedSongs: Fetched ${recommendedTracks.length} recommended tracks for user $_uid");
     } catch (e) {
       print("Error fetching recommendations for user $_uid: $e");
     }
     return recommendedTracks;
   }
+
+  Future<void> setAlbumImageUrl(String trackId, String albumImageUrl) async {
+    if (trackId.isEmpty) return;
+
+    try {
+      await FirebaseFirestore.instance.collection('albumCovers').doc(trackId).set({
+        'albumImageUrl': albumImageUrl,
+      }, SetOptions(merge: true));
+    } catch (e) {
+      print('Error setting album image URL for track $trackId: $e');
+    }
+  }
+
 }
