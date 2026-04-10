@@ -192,16 +192,37 @@ class _FriendsPageState extends State<FriendsPage> {
                     dense: true,
                     leading: const Icon(Icons.person_outline),
                     title: Text(username),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.person_add_alt_1),
-                      onPressed: _isAdding
-                          ? null
-                          : () {
-                              final selected = _userIdentifier(user);
-                              _emailController.text = selected;
-                              _onFriendSearchChanged(selected);
-                              _addFriend();
-                            },
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.account_box_outlined),
+                          tooltip: 'View profile',
+                          onPressed: () {
+                            final uid = user['uid'] as String?;
+                            if (uid == null || uid.isEmpty) return;
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => Scaffold(
+                                  appBar: AppBar(title: Text("$username's Profile")),
+                                  body: ProfilePage(uid: uid),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.person_add_alt_1),
+                          onPressed: _isAdding
+                              ? null
+                              : () {
+                                  final selected = _userIdentifier(user);
+                                  _emailController.text = selected;
+                                  _onFriendSearchChanged(selected);
+                                  _addFriend();
+                                },
+                        ),
+                      ],
                     ),
                     onTap: () {
                       final selected = _userIdentifier(user);
