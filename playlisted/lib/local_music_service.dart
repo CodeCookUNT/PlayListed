@@ -432,6 +432,54 @@ class _CsvMusicLibrary {
 }
 
 class LocalMusicService {
+  Future<String?> getAlbumImageFromAPI(String accessToken, String trackId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://api.spotify.com/v1/tracks/$trackId'),
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final images = data['album']?['images'] as List?;
+        if (images != null && images.isNotEmpty) {
+          return images[0]['url'] as String?;
+        }
+      }
+    } catch (e) {
+      print('Error fetching album image: $e');
+    }
+    return null;
+  }
+//get the album image from firestore, if not found get it from the spotify api and save it to firestore for future use
+  Future<void> fetchAlbumImage(String accessToken, Track track) async {
+    if (track.albumImageUrl != null && track.albumImageUrl!.trim().isNotEmpty) return;
+    if (track.id == null || track.id!.isEmpty) return;
+
+    try {
+      final doc = await FirebaseFirestore.instance.collection('albumCovers').doc(track.id).get();
+      if(doc.exists){
+        final data = doc.data();
+        if(data != null && data['albumImageUrl'] != null){
+          track.albumImageUrl = data['albumImageUrl'];
+          return;
+        }
+      }
+        
+      //if no track image is found get the album image from the spotify api and save it to firestore for future use
+      track.albumImageUrl = await getAlbumImageFromAPI(accessToken, track.id!);
+      if(track.albumImageUrl != null){
+        await setAlbumImageUrl(track.id!, track.albumImageUrl!);
+      }
+    } catch (e) {
+      print('Error in fetchAlbumImage for track ${track.id}: $e');
+    }
+    print("Album image for track ${track.name} by ${track.artists}: ${track.albumImageUrl ?? 'not found'}");
+  }
+
   String get _uid => FirebaseAuth.instance.currentUser!.uid;
 
   Future<String> getAccessToken() async {
@@ -471,54 +519,7 @@ class LocalMusicService {
     final seenNameArtist = <String>{...(excludeNameArtist ?? {})};
     final feed = <Track>[];
 
-     Future<String?> getAlbumImageFromAPI(String accessToken, String trackId) async {
-      try {
-        final response = await http.get(
-          Uri.parse('https://api.spotify.com/v1/tracks/$trackId'),
-          headers: {
-            'Authorization': 'Bearer $accessToken',
-            'Content-Type': 'application/json',
-          },
-        );
-
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          final images = data['album']?['images'] as List?;
-          if (images != null && images.isNotEmpty) {
-            return images[0]['url'] as String?;
-          }
-        }
-      } catch (e) {
-        print('Error fetching album image: $e');
-      }
-      return null;
-    }
-
-    //get the album image from firestore, if not found get it from the spotify api and save it to firestore for future use
-    Future<void> fetchAlbumImage(String accessToken, Track track) async {
-      if(track.albumImageUrl != null) return;
-      if (track.id == null || track.id!.isEmpty) return;
-
-      try {
-        final doc = await FirebaseFirestore.instance.collection('albumCovers').doc(track.id).get();
-        if(doc.exists){
-          final data = doc.data();
-          if(data != null && data['albumImageUrl'] != null){
-            track.albumImageUrl = data['albumImageUrl'];
-            return;
-          }
-        }
-        
-        //if no track image is found get the album image from the spotify api and save it to firestore for future use
-        track.albumImageUrl = await getAlbumImageFromAPI(accessToken, track.id!);
-        if(track.albumImageUrl != null){
-          await setAlbumImageUrl(track.id!, track.albumImageUrl!);
-        }
-      } catch (e) {
-        print('Error in fetchAlbumImage for track ${track.id}: $e');
-      }
-      print("Album image for track ${track.name} by ${track.artists}: ${track.albumImageUrl ?? 'not found'}");
-    }
+     
 
 
     Future<void> addUnique(Track track) async {
@@ -619,7 +620,13 @@ class LocalMusicService {
 
   Future<List<Track>> searchSongs(String query, {int limit = 20}) async {
     await _CsvMusicLibrary.instance.ensureLoaded();
-    return _CsvMusicLibrary.instance.searchSongs(query, limit: limit);
+    final token = await getAccessToken();
+    final tracks = _CsvMusicLibrary.instance.searchSongs(query, limit: limit);
+
+    await Future.wait(
+      tracks.map((track) => fetchAlbumImage(token, track)),
+    );
+    return tracks;
   }
 
   Future<List<Track>> searchArtistTopSongs(
@@ -627,10 +634,17 @@ class LocalMusicService {
     int limit = 20,
   }) async {
     await _CsvMusicLibrary.instance.ensureLoaded();
-    return _CsvMusicLibrary.instance.searchArtistTopSongs(
+    final token = await getAccessToken();
+    final tracks = _CsvMusicLibrary.instance.searchArtistTopSongs(
       artistName,
       limit: limit,
     );
+
+    await Future.wait(
+      tracks.map((track) => fetchAlbumImage(token, track)),
+    );
+
+    return tracks;
   }
 
   Future<Track?> fetchTrackById(String trackId) async {
