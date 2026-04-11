@@ -216,7 +216,6 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
     },
   );
 }
-}
 
 
 class SignUpPage extends StatefulWidget {
