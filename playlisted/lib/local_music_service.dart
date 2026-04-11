@@ -535,21 +535,24 @@ class LocalMusicService {
       feed.add(track);
     }
 
+    print("Seen Track IDs: $seenIds");
+    print("Seen Name|Artist: $seenNameArtist");
+
     final validRec = recTracks.entries
         .where((entry) => entry.key.id != null && entry.key.id!.isNotEmpty)
         .toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
     for (final entry in validRec) {
-      if (feed.length >= 8) break;
+      if (feed.length >= 16) break;
       await addUnique(entry.key);
     }
 
-    if (feed.length < 8) {
+    if (feed.length < 16) {
       final extraRecommendations =
           _CsvMusicLibrary.instance.randomSongs(limit: 8 - feed.length);
       for (final track in extraRecommendations) {
-        if (feed.length >= 8) break;
+        if (feed.length >= 16) break;
         await addUnique(track);
       }
     }

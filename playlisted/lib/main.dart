@@ -167,6 +167,7 @@ class MyAppState extends ChangeNotifier {
   final Map<String, double> likedOrRated = {};
   final List<String> _likedOrRatedIDs = [];
   bool isHomeFeedLoading = false;
+  bool _isLoadingMoreTracks = false;
   String? homeFeedError;
   bool isLoggingOut = false;
   int _operationId = 0;
@@ -219,6 +220,15 @@ class MyAppState extends ChangeNotifier {
     return isLoggingOut || opId != _operationId;
   }
 
+  void initializeSeenIds(List<String>? seenIds, List<String>? seenNameArtist) {
+    if (seenIds != null) {
+      _seenTrackIds.addAll(seenIds);
+    }
+    if (seenNameArtist != null) {
+      _seenTrackNameArtist.addAll(seenNameArtist);
+    }
+  }
+
   Future<void> loadUserRatings() async {
     if (isLoggingOut) return;
     final opId = _operationId;
@@ -250,9 +260,13 @@ class MyAppState extends ChangeNotifier {
       
       notifyListeners();
       print('Finished loading ${likedOrRated.length} ratings');
+      // Initialize seen tracks after loading user ratings
     } catch (e) {
       print('Error loading user ratings: $e');
     }
+    // Initialize seen tracks after loading user ratings
+    initializeSeenIds(_likedOrRatedIDs.toList(), _seenTrackNameArtist.toList());
+
   }
 
   Future<List<String>> getFriendsUids() async {
@@ -322,7 +336,9 @@ class MyAppState extends ChangeNotifier {
         accessToken!,
         recTracks,
         yearRange: yearRange,
-        limit: 10,
+        limit: 20,
+        excludeIds: _seenTrackIds,
+        excludeNameArtist: _seenTrackNameArtist,
       );
 
       tracks = newTracks;
@@ -330,8 +346,7 @@ class MyAppState extends ChangeNotifier {
         current = tracks![0];
 
         // track all returned tracks so we don't serve them again
-        _seenTrackIds.clear();
-        _seenTrackNameArtist.clear();
+        // Note: Do not clear _seenTrackIds here, as it contains liked track IDs from initializeSeenIds
         for (final track in tracks!) {
           if (track.id != null && track.id!.isNotEmpty) {
             _seenTrackIds.add(track.id!);
@@ -358,11 +373,18 @@ class MyAppState extends ChangeNotifier {
   /// loaded tracks.
   Future<void> loadMoreTracks({String? yearRange}) async {
     if (isLoggingOut) return;
-    final opId = _operationId;
     if (accessToken == null) {
       print('loadMoreTracks: no access token, skipping');
       return;
     }
+
+    if (_isLoadingMoreTracks) {
+      print('loadMoreTracks: already loading, skipping duplicate request');
+      return;
+    }
+
+    _isLoadingMoreTracks = true;
+    final opId = _operationId;
 
     try {
       print(
@@ -372,7 +394,7 @@ class MyAppState extends ChangeNotifier {
         accessToken!,
         recTracks,
         yearRange: yearRange,
-        limit: 10,
+        limit: 20,
         excludeIds: _seenTrackIds,
         excludeNameArtist: _seenTrackNameArtist,
       );
@@ -400,6 +422,9 @@ class MyAppState extends ChangeNotifier {
       }
     } catch (e) {
       print('Error loading more tracks: $e');
+    } finally {
+      _isLoadingMoreTracks = false;
+      notifyListeners();
     }
   }
 
@@ -447,8 +472,14 @@ class MyAppState extends ChangeNotifier {
       }
     } else {
       likedOrRated[k] = r;
-      _likedOrRatedIDs.add(t.id!);
+      if (t.id != null && t.id!.isNotEmpty && !_likedOrRatedIDs.contains(t.id!)) {
+        _likedOrRatedIDs.add(t.id!);
+        _seenTrackIds.add(t.id!);
+      }
+
+      _seenTrackNameArtist.add('${t.name}|${t.artists}'.toLowerCase());
       _tempLikedTracks.add(current!.id!);
+
       if (!favorites.any((x) => keyOf(x) == k)) {
         favorites.add(t);
       }
@@ -486,21 +517,47 @@ class MyAppState extends ChangeNotifier {
 
   void getNext() {
     if (tracks != null && tracks!.isNotEmpty) {
-      int currentIndex = tracks!.indexWhere((track) => track.name == current?.name);
-      int nextIndex = (currentIndex + 1) % tracks!.length;
+      final currentId = current?.id;
+      final currentNameArtist = current != null
+          ? '${current!.name}|${current!.artists}'.toLowerCase()
+          : null;
+
+      int currentIndex = tracks!.indexWhere((track) {
+        if (currentId != null && currentId.isNotEmpty && track.id == currentId) {
+          return true;
+        }
+        return currentNameArtist != null &&
+            '${track.name}|${track.artists}'.toLowerCase() == currentNameArtist;
+      });
+
+      if (currentIndex < 0) {
+        print('getNext: current track not found in feed, keeping current state');
+        return;
+      }
+
+      int nextIndex = currentIndex + 1;
+      if (nextIndex >= tracks!.length) {
+        if (_isLoadingMoreTracks) {
+          print('getNext: waiting for more tracks, staying on last item');
+          return;
+        }
+        nextIndex = 0;
+      }
+
       current = tracks![nextIndex];
       setTrackCounter(nextIndex);
-      //if approaching the end, load more tracks in the background
-      if (nextIndex >= tracks!.length - 3) {
+
+      // if approaching the end, load more tracks in the background
+      if (nextIndex >= tracks!.length - 8) {
         print('getNext: near end of feed (index $nextIndex/${tracks!.length}), loading more...');
-        loadMoreTracks(); //helper function to call fetchSongs and update feed dynamically
+        loadMoreTracks();
       }
-      
-      //generate new recommendation every 5 tracks
-      //update co-liked tracks every 5 tracks
+
+      // generate new recommendation every 5 tracks
+      // update co-liked tracks every 5 tracks
       //! UNCOMMENT TO ENABLE CO-LIKED UPDATES
       //! Warning: May cause slower performance due to batch writes
-      if(_trackCounter % 5 == 0){
+      if (_trackCounter % 5 == 0) {
         print('Updating co-liked tracks...');
         _updateCoLiked(_tempLikedTracks, _likedOrRatedIDs);
         generateRecommendation();
@@ -514,8 +571,26 @@ class MyAppState extends ChangeNotifier {
 
   void getPrevious() {
     if (tracks != null && tracks!.isNotEmpty) {
-      int currentIndex = tracks!.indexWhere((track) => track.name == current?.name);
+      final currentId = current?.id;
+      final currentNameArtist = current != null
+          ? '${current!.name}|${current!.artists}'.toLowerCase()
+          : null;
+
+      int currentIndex = tracks!.indexWhere((track) {
+        if (currentId != null && currentId.isNotEmpty && track.id == currentId) {
+          return true;
+        }
+        return currentNameArtist != null &&
+            '${track.name}|${track.artists}'.toLowerCase() == currentNameArtist;
+      });
+
+      if (currentIndex < 0) {
+        print('getPrevious: current track not found in feed, keeping current state');
+        return;
+      }
+
       int nextIndex = (currentIndex - 1) % tracks!.length;
+      if (nextIndex < 0) nextIndex += tracks!.length;
       current = tracks![nextIndex];
       setTrackCounter(nextIndex);
     } else {
@@ -533,8 +608,17 @@ class MyAppState extends ChangeNotifier {
     if (isFavNow) {
       favorites.add(current!);
       likedOrRated[current!.name] = 0.0;
-      _likedOrRatedIDs.add(current!.id!);
-      _tempLikedTracks.add(current!.id!);
+      if (current!.id != null && current!.id!.isNotEmpty) {
+        if (!_likedOrRatedIDs.contains(current!.id!)) {
+          _likedOrRatedIDs.add(current!.id!);
+        }
+        _seenTrackIds.add(current!.id!);
+        _tempLikedTracks.add(current!.id!);
+      }
+
+      _seenTrackNameArtist.add(
+        '${current!.name}|${current!.artists}'.toLowerCase(),
+      );
     } else {
       removeTrack(current!, FirebaseAuth.instance.currentUser!.uid);
       Recommendations.instance.removeOneSongFromSource(current!.id!);
@@ -558,13 +642,16 @@ class MyAppState extends ChangeNotifier {
     if (isLoggingOut) return;
     final String? trackId;
     final String? trackName;
+    final String? trackArtists;
 
     if (track is Map<String, dynamic>) {
       trackId = track['id'] as String?;
       trackName = track['name'] as String?;
+      trackArtists = track['artists'] as String?;
     } else {
       trackId = track.id as String?;
       trackName = track.name as String?;
+      trackArtists = track.artists as String?;
     }
 
     print('Removing track: $trackName (ID: $trackId)');
@@ -577,10 +664,16 @@ class MyAppState extends ChangeNotifier {
     if (trackId != null && trackId.isNotEmpty) {
       _likedOrRatedIDs.remove(trackId);
       _tempLikedTracks.remove(trackId);
+      _seenTrackIds.remove(trackId);
       Recommendations.instance.removeOneSongFromSource(trackId);
     }
 
-    //now remove from the firestore
+    if (trackName != null && trackArtists != null) {
+      _seenTrackNameArtist.remove(
+        '${trackName}|${trackArtists}'.toLowerCase(),
+      );
+    }
+
     try {
       final currentUserId = FirebaseAuth.instance.currentUser?.uid;
       if (currentUserId != null && trackId != null && trackId.isNotEmpty) {
