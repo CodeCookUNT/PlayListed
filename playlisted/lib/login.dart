@@ -100,7 +100,6 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
       animation: _colorAnimation,
       builder: (context, child) {
         return Scaffold(
-          appBar: AppBar(title: const Text('Login')),
           body: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -114,74 +113,97 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
                 ],
               ),
             ),
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Card(
-                  elevation: 8,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Container(
-                    constraints: const BoxConstraints(maxWidth: 400),
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextField(
-                          controller: emailOrUsername,
-                          decoration: const InputDecoration(
-                            labelText: 'Username or Email',
-                          ),
+            child: SafeArea(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset(
+                        'assets/icon/icon.png',
+                        height: 180,
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Playlist\'d',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 34,
                         ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: pass,
-                          decoration: InputDecoration(
-                            labelText: 'Password',
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                passwordVisible
-                                    ? Icons.visibility_outlined
-                                    : Icons.visibility_off_outlined,
+                      ),
+                      const SizedBox(height: 20),
+                      Card(
+                        elevation: 8,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Container(
+                          constraints: const BoxConstraints(maxWidth: 400),
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              TextField(
+                                controller: emailOrUsername,
+                                decoration: const InputDecoration(
+                                  labelText: 'Username or Email',
+                                ),
                               ),
-                              onPressed: () => setState(
-                                () => passwordVisible = !passwordVisible,
+                              const SizedBox(height: 16),
+                              TextField(
+                                controller: pass,
+                                decoration: InputDecoration(
+                                  labelText: 'Password',
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      passwordVisible
+                                          ? Icons.visibility_outlined
+                                          : Icons.visibility_off_outlined,
+                                    ),
+                                    onPressed: () => setState(
+                                      () => passwordVisible = !passwordVisible,
+                                    ),
+                                  ),
+                                ),
+                                obscureText: !passwordVisible,
                               ),
-                            ),
+                              const SizedBox(height: 24),
+                              ElevatedButton(
+                                onPressed: busy ? null : _login,
+                                child: busy
+                                    ? const SizedBox(
+                                        height: 18,
+                                        width: 18,
+                                        child: CircularProgressIndicator(),
+                                      )
+                                    : const Text('Login'),
+                              ),
+                              const SizedBox(height: 12),
+                              ElevatedButton(
+                                onPressed: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const SignUpPage(),
+                                  ),
+                                ),
+                                child: const Text('Create an account'),
+                              ),
+                              const SizedBox(height: 12),
+                              ElevatedButton(
+                                onPressed: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const ResetPasswordPage(),
+                                  ),
+                                ),
+                                child: const Text('Forgot Password?'),
+                              ),
+                            ],
                           ),
-                          obscureText: !passwordVisible,
                         ),
-                        const SizedBox(height: 24),
-                        ElevatedButton(
-                          onPressed: busy ? null : _login,
-                          child: busy
-                              ? const SizedBox(
-                                  height: 18,
-                                  width: 18,
-                                  child: CircularProgressIndicator(),
-                                )
-                              : const Text('Login'),
-                        ),
-                        const SizedBox(height: 12),
-                        ElevatedButton(
-                          onPressed: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const SignUpPage(),
-                            ),
-                          ),
-                          child: const Text('Create an account'),
-                        ),
-                        const SizedBox(height: 12),
-                        ElevatedButton(
-                          onPressed: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const ResetPasswordPage(),
-                            ),
-                          ),
-                          child: const Text('Forgot Password?'),
                       ),
                     ],
                   ),
