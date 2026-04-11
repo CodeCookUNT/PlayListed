@@ -170,7 +170,6 @@ class SongInteractionPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Consumer<MyAppState>(
       builder: (context, appState, _) {
         final isDark = appState.isDarkMode;
@@ -183,19 +182,36 @@ class SongInteractionPage extends StatelessWidget {
             ? const Color(0xFF0A1628)
             : Colors.white;
 
+        final barColors = isDark
+            ? [const Color(0xFF0A2233), const Color(0xFF1583B7)]
+            : [const Color.fromARGB(255, 31, 139, 189), const Color.fromARGB(255, 57, 27, 190)];
+
         return Scaffold(
           appBar: AppBar(
-            backgroundColor: theme.appBarTheme.backgroundColor ?? theme.primaryColor,
+            backgroundColor: Colors.transparent,
+            flexibleSpace: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: barColors,
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+              ),
+            ),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            centerTitle: true,
             title: Text(
-              'Playlistd',
+              'Playlist\'d',
               style: GoogleFonts.montserrat(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
-                color: theme.appBarTheme.foregroundColor ?? Colors.white,
+                color: Colors.white,
                 letterSpacing: 0.5,
               ),
             ),
-            iconTheme: theme.appBarTheme.iconTheme ?? const IconThemeData(color: Colors.white),
           ),
           body: AnimatedContainer(
             duration: const Duration(milliseconds: 900),

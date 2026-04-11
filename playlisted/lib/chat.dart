@@ -1,8 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'content_filter.dart';
 import 'notification_service.dart';
+import 'main.dart' show MyAppState;
 
 class ChatPage extends StatefulWidget {
   final String friendUid;
@@ -55,7 +58,6 @@ class _ChatPageState extends State<ChatPage> {
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
-
     // Submissiong gaurd kept in case there are changes without the content filter
     if (ExplicitContentFilter.containsExplicitContent(text)) {
       return;
@@ -73,7 +75,6 @@ class _ChatPageState extends State<ChatPage> {
       'lastMessage': text,
       'lastSenderId': _myUid,
     }, SetOptions(merge: true));
-      
     await _messagesCol.add({
       'senderId': _myUid,
       'text': text,
@@ -98,9 +99,39 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    final appState = context.watch<MyAppState>();
+    final isDark = appState.isDarkMode;
+
+    final barColors = isDark
+        ? [const Color(0xFF0A2233), const Color(0xFF1583B7)]
+        : [const Color.fromARGB(255, 31, 139, 189), const Color.fromARGB(255, 57, 27, 190)];
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.friendName),
+        backgroundColor: Colors.transparent,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: barColors,
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+          ),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        centerTitle: true,
+        title: Text(
+          widget.friendName,
+          style: GoogleFonts.montserrat(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+            letterSpacing: 0.5,
+          ),
+        ),
       ),
       body: Column(
         children: [
@@ -135,12 +166,8 @@ class _ChatPageState extends State<ChatPage> {
                         ),
                         decoration: BoxDecoration(
                           color: isMe
-                              ? Theme.of(context)
-                                  .colorScheme
-                                  .primaryContainer
-                              : Theme.of(context)
-                                  .colorScheme
-                                  .surfaceContainerHighest,
+                              ? Theme.of(context).colorScheme.primaryContainer
+                              : Theme.of(context).colorScheme.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(text),
