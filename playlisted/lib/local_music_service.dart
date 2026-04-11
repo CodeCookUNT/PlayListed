@@ -417,8 +417,9 @@ class LocalMusicService {
 
 
     //get 10 random songs
-    final randomTracks = _CsvMusicLibrary.instance.randomSongs(limit: 20, excludeIds: seenIds);
-    for (final track in randomTracks) {
+    //change aritist name to farm their album covers
+    final drakeTracks = _CsvMusicLibrary.instance.searchArtistTopSongs('the weeknd', limit: 100);
+      for (final track in drakeTracks) {
       await addUnique(track);
       if (feed.length >= limit) break;
     }
