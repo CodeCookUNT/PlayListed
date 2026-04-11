@@ -723,25 +723,26 @@ class MyAppState extends ChangeNotifier {
   }
 
   Future<void> _updateCoLiked(List<String> tempLikedTracks, List<String> likedOrRatedIDs) async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if(userId == null){
+      return;
+    }
     if (isLoggingOut) return;
     final opId = _operationId;
     final newTracks = List<String>.from(tempLikedTracks);
     if (newTracks.isEmpty) return;
 
-    final userId = FirebaseAuth.instance.currentUser?.uid;
     Set<String>? existingPairIds;
-    if (userId != null) {
-      try {
-        final snap = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(userId)
-            .collection('co_liked')
-            .get();
-        if (_isOperationCanceled(opId)) return;
-        existingPairIds = snap.docs.map((d) => d.id).toSet();
-      } catch (e) {
-        print('Error fetching existing user co_likes: $e');
-      }
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('co_liked')
+          .get();
+      if (_isOperationCanceled(opId)) return;
+      existingPairIds = snap.docs.map((d) => d.id).toSet();
+    } catch (e) {
+      print('Error fetching existing user co_likes: $e');
     }
 
     if (_isOperationCanceled(opId)) return;
