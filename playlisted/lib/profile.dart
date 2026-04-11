@@ -111,13 +111,13 @@ class ProfilePage extends StatelessWidget {
                   TextButton.icon(
                     onPressed: () => _openAccountDeletionInfoPage(context),
                     icon: const Icon(Icons.link),
-                    label: const Text('Account deletion link'),
+                    label: const Text('Account Deletion Link'),
                   ),
                   const SizedBox(height: 8),
                   FilledButton.tonalIcon(
                     onPressed: () => _confirmDeleteAccount(context),
                     icon: const Icon(Icons.delete_forever),
-                    label: const Text('Delete my account'),
+                    label: const Text('Delete My Account'),
                     style: FilledButton.styleFrom(
                       foregroundColor: Colors.red,
                     ),
@@ -565,7 +565,7 @@ class ProfilePage extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Edit avatar',
+                    'Edit Avatar',
                     style: Theme.of(ctx).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 12),

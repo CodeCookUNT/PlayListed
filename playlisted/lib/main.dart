@@ -443,7 +443,7 @@ class MyAppState extends ChangeNotifier {
   }
 
   void printLikedOrRatedIDs() {
-    print('Liked or rated IDs:');
+    print('Liked or Rated IDs:');
     for (var id in _likedOrRatedIDs) {
       print(id);
     }
@@ -815,19 +815,6 @@ HelpPageContent get _currentHelpContent {
     'Profile',
   ];
 
-  // @override
-  // void initState() {
-  //   super.initState();
-  //   //Load user's previous ratings and build the feed once they're signed
-  //   //in. We fetch recommendations first, then ask SpotifyService for a
-  //   //batch of songs using the new `fetchSongs` helper.
-  //   WidgetsBinding.instance.addPostFrameCallback((_) async {
-  //     final appState = context.read<MyAppState>();
-  //     await appState.loadUserRatings();
-  //     await appState.loadRecommendations();
-  //     await appState.loadFeed();
-  //   });
-  // }
   @override
   void initState() {
     super.initState();

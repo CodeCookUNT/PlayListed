@@ -17,9 +17,11 @@ class MySongsPage extends StatelessWidget {
       child: Column(
         children: [
           TabBar(
+            labelStyle: const TextStyle(fontWeight: FontWeight.bold),
             tabs: [
-              Tab(text: 'Liked'),
-              Tab(text: 'Rated'),
+              
+              const Tab(text: 'Liked'),
+              const Tab(text: 'Rated'),
             ],
           ),
           Expanded(
