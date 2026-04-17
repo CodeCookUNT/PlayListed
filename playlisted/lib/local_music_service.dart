@@ -477,7 +477,6 @@ class LocalMusicService {
     } catch (e) {
       print('Error in fetchAlbumImage for track ${track.id}: $e');
     }
-    print("Album image for track ${track.name} by ${track.artists}: ${track.albumImageUrl ?? 'not found'}");
   }
 
   String get _uid => FirebaseAuth.instance.currentUser!.uid;
@@ -518,6 +517,7 @@ class LocalMusicService {
     final seenIds = <String>{...(excludeIds ?? {})};
     final seenNameArtist = <String>{...(excludeNameArtist ?? {})};
     final feed = <Track>[];
+    int noCoverCount = 0;
 
      
 
@@ -533,11 +533,11 @@ class LocalMusicService {
       if (seenNameArtist.contains(key)) return;
       seenNameArtist.add(key);
       await fetchAlbumImage(accessToken, track);
+      if(track.albumImageUrl == null || track.albumImageUrl!.trim().isEmpty){
+        noCoverCount++;
+      }
       feed.add(track);
     }
-
-    print("Seen Track IDs: $seenIds");
-    print("Seen Name|Artist: $seenNameArtist");
 
     final validRec = recTracks.entries
         .where((entry) => entry.key.id != null && entry.key.id!.isNotEmpty)
@@ -586,7 +586,9 @@ class LocalMusicService {
         await addUnique(track);
       }
     }
-    
+
+    print("Loaded ${feed.length} feed tracks with $noCoverCount missing covers");
+
     feed.shuffle();
     return feed.take(limit).toList();
   }

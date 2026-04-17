@@ -357,7 +357,6 @@ class MyAppState extends ChangeNotifier {
         }
       }
       notifyListeners();
-      print('Loaded ${tracks?.length ?? 0} feed tracks');
     } catch (e) {
       homeFeedError = 'Error fetching feed songs: $e';
       print(homeFeedError);
