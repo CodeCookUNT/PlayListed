@@ -309,9 +309,9 @@ class MyAppState extends ChangeNotifier {
       try {
         accessToken = await LocalMusicService().getAccessToken();
         if (_isOperationCanceled(opId)) return;
-        print('Spotify token obtained in loadFeed');
+        print('MusicBrainz API marker obtained in loadFeed');
       } catch (e) {
-        homeFeedError = 'Unable to acquire Spotify token: $e';
+        homeFeedError = 'Unable to initialize MusicBrainz API access: $e';
         print(homeFeedError);
         notifyListeners();
         return;

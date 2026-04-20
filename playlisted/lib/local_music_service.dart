@@ -4,7 +4,6 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 class Track {
@@ -555,24 +554,45 @@ class _CsvMusicLibrary {
 }
 
 class LocalMusicService {
-  Future<String?> getAlbumImageFromAPI(
-    String accessToken,
-    String trackId,
-  ) async {
+  static const String _musicBrainzBaseUrl = 'musicbrainz.org';
+  static const String _coverArtBaseUrl = 'coverartarchive.org';
+  static const String _musicBrainzUserAgent =
+      'PlayListed/1.0 (https://github.com/)';
+
+  Map<String, String> get _musicBrainzHeaders => {
+    'User-Agent': _musicBrainzUserAgent,
+    'Accept': 'application/json',
+  };
+
+  Future<String?> getAlbumImageFromAPI(Track track) async {
+    if (track.name.trim().isEmpty || track.artists.trim().isEmpty) return null;
+
+    final query = 'recording:"${track.name}" AND artist:"${track.artists}"';
+
     try {
       final response = await http.get(
-        Uri.parse('https://api.spotify.com/v1/tracks/$trackId'),
-        headers: {
-          'Authorization': 'Bearer $accessToken',
-          'Content-Type': 'application/json',
-        },
+        Uri.https(_musicBrainzBaseUrl, '/ws/2/recording', {
+          'query': query,
+          'fmt': 'json',
+          'limit': '1',
+        }),
+        headers: _musicBrainzHeaders,
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final images = data['album']?['images'] as List?;
-        if (images != null && images.isNotEmpty) {
-          return images[0]['url'] as String?;
+        final recordings = data['recordings'] as List?;
+        if (recordings != null && recordings.isNotEmpty) {
+          final releases = recordings.first['releases'] as List?;
+          if (releases != null && releases.isNotEmpty) {
+            final releaseId = releases.first['id'] as String?;
+            if (releaseId != null && releaseId.isNotEmpty) {
+              return Uri.https(
+                _coverArtBaseUrl,
+                '/release/$releaseId/front-250',
+              ).toString();
+            }
+          }
         }
       }
     } catch (e) {
@@ -581,7 +601,8 @@ class LocalMusicService {
     return null;
   }
 
-  //get the album image from firestore, if not found get it from the spotify api and save it to firestore for future use
+  //get the album image from firestore, if not found get it from MusicBrainz
+  //and Cover Art Archive and save it to firestore for future use
   Future<void> fetchAlbumImage(String accessToken, Track track) async {
     if (track.albumImageUrl != null && track.albumImageUrl!.trim().isNotEmpty)
       return;
@@ -600,8 +621,9 @@ class LocalMusicService {
         }
       }
 
-      //if no track image is found get the album image from the spotify api and save it to firestore for future use
-      track.albumImageUrl = await getAlbumImageFromAPI(accessToken, track.id!);
+      // if no track image is found get the album image from MusicBrainz/Cover
+      // Art Archive and save it to firestore for future use
+      track.albumImageUrl = await getAlbumImageFromAPI(track);
       if (track.albumImageUrl != null) {
         await setAlbumImageUrl(track.id!, track.albumImageUrl!);
       }
@@ -613,26 +635,9 @@ class LocalMusicService {
   String get _uid => FirebaseAuth.instance.currentUser!.uid;
 
   Future<String> getAccessToken() async {
-    final clientId = dotenv.env['SPOTIFY_CLIENT_ID']!;
-    final clientSecret = dotenv.env['SPOTIFY_CLIENT_SECRET']!;
-
-    final credentials = base64Encode(utf8.encode('$clientId:$clientSecret'));
-
-    final response = await http.post(
-      Uri.parse('https://accounts.spotify.com/api/token'),
-      headers: {
-        'Authorization': 'Basic $credentials',
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: {'grant_type': 'client_credentials'},
-    );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data['access_token'];
-    } else {
-      throw Exception('Failed to get token: ${response.body}');
-    }
+    // Retained to keep existing call sites compatible.
+    // MusicBrainz uses public endpoints and does not require OAuth.
+    return 'musicbrainz-public-api';
   }
 
   Future<List<Track>> fetchSongs(
@@ -712,28 +717,114 @@ class LocalMusicService {
   }
 
   Future<List<Track>> searchSongs(String query, {int limit = 20}) async {
-    await _CsvMusicLibrary.instance.ensureLoaded();
-    final token = await getAccessToken();
-    final tracks = _CsvMusicLibrary.instance.searchSongs(query, limit: limit);
+    final normalized = query.trim();
+    if (normalized.isEmpty) return [];
 
-    await Future.wait(tracks.map((track) => fetchAlbumImage(token, track)));
-    return tracks;
+    try {
+      final response = await http.get(
+        Uri.https(_musicBrainzBaseUrl, '/ws/2/recording', {
+          'query': normalized,
+          'fmt': 'json',
+          'limit': limit.toString(),
+        }),
+        headers: _musicBrainzHeaders,
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('MusicBrainz search failed: ${response.statusCode}');
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final recordings = (data['recordings'] as List?) ?? const [];
+      return recordings
+          .map((item) => _trackFromMusicBrainz(item as Map<String, dynamic>))
+          .whereType<Track>()
+          .toList();
+    } catch (e) {
+      print('searchSongs: MusicBrainz failed, using local CSV fallback: $e');
+      await _CsvMusicLibrary.instance.ensureLoaded();
+      return _CsvMusicLibrary.instance.searchSongs(query, limit: limit);
+    }
   }
 
   Future<List<Track>> searchArtistTopSongs(
     String artistName, {
     int limit = 20,
   }) async {
-    await _CsvMusicLibrary.instance.ensureLoaded();
-    final token = await getAccessToken();
-    final tracks = _CsvMusicLibrary.instance.searchArtistTopSongs(
-      artistName,
-      limit: limit,
+    final normalized = artistName.trim();
+    if (normalized.isEmpty) return [];
+
+    try {
+      final response = await http.get(
+        Uri.https(_musicBrainzBaseUrl, '/ws/2/recording', {
+          'query': 'artist:"$normalized"',
+          'fmt': 'json',
+          'limit': limit.toString(),
+        }),
+        headers: _musicBrainzHeaders,
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception(
+          'MusicBrainz artist lookup failed: ${response.statusCode}',
+        );
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final recordings = (data['recordings'] as List?) ?? const [];
+      return recordings
+          .map((item) => _trackFromMusicBrainz(item as Map<String, dynamic>))
+          .whereType<Track>()
+          .toList();
+    } catch (e) {
+      print(
+        'searchArtistTopSongs: MusicBrainz failed, using local CSV fallback: $e',
+      );
+      await _CsvMusicLibrary.instance.ensureLoaded();
+      return _CsvMusicLibrary.instance.searchArtistTopSongs(
+        artistName,
+        limit: limit,
+      );
+    }
+  }
+
+  Track? _trackFromMusicBrainz(Map<String, dynamic> json) {
+    final title = (json['title'] as String?)?.trim();
+    if (title == null || title.isEmpty) return null;
+
+    final artistCredit = (json['artist-credit'] as List?) ?? const [];
+    final artists = artistCredit
+        .map((entry) => (entry as Map<String, dynamic>)['name'] as String?)
+        .whereType<String>()
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .join(', ');
+    if (artists.isEmpty) return null;
+
+    final releases = (json['releases'] as List?) ?? const [];
+    final firstRelease = releases.isNotEmpty
+        ? releases.first as Map<String, dynamic>
+        : null;
+    final releaseId = firstRelease?['id'] as String?;
+    final releaseDate = firstRelease?['date'] as String?;
+    final score = double.tryParse((json['score'] ?? '').toString());
+
+    return Track(
+      name: title,
+      artists: artists,
+      durationMs: (json['length'] as num?)?.toInt() ?? 0,
+      explicit: false,
+      url: 'https://musicbrainz.org/recording/${json['id']}',
+      albumImageUrl: releaseId == null
+          ? null
+          : Uri.https(_coverArtBaseUrl, '/release/$releaseId/front-250')
+                .toString(),
+      popularity: null,
+      releaseDate: releaseDate,
+      id: json['id'] as String?,
+      artistId: null,
+      score: score == null ? null : score / 100.0,
     );
-
-    await Future.wait(tracks.map((track) => fetchAlbumImage(token, track)));
-
-    return tracks;
   }
 
   Future<Track?> fetchTrackById(String trackId) async {
