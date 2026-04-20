@@ -365,7 +365,7 @@ class _CsvMusicLibrary {
   }
 
   List<Track> sequentialPopularSongs({
-    int limit = 10,
+    int limit = 100,
     Set<String>? excludeIds,
     Set<String>? excludeNameArtist,
   }) {
@@ -595,6 +595,11 @@ class LocalMusicService {
           }
         }
       }
+      else {
+        print(
+          'MusicBrainz API error for track "${track.name}" by ${track.artists}: ${response.statusCode}',
+        );
+      }
     } catch (e) {
       print('Error fetching album image: $e');
     }
@@ -644,7 +649,7 @@ class LocalMusicService {
     String accessToken,
     Map<Track, double> recTracks, {
     String? yearRange,
-    int limit = 10,
+    int limit = 100,
     Set<String>? excludeIds,
     Set<String>? excludeNameArtist,
   }) async {

@@ -336,7 +336,7 @@ class MyAppState extends ChangeNotifier {
         accessToken!,
         recTracks,
         yearRange: yearRange,
-        limit: 20,
+        limit: 1500,
         excludeIds: _seenTrackIds,
         excludeNameArtist: _seenTrackNameArtist,
       );
@@ -393,7 +393,7 @@ class MyAppState extends ChangeNotifier {
         accessToken!,
         recTracks,
         yearRange: yearRange,
-        limit: 20,
+        limit: 100,
         excludeIds: _seenTrackIds,
         excludeNameArtist: _seenTrackNameArtist,
       );
@@ -547,7 +547,7 @@ class MyAppState extends ChangeNotifier {
       setTrackCounter(nextIndex);
 
       // if approaching the end, load more tracks in the background
-      if (nextIndex >= tracks!.length - 8) {
+      if (nextIndex >= tracks!.length - 20) {
         print('getNext: near end of feed (index $nextIndex/${tracks!.length}), loading more...');
         loadMoreTracks();
       }
@@ -707,7 +707,7 @@ class MyAppState extends ChangeNotifier {
 
     // f there is room in the current feed, fetch some new tracks now so
     //the user can immediately see the fresh recommendations
-    if (tracks != null && tracks!.length < 5) {
+    if (tracks != null && tracks!.length < 20) {
       await loadMoreTracks();
       if (_isOperationCanceled(opId)) return;
     }
