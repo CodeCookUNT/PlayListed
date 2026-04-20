@@ -336,7 +336,7 @@ class MyAppState extends ChangeNotifier {
         accessToken!,
         recTracks,
         yearRange: yearRange,
-        limit: 1500,
+        limit: 3000,
         excludeIds: _seenTrackIds,
         excludeNameArtist: _seenTrackNameArtist,
       );

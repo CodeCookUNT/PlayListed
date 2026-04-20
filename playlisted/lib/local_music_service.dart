@@ -200,6 +200,7 @@ class _CsvMusicLibrary {
   bool _loaded = false;
   List<Track> _allTracks = [];
   List<Track> _popularTracks = [];
+  List<Track> _lowTracks = [];
   final Map<String, Track> _tracksById = {};
   int _nextSequentialIndex = 0;
 
@@ -213,6 +214,7 @@ class _CsvMusicLibrary {
     final lowTracks = _parseCsv(lowCsv);
 
     _popularTracks = highTracks;
+    _lowTracks = lowTracks;
     _allTracks = [...highTracks, ...lowTracks];
 
     for (final track in _allTracks) {
@@ -372,6 +374,40 @@ class _CsvMusicLibrary {
     if (_popularTracks.isEmpty || limit <= 0) return [];
 
     final source = _popularTracks;
+    final seenIds = <String>{...(excludeIds ?? {})};
+    final seenNameArtist = <String>{...(excludeNameArtist ?? {})};
+    final results = <Track>[];
+    var index = _nextSequentialIndex;
+    var scanned = 0;
+
+    while (results.length < limit && scanned < source.length) {
+      final track = source[index];
+      final id = track.id;
+      final key = '${track.name}|${track.artists}'.toLowerCase();
+
+      if ((id == null || !seenIds.contains(id)) &&
+          !seenNameArtist.contains(key)) {
+        results.add(track);
+        if (id != null && id.isNotEmpty) seenIds.add(id);
+        seenNameArtist.add(key);
+      }
+
+      index = (index + 1) % source.length;
+      scanned++;
+    }
+
+    _nextSequentialIndex = index;
+    return results;
+  }
+
+   List<Track> sequentialLowPopSongs({
+    int limit = 100,
+    Set<String>? excludeIds,
+    Set<String>? excludeNameArtist,
+  }) {
+    if (_lowTracks.isEmpty || limit <= 0) return [];
+
+    final source = _lowTracks;
     final seenIds = <String>{...(excludeIds ?? {})};
     final seenNameArtist = <String>{...(excludeNameArtist ?? {})};
     final results = <Track>[];
@@ -677,7 +713,7 @@ class LocalMusicService {
       feed.add(track);
     }
 
-    final sequentialTracks = _CsvMusicLibrary.instance.sequentialPopularSongs(
+    final sequentialTracks = _CsvMusicLibrary.instance.sequentialLowPopSongs(
       limit: limit,
       excludeIds: excludeIds,
       excludeNameArtist: excludeNameArtist,
