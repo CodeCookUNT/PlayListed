@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:async';
 import 'account_deletion_service.dart';
 import 'profilefunctions.dart';
 import 'loading_vinyl.dart';
@@ -474,14 +475,27 @@ class ProfilePage extends StatelessWidget {
     final password = await _askForPassword(context);
     if (password == null || password.isEmpty || !context.mounted) return;
 
+    _showDeleteProgressDialog(context);
+
     try {
       await AccountDeletionService.instance.reauthenticateAndDelete(
         password: password,
-      );
+      ).timeout(const Duration(seconds: 45));
     } on FirebaseAuthException catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Delete failed: ${e.message ?? e.code}')),
+        );
+      }
+      return;
+    } on TimeoutException {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Delete is taking too long. Please check your connection and try again.',
+            ),
+          ),
         );
       }
       return;
@@ -492,7 +506,31 @@ class ProfilePage extends StatelessWidget {
         );
       }
       return;
+    } finally {
+      if (context.mounted && Navigator.of(context, rootNavigator: true).canPop()) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
     }
+  }
+
+  void _showDeleteProgressDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const AlertDialog(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2.5),
+            ),
+            SizedBox(width: 16),
+            Expanded(child: Text('Deleting account...')),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<String?> _askForPassword(BuildContext context) async {

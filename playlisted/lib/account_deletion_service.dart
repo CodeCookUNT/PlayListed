@@ -7,6 +7,8 @@ class AccountDeletionService {
   AccountDeletionService._();
   static final AccountDeletionService instance = AccountDeletionService._();
   static const Duration _cleanupTimeout = Duration(seconds: 12);
+  static const Duration _reauthTimeout = Duration(seconds: 20);
+  static const Duration _authDeleteTimeout = Duration(seconds: 20);
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -28,7 +30,9 @@ class AccountDeletionService {
       email: email,
       password: password,
     );
-    await user.reauthenticateWithCredential(credential);
+    await user
+        .reauthenticateWithCredential(credential)
+        .timeout(_reauthTimeout);
     await deleteCurrentUserAccountAndData();
   }
 
@@ -53,7 +57,7 @@ class AccountDeletionService {
       // Continue to auth deletion even if some Firestore cleanup queries are blocked.
     }
 
-    await user.delete();
+    await user.delete().timeout(_authDeleteTimeout);
     await _auth.signOut();
   }
 
