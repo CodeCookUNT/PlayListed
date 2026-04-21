@@ -47,10 +47,10 @@ class AccountDeletionService {
     } on TimeoutException {
       // Do not block auth deletion if data cleanup is slow on mobile networks/devices.
     } on FirebaseException catch (e) {
-      if (e.code != 'permission-denied') {
+      if (!_isSkippableCleanupError(e)) {
         rethrow;
       }
-      // Continue to auth deletion even if some Firestore locations are blocked by rules.
+      // Continue to auth deletion even if some Firestore cleanup queries are blocked.
     }
 
     await user.delete();
@@ -61,14 +61,16 @@ class AccountDeletionService {
     required String uid,
     required String? username,
   }) async {
-    await Future.wait([
-      _deleteCollection(_db.collection('users').doc(uid).collection('ratings')),
-      _deleteCollection(_db.collection('users').doc(uid).collection('recommendations')),
-      _deleteCollection(_db.collection('users').doc(uid).collection('friends')),
-      _deleteCollection(_db.collection('users').doc(uid).collection('incoming_requests')),
-      _deleteCollection(_db.collection('users').doc(uid).collection('outgoing_requests')),
-      _deleteCollection(_db.collection('users').doc(uid).collection('co_liked')),
-      _deleteDocsFromQuery(_db.collection('song_reviews').where('userId', isEqualTo: uid)),
+    await Future.wait<void>([
+      _bestEffortDeleteCollection(_db.collection('users').doc(uid).collection('ratings')),
+      _bestEffortDeleteCollection(_db.collection('users').doc(uid).collection('recommendations')),
+      _bestEffortDeleteCollection(_db.collection('users').doc(uid).collection('friends')),
+      _bestEffortDeleteCollection(_db.collection('users').doc(uid).collection('incoming_requests')),
+      _bestEffortDeleteCollection(_db.collection('users').doc(uid).collection('outgoing_requests')),
+      _bestEffortDeleteCollection(_db.collection('users').doc(uid).collection('co_liked')),
+      _bestEffortDeleteDocsFromQuery(
+        _db.collection('song_reviews').where('userId', isEqualTo: uid),
+      ),
       // Best-effort cleanups for shared/cross-user areas.
       // These may be blocked by security rules; do not stop auth deletion if so.
       _bestEffortDeleteDocsFromQuery(
@@ -86,10 +88,22 @@ class AccountDeletionService {
       ),
     ]);
 
-    await _db.collection('users').doc(uid).delete();
+    await _db.collection('users').doc(uid).delete().catchError((_) {});
 
     if (username != null && username.isNotEmpty) {
       await _db.collection('usernames').doc(username).delete().catchError((_) {});
+    }
+  }
+
+  Future<void> _bestEffortDeleteCollection(
+    CollectionReference<Map<String, dynamic>> colRef,
+  ) async {
+    try {
+      await _deleteCollection(colRef);
+    } on FirebaseException catch (e) {
+      if (!_isSkippableCleanupError(e)) {
+        rethrow;
+      }
     }
   }
 
@@ -142,10 +156,16 @@ class AccountDeletionService {
         deleteSubcollections: deleteSubcollections,
       );
     } on FirebaseException catch (e) {
-      if (e.code != 'permission-denied') {
+      if (!_isSkippableCleanupError(e)) {
         rethrow;
       }
-      // Ignore permission-denied here so account auth deletion can still complete.
+      // Ignore expected Firestore cleanup failures so auth deletion can complete.
     }
+  }
+
+  bool _isSkippableCleanupError(FirebaseException e) {
+    return e.code == 'permission-denied' ||
+        e.code == 'failed-precondition' ||
+        e.code == 'not-found';
   }
 }
