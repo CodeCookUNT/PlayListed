@@ -1,7 +1,4 @@
 {
-  "functions": {
-    "source": "functions"
-  },
   "flutter": {
     "platforms": {
       "android": {

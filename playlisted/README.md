@@ -15,18 +15,22 @@ For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
 
-## Account deletion compliance backend
+## Account deletion compliance worker (no Blaze required)
 
-This app now relies on a Firebase Cloud Function auth trigger to remove user
-data from Firestore after the auth account is deleted.
+The app writes a `deletion_requests/{uid}` document before removing auth
+credentials. A separate admin worker script then deletes Firestore user data in
+the background.
 
-Function entrypoint:
+Worker entrypoint:
 
-- `functions/index.js` (`cleanupOnAuthDelete`)
+- `admin_cleanup/process_deletion_requests.js`
 
-Deploy steps:
+Run steps:
 
-1. `cd functions`
+1. `cd admin_cleanup`
 2. `npm install`
-3. `cd ..`
-4. `firebase deploy --only functions`
+3. Set `GOOGLE_APPLICATION_CREDENTIALS` to your Firebase Admin service account JSON path
+4. `node process_deletion_requests.js`
+
+Run the worker periodically (Task Scheduler/cron/GitHub Actions) to process new
+deletion requests.

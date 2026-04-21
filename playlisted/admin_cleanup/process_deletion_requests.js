@@ -1,4 +1,3 @@
-const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 
 admin.initializeApp();
@@ -41,11 +40,11 @@ async function deleteByQuery(query, options = {}) {
   }
 }
 
-async function cleanupDeletedUserData(uid) {
+async function cleanupDeletedUserData({uid, username}) {
   const userRef = db.collection("users").doc(uid);
-  const userSnap = await userRef.get().catch(() => null);
-  const usernameRaw = userSnap?.data()?.username;
-  const username = typeof usernameRaw === "string" ? usernameRaw.toLowerCase() : null;
+  const normalizedUsername = typeof username === "string"
+    ? username.toLowerCase()
+    : null;
 
   await Promise.all([
     deleteCollection(userRef.collection("ratings")),
@@ -69,16 +68,54 @@ async function cleanupDeletedUserData(uid) {
   ]);
 
   await userRef.delete().catch(() => {});
-  if (username) {
-    await db.collection("usernames").doc(username).delete().catch(() => {});
+  if (normalizedUsername) {
+    await db.collection("usernames").doc(normalizedUsername).delete().catch(() => {});
   }
 }
 
-exports.cleanupOnAuthDelete = functions.auth.user().onDelete(async (user) => {
-  const uid = user.uid;
-  functions.logger.info("Starting backend cleanup for deleted auth user", {uid});
+async function processQueuedDeletionRequests(limit = 25) {
+  const snap = await db.collection("deletion_requests")
+    .where("status", "==", "queued")
+    .limit(limit)
+    .get();
 
-  await cleanupDeletedUserData(uid);
+  if (snap.empty) {
+    console.log("No queued deletion requests.");
+    return;
+  }
 
-  functions.logger.info("Completed backend cleanup for deleted auth user", {uid});
-});
+  for (const reqDoc of snap.docs) {
+    const data = reqDoc.data();
+    const uid = data.uid || reqDoc.id;
+    const username = data.username || null;
+
+    console.log(`Processing deletion request for uid=${uid}`);
+    await reqDoc.ref.set({
+      status: "processing",
+      startedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, {merge: true});
+
+    try {
+      await cleanupDeletedUserData({uid, username});
+      await reqDoc.ref.set({
+        status: "completed",
+        completedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, {merge: true});
+      console.log(`Completed deletion request for uid=${uid}`);
+    } catch (error) {
+      await reqDoc.ref.set({
+        status: "error",
+        lastErrorAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastErrorMessage: String(error && error.message ? error.message : error),
+      }, {merge: true});
+      console.error(`Failed deletion for uid=${uid}`, error);
+    }
+  }
+}
+
+processQueuedDeletionRequests()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error("Fatal error while processing deletion requests", error);
+    process.exit(1);
+  });

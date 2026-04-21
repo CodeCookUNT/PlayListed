@@ -1,0 +1,11 @@
+{
+  "name": "playlisted-admin-cleanup",
+  "private": true,
+  "main": "process_deletion_requests.js",
+  "scripts": {
+    "run": "node process_deletion_requests.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class AccountDeletionService {
@@ -9,6 +10,7 @@ class AccountDeletionService {
   static const Duration _authDeleteTimeout = Duration(seconds: 20);
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   Future<void> reauthenticateAndDelete({
     required String password,
@@ -39,8 +41,20 @@ class AccountDeletionService {
       throw StateError('No logged-in user found.');
     }
 
+    final userDoc = await _db.collection('users').doc(user.uid).get();
+    final username = userDoc.data()?['username'] as String?;
+
+    await _db.collection('deletion_requests').doc(user.uid).set({
+      'uid': user.uid,
+      'email': user.email,
+      'username': username,
+      'status': 'queued',
+      'requestedAt': FieldValue.serverTimestamp(),
+      'source': 'client',
+    }, SetOptions(merge: true));
+
     // Keep on-device deletion minimal to avoid ANRs on lower-end phones.
-    // Firestore data cleanup is handled by backend auth onDelete trigger.
+    // Firestore cleanup is handled by an external admin cleanup worker.
     await user.delete().timeout(_authDeleteTimeout);
     await _auth.signOut();
   }
