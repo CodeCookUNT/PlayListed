@@ -1639,17 +1639,33 @@ class _BigCardState extends State<BigCard> with SingleTickerProviderStateMixin {
                           ),
                         ],
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(4.0),
-                        child: TrackArtwork(
-                          imageUrl: widget.track.albumImageUrl,
-                          width: 200,
-                          height: 200,
-                          borderRadius: 4,
-                          icon: Icons.album,
-                          backgroundColor: Colors.grey,
-                          iconColor: Colors.white,
-                        ),
+                      child: Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4.0),
+                            child: TrackArtwork(
+                              imageUrl: widget.track.albumImageUrl,
+                              width: 200,
+                              height: 200,
+                              borderRadius: 4,
+                              icon: Icons.album,
+                              backgroundColor: Colors.grey,
+                              iconColor: Colors.white,
+                            ),
+                          ),
+                          if (widget.track.albumImageUrl == null || widget.track.albumImageUrl!.isEmpty)
+                          const Align(
+                            alignment: Alignment(0, -0.5),
+                            child: Text(
+                              "Album image unavailable",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
