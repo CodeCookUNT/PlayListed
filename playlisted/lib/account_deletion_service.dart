@@ -40,7 +40,7 @@ class AccountDeletionService {
     }
 
     // Keep on-device deletion minimal to avoid ANRs on lower-end phones.
-    // Data cleanup should run in backend/admin flows, not on the client thread.
+    // Firestore data cleanup is handled by backend auth onDelete trigger.
     await user.delete().timeout(_authDeleteTimeout);
     await _auth.signOut();
   }
