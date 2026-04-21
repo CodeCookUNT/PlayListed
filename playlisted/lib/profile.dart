@@ -475,7 +475,9 @@ class ProfilePage extends StatelessWidget {
     final password = await _askForPassword(context);
     if (password == null || password.isEmpty || !context.mounted) return;
 
+    var progressShown = false;
     _showDeleteProgressDialog(context);
+    progressShown = true;
 
     try {
       await AccountDeletionService.instance.reauthenticateAndDelete(
@@ -507,7 +509,9 @@ class ProfilePage extends StatelessWidget {
       }
       return;
     } finally {
-      if (context.mounted && Navigator.of(context, rootNavigator: true).canPop()) {
+      if (progressShown &&
+          context.mounted &&
+          Navigator.of(context, rootNavigator: true).canPop()) {
         Navigator.of(context, rootNavigator: true).pop();
       }
     }
