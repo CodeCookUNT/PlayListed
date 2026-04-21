@@ -600,6 +600,19 @@ class LocalMusicService {
     'Accept': 'application/json',
   };
 
+  Future<bool> _verifyCoverArtUrl(String url) async {
+    try {
+      final response = await http.head(
+        Uri.parse(url),
+        headers: _musicBrainzHeaders,
+      ).timeout(const Duration(seconds: 5));
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Cover Art Archive verification failed for $url: $e');
+      return false;
+    }
+  }
+
   Future<String?> getAlbumImageFromAPI(Track track) async {
     if (track.name.trim().isEmpty || track.artists.trim().isEmpty) return null;
 
@@ -613,7 +626,7 @@ class LocalMusicService {
           'limit': '1',
         }),
         headers: _musicBrainzHeaders,
-      );
+      ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -623,10 +636,19 @@ class LocalMusicService {
           if (releases != null && releases.isNotEmpty) {
             final releaseId = releases.first['id'] as String?;
             if (releaseId != null && releaseId.isNotEmpty) {
-              return Uri.https(
+              final coverUrl = Uri.https(
                 _coverArtBaseUrl,
                 '/release/$releaseId/front-250',
               ).toString();
+              
+              // Verify the cover actually exists in Cover Art Archive
+              final exists = await _verifyCoverArtUrl(coverUrl);
+              if (exists) {
+                print('Found cover for "${track.name}" by ${track.artists}');
+                return coverUrl;
+              } else {
+                print('Cover Art Archive has no image for release $releaseId ("${track.name}" by ${track.artists})');
+              }
             }
           }
         }
@@ -637,7 +659,7 @@ class LocalMusicService {
         );
       }
     } catch (e) {
-      print('Error fetching album image: $e');
+      print('Error fetching album image for "${track.name}" by ${track.artists}: $e');
     }
     return null;
   }
@@ -645,11 +667,15 @@ class LocalMusicService {
   //get the album image from firestore, if not found get it from MusicBrainz
   //and Cover Art Archive and save it to firestore for future use
   Future<void> fetchAlbumImage(String accessToken, Track track) async {
-    if (track.albumImageUrl != null && track.albumImageUrl!.trim().isNotEmpty)
+    if (track.id == null || track.id!.isEmpty) {
+      if (track.albumImageUrl == null || track.albumImageUrl!.isEmpty) {
+        print('No cover for "${track.name}" by ${track.artists}: Track has no ID');
+      }
       return;
-    if (track.id == null || track.id!.isEmpty) return;
+    }
 
     try {
+      // Always check firestore first (it's cached)
       final doc = await FirebaseFirestore.instance
           .collection('albumCovers')
           .doc(track.id)
@@ -658,15 +684,18 @@ class LocalMusicService {
         final data = doc.data();
         if (data != null && data['albumImageUrl'] != null) {
           track.albumImageUrl = data['albumImageUrl'];
+          //print('Using cached cover for "${track.name}" by ${track.artists}');
           return;
         }
       }
 
-      // if no track image is found get the album image from MusicBrainz/Cover
-      // Art Archive and save it to firestore for future use
-      track.albumImageUrl = await getAlbumImageFromAPI(track);
-      if (track.albumImageUrl != null) {
-        await setAlbumImageUrl(track.id!, track.albumImageUrl!);
+      // No cache found, fetch from MusicBrainz/Cover Art Archive
+      final coverUrl = await getAlbumImageFromAPI(track);
+      if (coverUrl != null) {
+        track.albumImageUrl = coverUrl;
+        await setAlbumImageUrl(track.id!, coverUrl);
+      } else {
+        print('No cover available for "${track.name}" by ${track.artists}');
       }
     } catch (e) {
       print('Error in fetchAlbumImage for track ${track.id}: $e');
@@ -709,6 +738,7 @@ class LocalMusicService {
       await fetchAlbumImage(accessToken, track);
       if(track.albumImageUrl == null || track.albumImageUrl!.trim().isEmpty){
         noCoverCount++;
+        print('MISSING_COVER: \"${track.name}\" by ${track.artists} (id: ${track.id})');
       }
       feed.add(track);
     }
@@ -806,7 +836,7 @@ class LocalMusicService {
           'limit': limit.toString(),
         }),
         headers: _musicBrainzHeaders,
-      );
+      ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
         throw Exception('MusicBrainz search failed: ${response.statusCode}');
@@ -840,7 +870,7 @@ class LocalMusicService {
           'limit': limit.toString(),
         }),
         headers: _musicBrainzHeaders,
-      );
+      ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
         throw Exception(
@@ -887,16 +917,15 @@ class LocalMusicService {
     final releaseDate = firstRelease?['date'] as String?;
     final score = double.tryParse((json['score'] ?? '').toString());
 
+    // Don't set albumImageUrl here - let fetchAlbumImage() verify it exists
+    // This ensures Cover Art Archive actually has the image before storing the URL
     return Track(
       name: title,
       artists: artists,
       durationMs: (json['length'] as num?)?.toInt() ?? 0,
       explicit: false,
       url: 'https://musicbrainz.org/recording/${json['id']}',
-      albumImageUrl: releaseId == null
-          ? null
-          : Uri.https(_coverArtBaseUrl, '/release/$releaseId/front-250')
-                .toString(),
+      albumImageUrl: null,
       popularity: null,
       releaseDate: releaseDate,
       id: json['id'] as String?,
