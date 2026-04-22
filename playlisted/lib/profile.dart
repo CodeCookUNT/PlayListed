@@ -475,9 +475,14 @@ class ProfilePage extends StatelessWidget {
     final password = await _askForPassword(context);
     if (password == null || password.isEmpty || !context.mounted) return;
 
-    var progressShown = false;
-    _showDeleteProgressDialog(context);
-    progressShown = true;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      const SnackBar(
+        duration: Duration(minutes: 1),
+        content: Text('Deleting account...'),
+      ),
+    );
 
     try {
       await AccountDeletionService.instance.reauthenticateAndDelete(
@@ -509,32 +514,8 @@ class ProfilePage extends StatelessWidget {
       }
       return;
     } finally {
-      if (progressShown &&
-          context.mounted &&
-          Navigator.of(context, rootNavigator: true).canPop()) {
-        Navigator.of(context, rootNavigator: true).pop();
-      }
+      messenger.hideCurrentSnackBar();
     }
-  }
-
-  void _showDeleteProgressDialog(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => const AlertDialog(
-        content: Row(
-          children: [
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2.5),
-            ),
-            SizedBox(width: 16),
-            Expanded(child: Text('Deleting account...')),
-          ],
-        ),
-      ),
-    );
   }
 
   Future<String?> _askForPassword(BuildContext context) async {
