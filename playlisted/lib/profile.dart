@@ -497,51 +497,12 @@ class ProfilePage extends StatelessWidget {
   }
 
   Future<String?> _askForDeleteConfirmationAndPassword(BuildContext context) async {
-    final controller = TextEditingController();
-    bool obscure = true;
-
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => AlertDialog(
-          title: const Text('Delete account?'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'This permanently deletes your account and data. Enter your password to confirm.',
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: controller,
-                obscureText: obscure,
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  suffixIcon: IconButton(
-                    onPressed: () => setModalState(() => obscure = !obscure),
-                    icon: Icon(obscure ? Icons.visibility : Icons.visibility_off),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(controller.text),
-              style: FilledButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('Yes, delete'),
-            ),
-          ],
-        ),
+    return Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const _DeleteAccountConfirmationPage(),
       ),
     );
-
-    controller.dispose();
-    return result;
   }
   Future<void> _showEditAvatarSheet(
     BuildContext context, {
@@ -710,6 +671,82 @@ class ProfilePage extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+class _DeleteAccountConfirmationPage extends StatefulWidget {
+  const _DeleteAccountConfirmationPage();
+
+  @override
+  State<_DeleteAccountConfirmationPage> createState() =>
+      _DeleteAccountConfirmationPageState();
+}
+
+class _DeleteAccountConfirmationPageState
+    extends State<_DeleteAccountConfirmationPage> {
+  final TextEditingController _passwordController = TextEditingController();
+  bool _obscure = true;
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Delete account'),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'This permanently deletes your account and data. Enter your password to confirm.',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _passwordController,
+                obscureText: _obscure,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  border: const OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    onPressed: () => setState(() => _obscure = !_obscure),
+                    icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.of(context).pop(
+                        _passwordController.text,
+                      ),
+                      style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                      child: const Text('Yes, delete'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
