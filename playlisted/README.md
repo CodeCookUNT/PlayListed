@@ -19,9 +19,10 @@ samples, guidance on mobile development, and a full API reference.
 
 The app writes a deletion request before removing auth credentials. It first
 tries `deletion_requests/{uid}`, and falls back to
-`users/{uid}/deletion_requests/request` for stricter Firestore rulesets. A
-separate admin worker script then deletes Firestore user data in the
-background.
+`users/{uid}/deletion_requests/request` for stricter Firestore rulesets. If
+both are blocked, it marks `users/{uid}.deletionRequested = true` as a final
+fallback. A separate admin worker script then deletes Firestore user data in
+the background.
 
 Worker entrypoint:
 

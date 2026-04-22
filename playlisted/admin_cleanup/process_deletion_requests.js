@@ -74,15 +74,11 @@ async function cleanupDeletedUserData({uid, username}) {
 }
 
 async function processQueuedDeletionRequests(limit = 25) {
+  let processedCount = 0;
   const snap = await db.collectionGroup("deletion_requests")
     .where("status", "==", "queued")
     .limit(limit)
     .get();
-
-  if (snap.empty) {
-    console.log("No queued deletion requests.");
-    return;
-  }
 
   for (const reqDoc of snap.docs) {
     const data = reqDoc.data();
@@ -110,6 +106,51 @@ async function processQueuedDeletionRequests(limit = 25) {
       }, {merge: true});
       console.error(`Failed deletion for uid=${uid}`, error);
     }
+    processedCount += 1;
+  }
+
+  if (processedCount >= limit) {
+    return;
+  }
+
+  const remaining = limit - processedCount;
+  const userFallbackSnap = await db.collection("users")
+    .where("deletionRequested", "==", true)
+    .limit(remaining)
+    .get();
+
+  for (const userDoc of userFallbackSnap.docs) {
+    const uid = userDoc.id;
+    const data = userDoc.data();
+    const username = data.username || null;
+
+    console.log(`Processing user-doc fallback deletion for uid=${uid}`);
+    await userDoc.ref.set({
+      deletionWorkerStatus: "processing",
+      deletionWorkerStartedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, {merge: true});
+
+    try {
+      await cleanupDeletedUserData({uid, username});
+      await userDoc.ref.set({
+        deletionRequested: false,
+        deletionWorkerStatus: "completed",
+        deletionWorkerCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, {merge: true});
+      console.log(`Completed user-doc fallback deletion for uid=${uid}`);
+    } catch (error) {
+      await userDoc.ref.set({
+        deletionWorkerStatus: "error",
+        deletionWorkerLastErrorAt: admin.firestore.FieldValue.serverTimestamp(),
+        deletionWorkerLastErrorMessage: String(error && error.message ? error.message : error),
+      }, {merge: true});
+      console.error(`Failed user-doc fallback deletion for uid=${uid}`, error);
+    }
+    processedCount += 1;
+  }
+
+  if (processedCount == 0) {
+    console.log("No queued deletion requests.");
   }
 }
 

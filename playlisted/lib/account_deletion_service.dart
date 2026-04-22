@@ -53,20 +53,43 @@ class AccountDeletionService {
       'source': 'client',
     };
 
+    var queued = false;
+
     try {
       await _db
           .collection('deletion_requests')
           .doc(user.uid)
           .set(payload, SetOptions(merge: true));
+      queued = true;
     } on FirebaseException catch (e) {
       if (e.code != 'permission-denied') rethrow;
-      // Fallback for stricter rulesets that only allow writes under users/{uid}.
-      await _db
-          .collection('users')
-          .doc(user.uid)
-          .collection('deletion_requests')
-          .doc('request')
-          .set(payload, SetOptions(merge: true));
+      // continue to fallback
+    }
+
+    if (!queued) {
+      try {
+        // Fallback for rulesets that only allow writes under users/{uid}.
+        await _db
+            .collection('users')
+            .doc(user.uid)
+            .collection('deletion_requests')
+            .doc('request')
+            .set(payload, SetOptions(merge: true));
+        queued = true;
+      } on FirebaseException catch (e) {
+        if (e.code != 'permission-denied') rethrow;
+        // continue to final fallback
+      }
+    }
+
+    if (!queued) {
+      // Final fallback for strictest rulesets: mark the user doc directly.
+      // Admin worker will process users where deletionRequested == true.
+      await _db.collection('users').doc(user.uid).set({
+        'deletionRequested': true,
+        'deletionRequestedAt': FieldValue.serverTimestamp(),
+        'deletionRequestSource': 'client',
+      }, SetOptions(merge: true));
     }
 
     // Keep on-device deletion minimal to avoid ANRs on lower-end phones.
