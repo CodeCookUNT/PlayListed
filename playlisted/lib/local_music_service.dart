@@ -277,6 +277,7 @@ class _CsvMusicLibrary {
     return _dedupe(matches).take(limit).toList();
   }
 
+
   Future<List<Track>> topSongs({String? yearRange, int limit = 50}) async {
     Iterable<Track> source = _allTracks;
 
@@ -830,77 +831,36 @@ class LocalMusicService {
     return _CsvMusicLibrary.instance.topSongsByGenre(genre, limit: limit);
   }
 
-  Future<List<Track>> searchSongs(String query, {int limit = 20}) async {
-    final normalized = query.trim();
-    if (normalized.isEmpty) return [];
+Future<List<Track>> searchSongs(String query, {int limit = 20}) async {
+  await _CsvMusicLibrary.instance.ensureLoaded();
 
-    try {
-      final response = await http.get(
-        Uri.https(_musicBrainzBaseUrl, '/ws/2/recording', {
-          'query': normalized,
-          'fmt': 'json',
-          'limit': limit.toString(),
-        }),
-        headers: _musicBrainzHeaders,
-      ).timeout(const Duration(seconds: 10));
+  final results =
+      _CsvMusicLibrary.instance.searchSongs(query, limit: limit);
 
-      if (response.statusCode != 200) {
-        throw Exception('MusicBrainz search failed: ${response.statusCode}');
-      }
+  // Optional: fetch album images (keeps your current behavior)
+  final token = await getAccessToken();
+  await Future.wait(results.map((t) => fetchAlbumImage(token, t)));
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final recordings = (data['recordings'] as List?) ?? const [];
-      return recordings
-          .map((item) => _trackFromMusicBrainz(item as Map<String, dynamic>))
-          .whereType<Track>()
-          .toList();
-    } catch (e) {
-      print('searchSongs: MusicBrainz failed, using local CSV fallback: $e');
-      await _CsvMusicLibrary.instance.ensureLoaded();
-      return _CsvMusicLibrary.instance.searchSongs(query, limit: limit);
-    }
-  }
+  return results;
+}
 
-  Future<List<Track>> searchArtistTopSongs(
-    String artistName, {
-    int limit = 20,
-  }) async {
-    final normalized = artistName.trim();
-    if (normalized.isEmpty) return [];
+Future<List<Track>> searchArtistTopSongs(
+  String artistName, {
+  int limit = 20,
+}) async {
+  await _CsvMusicLibrary.instance.ensureLoaded();
 
-    try {
-      final response = await http.get(
-        Uri.https(_musicBrainzBaseUrl, '/ws/2/recording', {
-          'query': 'artist:"$normalized"',
-          'fmt': 'json',
-          'limit': limit.toString(),
-        }),
-        headers: _musicBrainzHeaders,
-      ).timeout(const Duration(seconds: 10));
+  final results = _CsvMusicLibrary.instance.searchArtistTopSongs(
+    artistName,
+    limit: limit,
+  );
 
-      if (response.statusCode != 200) {
-        throw Exception(
-          'MusicBrainz artist lookup failed: ${response.statusCode}',
-        );
-      }
+  final token = await getAccessToken();
+  await Future.wait(results.map((t) => fetchAlbumImage(token, t)));
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final recordings = (data['recordings'] as List?) ?? const [];
-      return recordings
-          .map((item) => _trackFromMusicBrainz(item as Map<String, dynamic>))
-          .whereType<Track>()
-          .toList();
-    } catch (e) {
-      print(
-        'searchArtistTopSongs: MusicBrainz failed, using local CSV fallback: $e',
-      );
-      await _CsvMusicLibrary.instance.ensureLoaded();
-      return _CsvMusicLibrary.instance.searchArtistTopSongs(
-        artistName,
-        limit: limit,
-      );
-    }
-  }
+  return results;
+}
+
 
   Track? _trackFromMusicBrainz(Map<String, dynamic> json) {
     final title = (json['title'] as String?)?.trim();
@@ -922,6 +882,8 @@ class LocalMusicService {
     final releaseId = firstRelease?['id'] as String?;
     final releaseDate = firstRelease?['date'] as String?;
     final score = double.tryParse((json['score'] ?? '').toString());
+
+
 
     // Don't set albumImageUrl here - let fetchAlbumImage() verify it exists
     // This ensures Cover Art Archive actually has the image before storing the URL
