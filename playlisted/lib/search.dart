@@ -52,21 +52,35 @@ class _SearchPageState extends State<SearchPage> {
     });
 
     try {
-      // Try song search first
-      final songs = await _musicService.searchSongs(query);
+      final searches = await Future.wait([
+        _musicService.searchSongs(query),
+        _musicService.searchArtistTopSongs(query),
+      ]);
 
-      if (songs.isNotEmpty) {
-        setState(() {
-          _results = songs;
-          _isLoading = false;
-        });
-        return;
+      final songs = searches[0];
+      final artistTracks = searches[1];
+
+      final mergedResults = <Track>[];
+      final seenKeys = <String>{};
+
+      void addTrack(Track track) {
+        final key = '${track.id ?? ''}|${track.name}|${track.artists}'
+            .toLowerCase();
+        if (seenKeys.add(key)) {
+          mergedResults.add(track);
+        }
       }
 
-      final artistTracks = await _musicService.searchArtistTopSongs(query);
+      for (final track in songs) {
+        addTrack(track);
+      }
+
+      for (final track in artistTracks) {
+        addTrack(track);
+      }
 
       setState(() {
-        _results = artistTracks;
+        _results = mergedResults;
         _isLoading = false;
       });
     } catch (e) {
