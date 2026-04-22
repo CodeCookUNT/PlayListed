@@ -698,7 +698,8 @@ class _DeleteAccountConfirmationPageState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Delete account'),
+        centerTitle: true,
+        title: const Text('Delete Account'),
       ),
       body: SafeArea(
         child: Padding(
@@ -707,7 +708,8 @@ class _DeleteAccountConfirmationPageState
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'This permanently deletes your account and data. Enter your password to confirm.',
+                'This Permanently Deletes Your Account And Data. Enter Your Password To Confirm.',
+                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
               TextField(
