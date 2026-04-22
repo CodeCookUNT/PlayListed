@@ -41,8 +41,13 @@ class AccountDeletionService {
       throw StateError('No logged-in user found.');
     }
 
-    final userDoc = await _db.collection('users').doc(user.uid).get();
-    final username = userDoc.data()?['username'] as String?;
+    String? username;
+    try {
+      final userDoc = await _db.collection('users').doc(user.uid).get();
+      username = userDoc.data()?['username'] as String?;
+    } catch (_) {
+      // Best-effort only; do not block auth deletion.
+    }
 
     final payload = {
       'uid': user.uid,
@@ -53,48 +58,44 @@ class AccountDeletionService {
       'source': 'client',
     };
 
-    var queued = false;
-
-    try {
-      await _db
-          .collection('deletion_requests')
-          .doc(user.uid)
-          .set(payload, SetOptions(merge: true));
-      queued = true;
-    } on FirebaseException catch (e) {
-      if (e.code != 'permission-denied') rethrow;
-      // continue to fallback
-    }
-
-    if (!queued) {
-      try {
-        // Fallback for rulesets that only allow writes under users/{uid}.
-        await _db
-            .collection('users')
-            .doc(user.uid)
-            .collection('deletion_requests')
-            .doc('request')
-            .set(payload, SetOptions(merge: true));
-        queued = true;
-      } on FirebaseException catch (e) {
-        if (e.code != 'permission-denied') rethrow;
-        // continue to final fallback
-      }
-    }
-
-    if (!queued) {
-      // Final fallback for strictest rulesets: mark the user doc directly.
-      // Admin worker will process users where deletionRequested == true.
-      await _db.collection('users').doc(user.uid).set({
-        'deletionRequested': true,
-        'deletionRequestedAt': FieldValue.serverTimestamp(),
-        'deletionRequestSource': 'client',
-      }, SetOptions(merge: true));
-    }
+    await _queueDeletionRequestBestEffort(user.uid, payload);
 
     // Keep on-device deletion minimal to avoid ANRs on lower-end phones.
     // Firestore cleanup is handled by an external admin cleanup worker.
     await user.delete().timeout(_authDeleteTimeout);
     await _auth.signOut();
+  }
+
+  Future<void> _queueDeletionRequestBestEffort(
+    String uid,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      await _db.collection('deletion_requests').doc(uid).set(
+            payload,
+            SetOptions(merge: true),
+          );
+      return;
+    } catch (_) {}
+
+    try {
+      await _db
+          .collection('users')
+          .doc(uid)
+          .collection('deletion_requests')
+          .doc('request')
+          .set(payload, SetOptions(merge: true));
+      return;
+    } catch (_) {}
+
+    try {
+      await _db.collection('users').doc(uid).set({
+        'deletionRequested': true,
+        'deletionRequestedAt': FieldValue.serverTimestamp(),
+        'deletionRequestSource': 'client',
+      }, SetOptions(merge: true));
+    } catch (_) {
+      // Ignore enqueue failures; requirement is to complete auth deletion/logout.
+    }
   }
 }

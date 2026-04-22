@@ -24,6 +24,10 @@ both are blocked, it marks `users/{uid}.deletionRequested = true` as a final
 fallback. A separate admin worker script then deletes Firestore user data in
 the background.
 
+If all request paths are blocked by rules, the app still completes auth account
+deletion/sign-out (so the user cannot log back in) and cleanup must be handled
+manually/admin-side.
+
 Worker entrypoint:
 
 - `admin_cleanup/process_deletion_requests.js`
