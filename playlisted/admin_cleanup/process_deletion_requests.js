@@ -74,7 +74,7 @@ async function cleanupDeletedUserData({uid, username}) {
 }
 
 async function processQueuedDeletionRequests(limit = 25) {
-  const snap = await db.collection("deletion_requests")
+  const snap = await db.collectionGroup("deletion_requests")
     .where("status", "==", "queued")
     .limit(limit)
     .get();
@@ -86,7 +86,7 @@ async function processQueuedDeletionRequests(limit = 25) {
 
   for (const reqDoc of snap.docs) {
     const data = reqDoc.data();
-    const uid = data.uid || reqDoc.id;
+    const uid = data.uid || inferUidFromPath(reqDoc.ref.path) || reqDoc.id;
     const username = data.username || null;
 
     console.log(`Processing deletion request for uid=${uid}`);
@@ -111,6 +111,16 @@ async function processQueuedDeletionRequests(limit = 25) {
       console.error(`Failed deletion for uid=${uid}`, error);
     }
   }
+}
+
+function inferUidFromPath(path) {
+  // Path format example: users/{uid}/deletion_requests/request
+  const parts = path.split("/");
+  const usersIdx = parts.indexOf("users");
+  if (usersIdx >= 0 && usersIdx + 1 < parts.length) {
+    return parts[usersIdx + 1];
+  }
+  return null;
 }
 
 processQueuedDeletionRequests()

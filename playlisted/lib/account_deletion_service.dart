@@ -44,14 +44,30 @@ class AccountDeletionService {
     final userDoc = await _db.collection('users').doc(user.uid).get();
     final username = userDoc.data()?['username'] as String?;
 
-    await _db.collection('deletion_requests').doc(user.uid).set({
+    final payload = {
       'uid': user.uid,
       'email': user.email,
       'username': username,
       'status': 'queued',
       'requestedAt': FieldValue.serverTimestamp(),
       'source': 'client',
-    }, SetOptions(merge: true));
+    };
+
+    try {
+      await _db
+          .collection('deletion_requests')
+          .doc(user.uid)
+          .set(payload, SetOptions(merge: true));
+    } on FirebaseException catch (e) {
+      if (e.code != 'permission-denied') rethrow;
+      // Fallback for stricter rulesets that only allow writes under users/{uid}.
+      await _db
+          .collection('users')
+          .doc(user.uid)
+          .collection('deletion_requests')
+          .doc('request')
+          .set(payload, SetOptions(merge: true));
+    }
 
     // Keep on-device deletion minimal to avoid ANRs on lower-end phones.
     // Firestore cleanup is handled by an external admin cleanup worker.
