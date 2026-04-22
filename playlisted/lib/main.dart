@@ -343,6 +343,15 @@ class MyAppState extends ChangeNotifier {
       tracks = newTracks;
       if (tracks != null && tracks!.isNotEmpty) {
         current = tracks![0];
+        // Track all loaded tracks by ID and name/artist to avoid duplicates in future loads
+        for (final track in tracks!) {
+          if (track.id != null && track.id!.isNotEmpty) {
+            _seenTrackIds.add(track.id!);
+          }
+          _seenTrackNameArtist.add(
+            '${track.name}|${track.artists}'.toLowerCase(),
+          );
+        }
       }
       notifyListeners();
     } catch (e) {
@@ -390,8 +399,11 @@ class MyAppState extends ChangeNotifier {
       if (moreTracks.isNotEmpty) {
         tracks!.addAll(moreTracks);
 
-        // Track by name/artist to avoid duplicates in same session
+        // Track all new tracks by ID and name/artist to avoid duplicates in same session
         for (final track in moreTracks) {
+          if (track.id != null && track.id!.isNotEmpty) {
+            _seenTrackIds.add(track.id!);
+          }
           _seenTrackNameArtist.add(
             '${track.name}|${track.artists}'.toLowerCase(),
           );
@@ -500,6 +512,7 @@ class MyAppState extends ChangeNotifier {
   }
 
   void getNext() {
+    print("Track Counter: $_trackCounter");
     if (tracks != null && tracks!.isNotEmpty) {
       final currentId = current?.id;
       final currentNameArtist = current != null
