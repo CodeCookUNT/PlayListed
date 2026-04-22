@@ -725,11 +725,19 @@ class LocalMusicService {
     final feed = <Track>[];
     int noCoverCount = 0;
 
+    //print seen ids
+    for(var id in seenIds){
+      print('Already seen track ID: $id');
+    }
+
     Future<void> addUnique(Track track) async {
       final key = '${track.name}|${track.artists}'.toLowerCase();
 
+      //if it is a recommended track, add it to the feed if it hasn't been liked yet
       if (track.id != null && track.id!.isNotEmpty) {
-        if (seenIds.contains(track.id)) return;
+        if (seenIds.contains(track.id)) {
+          return;
+        }
         seenIds.add(track.id!);
       }
 
@@ -738,7 +746,6 @@ class LocalMusicService {
       await fetchAlbumImage(accessToken, track);
       if(track.albumImageUrl == null || track.albumImageUrl!.trim().isEmpty){
         noCoverCount++;
-        print('MISSING_COVER: \"${track.name}\" by ${track.artists} (id: ${track.id})');
       }
       feed.add(track);
     }
@@ -748,22 +755,18 @@ class LocalMusicService {
         .toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
+    // 1. Add ALL recommended tracks first (prioritized by score)
+    print('fetchSongs: Adding ${validRec.length} recommended tracks to feed');
     for (final entry in validRec) {
-      if (feed.length >= 16) break;
+      if(feed.length >= limit-4) break;
       await addUnique(entry.key);
     }
+    print('fetchSongs: After recs, feed.length=${feed.length}');
 
-    if (feed.length < 16) {
-      final extraRecommendations =
-          _CsvMusicLibrary.instance.randomSongs(limit: 16 - feed.length);
-      for (final track in extraRecommendations) {
-        if (feed.length >= 16) break;
-        await addUnique(track);
-      }
-    }
-
+    // 2. Add popular songs
     final popularTracks =
         _CsvMusicLibrary.instance.randomPopularSongs(limit: 3);
+    print('fetchSongs: Adding ${popularTracks.length} popular tracks');
     for (final track in popularTracks) {
       await addUnique(track);
     }
@@ -791,7 +794,10 @@ class LocalMusicService {
       }
     }
 
+    int recCount = feed.where((track) => recTracks.keys.any((rec) => rec.id == track.id)).length;
     print("Loaded ${feed.length} feed tracks with $noCoverCount missing covers");
+    print("$recCount/$limit of them are from recommendations");
+    
 
     feed.shuffle();
     return feed.take(limit).toList();

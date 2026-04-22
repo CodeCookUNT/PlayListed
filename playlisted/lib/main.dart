@@ -259,7 +259,6 @@ class MyAppState extends ChangeNotifier {
       }
       
       notifyListeners();
-      print('Finished loading ${likedOrRated.length} ratings');
       // Initialize seen tracks after loading user ratings
     } catch (e) {
       print('Error loading user ratings: $e');
@@ -344,17 +343,6 @@ class MyAppState extends ChangeNotifier {
       tracks = newTracks;
       if (tracks != null && tracks!.isNotEmpty) {
         current = tracks![0];
-
-        // track all returned tracks so we don't serve them again
-        // Note: Do not clear _seenTrackIds here, as it contains liked track IDs from initializeSeenIds
-        for (final track in tracks!) {
-          if (track.id != null && track.id!.isNotEmpty) {
-            _seenTrackIds.add(track.id!);
-          }
-          _seenTrackNameArtist.add(
-            '${track.name}|${track.artists}'.toLowerCase(),
-          );
-        }
       }
       notifyListeners();
     } catch (e) {
@@ -402,11 +390,8 @@ class MyAppState extends ChangeNotifier {
       if (moreTracks.isNotEmpty) {
         tracks!.addAll(moreTracks);
 
-        // track these new tracks
+        // Track by name/artist to avoid duplicates in same session
         for (final track in moreTracks) {
-          if (track.id != null && track.id!.isNotEmpty) {
-            _seenTrackIds.add(track.id!);
-          }
           _seenTrackNameArtist.add(
             '${track.name}|${track.artists}'.toLowerCase(),
           );
@@ -698,7 +683,7 @@ class MyAppState extends ChangeNotifier {
     }
 
     //run the recommendation algorithm (writes to Firestore)
-    await recommendService.getRec(_tempLikedTracks, accessToken);
+    await recommendService.getRec(_tempLikedTracks);
     if (_isOperationCanceled(opId)) return;
 
     //pull the updated recommendations back into memory
@@ -767,9 +752,11 @@ class MyAppState extends ChangeNotifier {
 
     final opId = _operationId;
     try {
-      await loadUserRatings();
-      if (_isOperationCanceled(opId)) return;
+      // Load recommendations first so we can filter them out from rated tracks
       await loadRecommendations();
+      if (_isOperationCanceled(opId)) return;
+      
+      await loadUserRatings();
       if (_isOperationCanceled(opId)) return;
       await loadFeed(yearRange: yearRange);
       if (_isOperationCanceled(opId)) return;

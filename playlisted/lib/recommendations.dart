@@ -24,7 +24,7 @@ class Recommendations {
 
   //Future: Function to get liked songs, then find patterns in the user's liked songs
   //! Recomendation algorithm goes here!
-Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
+Future<void> getRec(List<String> likedOrRatedIDs) async {
   print('Generating new recommendations...');
 
   final recTrackIds = <String, Map<String, dynamic>>{}; // trackId -> {track, sources}
@@ -32,6 +32,7 @@ Future<void> getRec(List<String> likedOrRatedIDs, String? accessToken) async {
   try {
     //for each liked or rated track, find co-liked tracks
     for (final likedId in likedOrRatedIDs) {
+      print('Processing liked/rated track ID: $likedId');
 
       //2 CASES: songA is the likedId or songB is the likedId
       //Cannot query songA OR songB in a single query, so we do two separate queries
