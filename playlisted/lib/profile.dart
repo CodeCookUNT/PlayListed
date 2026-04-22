@@ -450,29 +450,7 @@ class ProfilePage extends StatelessWidget {
   }
 
   Future<void> _confirmDeleteAccount(BuildContext context) async {
-    final shouldDelete = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete account?'),
-        content: const Text(
-          'Are you sure? This permanently deletes your account and wipes your data.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Yes, delete'),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldDelete != true || !context.mounted) return;
-    final password = await _askForPassword(context);
+    final password = await _askForDeleteConfirmationAndPassword(context);
     if (password == null || password.isEmpty || !context.mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
@@ -518,7 +496,7 @@ class ProfilePage extends StatelessWidget {
     }
   }
 
-  Future<String?> _askForPassword(BuildContext context) async {
+  Future<String?> _askForDeleteConfirmationAndPassword(BuildContext context) async {
     final controller = TextEditingController();
     bool obscure = true;
 
@@ -526,19 +504,27 @@ class ProfilePage extends StatelessWidget {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) => AlertDialog(
-          title: const Text('Confirm password'),
-          content: TextField(
-            controller: controller,
-            obscureText: obscure,
-            decoration: InputDecoration(
-              labelText: 'Password',
-              suffixIcon: IconButton(
-                onPressed: () => setModalState(() => obscure = !obscure),
-                icon: Icon(obscure ? Icons.visibility : Icons.visibility_off),
+          title: const Text('Delete account?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'This permanently deletes your account and data. Enter your password to confirm.',
               ),
-            ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                obscureText: obscure,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  suffixIcon: IconButton(
+                    onPressed: () => setModalState(() => obscure = !obscure),
+                    icon: Icon(obscure ? Icons.visibility : Icons.visibility_off),
+                  ),
+                ),
+              ),
+            ],
           ),
-          actionsAlignment: MainAxisAlignment.center,
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
@@ -547,7 +533,7 @@ class ProfilePage extends StatelessWidget {
             FilledButton(
               onPressed: () => Navigator.of(ctx).pop(controller.text),
               style: FilledButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('Delete'),
+              child: const Text('Yes, delete'),
             ),
           ],
         ),
