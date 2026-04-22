@@ -53,8 +53,8 @@ class _SearchPageState extends State<SearchPage> {
 
     try {
       final searches = await Future.wait([
-        _musicService.searchSongs(query),
-        _musicService.searchArtistTopSongs(query),
+        _musicService.searchSongs(query, limit: 20),
+        _musicService.searchArtistTopSongs(query, limit: 20),
       ]);
 
       final songs = searches[0];
