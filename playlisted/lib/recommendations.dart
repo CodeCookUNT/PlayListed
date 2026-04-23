@@ -14,24 +14,44 @@ class Recommendations {
   Recommendations._();
   static final Recommendations instance = Recommendations._();
 
-  String get _uid => FirebaseAuth.instance.currentUser!.uid;
+  String? get _uid => FirebaseAuth.instance.currentUser?.uid;
 
-  CollectionReference<Map<String, dynamic>> get _col =>
-      FirebaseFirestore.instance
-          .collection('users')
-          .doc(_uid)
-          .collection('recommendations');
+  CollectionReference<Map<String, dynamic>>? get _col {
+    final uid = _uid;
+    if (uid == null) return null;
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('recommendations');
+  }
+
+  /// Check if the user is still logged in
+  bool _isUserLoggedIn() {
+    return FirebaseAuth.instance.currentUser != null;
+  }
 
   //Future: Function to get liked songs, then find patterns in the user's liked songs
   //! Recomendation algorithm goes here!
 Future<void> getRec(List<String> likedOrRatedIDs) async {
   print('Generating new recommendations...');
 
+  // Check if user is still logged in before starting
+  if (!_isUserLoggedIn()) {
+    print('User signed out, aborting recommendation generation');
+    return;
+  }
+
   final recTrackIds = <String, Map<String, dynamic>>{}; // trackId -> {track, sources}
 
   try {
     //for each liked or rated track, find co-liked tracks
     for (final likedId in likedOrRatedIDs) {
+      // Check if user is still logged in before processing each track
+      if (!_isUserLoggedIn()) {
+        print('User signed out during recommendation generation, aborting');
+        return;
+      }
+
       print('Processing liked/rated track ID: $likedId');
 
       //2 CASES: songA is the likedId or songB is the likedId
@@ -46,6 +66,12 @@ Future<void> getRec(List<String> likedOrRatedIDs) async {
           // recommendation pool can grow well past forty items
           .limit(20)
           .get();
+
+      // Check again after async operation
+      if (!_isUserLoggedIn()) {
+        print('User signed out during recommendation generation, aborting');
+        return;
+      }
 
       //extract songB from each document
       for (final doc in q1.docs) {
@@ -78,6 +104,12 @@ Future<void> getRec(List<String> likedOrRatedIDs) async {
           .limit(20)
           .get();
 
+      // Check again after async operation
+      if (!_isUserLoggedIn()) {
+        print('User signed out during recommendation generation, aborting');
+        return;
+      }
+
       //extract songA from each document
       for (final doc in q2.docs) {
         final data = doc.data();
@@ -104,8 +136,15 @@ Future<void> getRec(List<String> likedOrRatedIDs) async {
     print("Generated ${recTrackIds.length} new recommendations.");
   } catch (e) {
     print('Error fetching co-liked tracks: $e');
+    return;
   }
   
+  // Check if user is still logged in before scoring
+  if (!_isUserLoggedIn()) {
+    print('User signed out during recommendation generation, aborting');
+    return;
+  }
+
   // compute max colike count so we can normalize co-like counts to 0..1
   double maxColike = 0.0;
   for (final v in recTrackIds.values) {
@@ -114,15 +153,34 @@ Future<void> getRec(List<String> likedOrRatedIDs) async {
   }
 
   // fetch accepted friends to compute friend-based score
+  final uid = _uid;
+  if (uid == null) {
+    print('User signed out, aborting recommendation generation');
+    return;
+  }
+
   final friendSnap = await FirebaseFirestore.instance
       .collection('users')
-      .doc(_uid)
+      .doc(uid)
       .collection('friends')
       .where('status', isEqualTo: 'accepted')
       .get();
+
+  // Check again after async operation
+  if (!_isUserLoggedIn()) {
+    print('User signed out during recommendation generation, aborting');
+    return;
+  }
+
   final friendUids = friendSnap.docs.map((d) => d.id).toList();
 
   for (final entry in recTrackIds.entries) {
+    // Check if user is still logged in before saving each recommendation
+    if (!_isUserLoggedIn()) {
+      print('User signed out during recommendation saving, aborting');
+      return;
+    }
+
     final track = entry.value['track'] as Track;
     final sources = entry.value['sources'] as Set<String>;
     final colikeCount = (entry.value['colikeCount'] as double?) ?? 0.0;
@@ -185,7 +243,12 @@ Future<void> getRec(List<String> likedOrRatedIDs) async {
     required List<String> sourceTrackIds, //the tracks that led to this recommendation
     required double score,
   }) async {
-    await _col.doc(trackId).set({
+    final col = _col;
+    if (col == null) {
+      print('Cannot save recommendation: user is not logged in');
+      return;
+    }
+    await col.doc(trackId).set({
       'name': name,
       'artists': artists,
       'durationMs': durationMs,
@@ -201,21 +264,30 @@ Future<void> getRec(List<String> likedOrRatedIDs) async {
 
   /// streams recommended tracks for the current user.
   Stream<List<Map<String, dynamic>>> recommendedStream() {
-    return _col.where('recommend', isEqualTo: true).snapshots().map(
+    final col = _col;
+    if (col == null) {
+      return Stream.value([]); // Return empty stream if not logged in
+    }
+    return col.where('recommend', isEqualTo: true).snapshots().map(
       (snap) => snap.docs.map((d) => {...d.data(), 'id': d.id}).toList(),
     );
   }
 
   //switch to a batch delete for more efficient deletion
   Future<void> removeRecommendationsFromSource(List<String> sourceIdSToDel) async {
+    final col = _col;
+    if (col == null) {
+      print('Cannot remove recommendations: user is not logged in');
+      return;
+    }
     final batch = FirebaseFirestore.instance.batch();
     
     //iterate though ids marked for deletion
     for (var sourceTrackId in sourceIdSToDel) {
-      final query = await _col.where('sourceTrackIds', arrayContains: sourceTrackId).get();
+      final query = await col.where('sourceTrackIds', arrayContains: sourceTrackId).get();
       //iterate through tracks with a matching source id for deletion
       for (var doc in query.docs) {
-        batch.delete(_col.doc(doc.id));
+        batch.delete(col.doc(doc.id));
       }
     }
     //delete all tracks at once
@@ -225,16 +297,21 @@ Future<void> getRec(List<String> likedOrRatedIDs) async {
   //function called to remove a single song from recommendations based on source track id
   //Called when a user likes, then unlikes a song
   Future<void> removeOneSongFromSource(String sourceIdToDel) async {
-    final query = await _col.where('sourceTrackIds', arrayContains: sourceIdToDel).get();
+    final col = _col;
+    if (col == null) {
+      print('Cannot remove recommendation: user is not logged in');
+      return;
+    }
+    final query = await col.where('sourceTrackIds', arrayContains: sourceIdToDel).get();
     //iterate through tracks with a matching source id for deletion
     for (var doc in query.docs) {
       final sources = List<String>.from(doc['sourceTrackIds'] ?? []);
       sources.remove(sourceIdToDel);
       
       if (sources.isEmpty) {
-        await _col.doc(doc.id).delete(); //delete if no more sources
+        await col.doc(doc.id).delete(); //delete if no more sources
       } else {
-        await _col.doc(doc.id).update({'sourceTrackIds': sources});
+        await col.doc(doc.id).update({'sourceTrackIds': sources});
       }
     }
   }
@@ -254,7 +331,12 @@ Future<void> getRec(List<String> likedOrRatedIDs) async {
 
   //Delete recommendation
   Future<void> deleteRecommendation(String trackId) async {
-    await _col.doc(trackId).delete();
+    final col = _col;
+    if (col == null) {
+      print('Cannot delete recommendation: user is not logged in');
+      return;
+    }
+    await col.doc(trackId).delete();
   }
 
   

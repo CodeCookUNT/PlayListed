@@ -737,18 +737,23 @@ class LocalMusicService {
       //if it is a recommended track, add it to the feed if it hasn't been liked yet
       if (track.id != null && track.id!.isNotEmpty) {
         if (seenIds.contains(track.id)) {
+          print('fetchSongs: Skipping track "${track.name}" (id=${track.id}) - already seen by ID');
           return;
         }
         seenIds.add(track.id!);
       }
 
-      if (seenNameArtist.contains(key)) return;
+      if (seenNameArtist.contains(key)) {
+        print('fetchSongs: Skipping track "${track.name}" by ${track.artists} - already seen by name/artist');
+        return;
+      }
       seenNameArtist.add(key);
       await fetchAlbumImage(accessToken, track);
       if(track.albumImageUrl == null || track.albumImageUrl!.trim().isEmpty){
         noCoverCount++;
       }
       feed.add(track);
+      print('fetchSongs: Added "${track.name}" by ${track.artists} (id=${track.id})');
     }
 
     final validRec = recTracks.entries
@@ -758,9 +763,18 @@ class LocalMusicService {
 
     // 1. Add ALL recommended tracks first (prioritized by score)
     print('fetchSongs: Adding ${validRec.length} recommended tracks to feed');
+    if (validRec.isEmpty) {
+      print('fetchSongs: WARNING - no valid recommendations with IDs!');
+    }
     for (final entry in validRec) {
-      if(feed.length >= limit-4) break;
-      await addUnique(entry.key);
+      final track = entry.key;
+      final score = entry.value;
+      print('fetchSongs: Processing recommendation "${track.name}" by ${track.artists} (id=${track.id}, score=$score)');
+      if(feed.length >= limit-4) {
+        print('fetchSongs: Feed at limit (${feed.length} >= ${limit-4}), stopping recommendations');
+        break;
+      }
+      await addUnique(track);
     }
     print('fetchSongs: After recs, feed.length=${feed.length}');
 
@@ -795,7 +809,11 @@ class LocalMusicService {
       }
     }
 
-    int recCount = feed.where((track) => recTracks.keys.any((rec) => rec.id == track.id)).length;
+    int recCount = feed.where((track) {
+      final trackId = track.id;
+      return trackId != null && trackId.isNotEmpty && 
+             recTracks.keys.any((rec) => rec.id == trackId);
+    }).length;
     print("Loaded ${feed.length} feed tracks with $noCoverCount missing covers");
     print("$recCount/$limit of them are from recommendations");
     
@@ -921,6 +939,8 @@ Future<List<Track>> searchArtistTopSongs(
         return {};
       }
 
+      print("fetchRecommendedSongs: Found ${q1.docs.length} recommendation documents");
+
       for (var doc in q1.docs) {
         final track = Track(
           name: doc['name'] ?? '',
@@ -934,6 +954,7 @@ Future<List<Track>> searchArtistTopSongs(
         );
         final score = (doc['score'] as num?)?.toDouble() ?? 0.0;
         recommendedTracks[track] = score;
+        print("fetchRecommendedSongs: Loaded recommendation: id=${track.id}, name=${track.name}, artists=${track.artists}, score=$score");
       }
 
       print(
