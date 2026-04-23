@@ -1379,77 +1379,105 @@ class _ReviewDialogState extends State<ReviewDialog> {
     final remainingChars = maxCharacters - widget.reviewController.text.length;
     return AlertDialog(
       title: const Text('Write a Review'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(widget.track.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-          Text('by ${widget.track.artists}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-          const SizedBox(height: 16),
-          TextField(
-            controller: widget.reviewController,
-            maxLength: maxCharacters,
-            maxLines: 5,
-            decoration: InputDecoration(
-              hintText: 'Share your thoughts about this song...',
-              border: const OutlineInputBorder(),
-              counterText: '$remainingChars characters remaining',
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.track.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              'by ${widget.track.artists}',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
-          ),
-          if (reviewExplicitCheck != null) ...[
-            const SizedBox(height: 8),
-            Text(reviewExplicitCheck!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: widget.reviewController,
+              maxLength: maxCharacters,
+              maxLines: 5,
+              decoration: InputDecoration(
+                hintText: 'Share your thoughts about this song...',
+                border: const OutlineInputBorder(),
+                counterText: '$remainingChars characters remaining',
+              ),
+            ),
+            if (reviewExplicitCheck != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                reviewExplicitCheck!,
+                style: const TextStyle(color: Colors.red, fontSize: 12),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        if (widget.reviewController.text.isNotEmpty)
-          TextButton(
-            onPressed: () async {
-              await Favorites.instance.setReview(
-                trackId: widget.track.id!,
-                name: widget.track.name,
-                artists: widget.track.artists,
-                albumImageUrl: widget.track.albumImageUrl,
-                review: '',
-              );
-              Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Review deleted')),
-              );
-            },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+        SizedBox(
+          width: double.maxFinite,
+          child: Row(
+            children: [
+              if (widget.reviewController.text.isNotEmpty)
+                TextButton(
+                  onPressed: () async {
+                    await Favorites.instance.setReview(
+                      trackId: widget.track.id!,
+                      name: widget.track.name,
+                      artists: widget.track.artists,
+                      albumImageUrl: widget.track.albumImageUrl,
+                      review: '',
+                    );
+                    Navigator.of(context).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Review deleted')),
+                    );
+                  },
+                  child: const Text(
+                    'Delete',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                ),
+
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+
+              const Spacer(),
+
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: () async {
+                  final review = widget.reviewController.text.trim();
+                  if (review.isEmpty) {
+                    Navigator.of(context).pop();
+                    return;
+                  }
+                  if (ExplicitContentFilter.containsExplicitContent(review)) {
+                    setState(() {
+                      reviewExplicitCheck =
+                          'Please remove explicit language from your review.';
+                    });
+                    return;
+                  }
+                  await Favorites.instance.setReview(
+                    trackId: widget.track.id!,
+                    name: widget.track.name,
+                    artists: widget.track.artists,
+                    albumImageUrl: widget.track.albumImageUrl,
+                    review: review,
+                  );
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Review saved!')),
+                  );
+                },
+                child: const Text('Save Review'),
+              ),
+            ],
           ),
-        ElevatedButton(
-          onPressed: () async {
-            final review = widget.reviewController.text.trim();
-            if (review.isEmpty) {
-              Navigator.of(context).pop();
-              return;
-            }
-            if (ExplicitContentFilter.containsExplicitContent(review)) {
-              setState(() {
-                reviewExplicitCheck = 'Please remove explicit language from your review.';
-              });
-              return;
-            }
-            await Favorites.instance.setReview(
-              trackId: widget.track.id!,
-              name: widget.track.name,
-              artists: widget.track.artists,
-              albumImageUrl: widget.track.albumImageUrl,
-              review: review,
-            );
-            Navigator.of(context).pop();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Review saved!')),
-            );
-          },
-          child: const Text('Save Review'),
         ),
       ],
     );
