@@ -833,15 +833,7 @@ class LocalMusicService {
 
 Future<List<Track>> searchSongs(String query, {int limit = 20}) async {
   await _CsvMusicLibrary.instance.ensureLoaded();
-
-  final results =
-      _CsvMusicLibrary.instance.searchSongs(query, limit: limit);
-
-  // Optional: fetch album images (keeps your current behavior)
-  final token = await getAccessToken();
-  await Future.wait(results.map((t) => fetchAlbumImage(token, t)));
-
-  return results;
+  return _CsvMusicLibrary.instance.searchSongs(query, limit: limit);
 }
 
 Future<List<Track>> searchArtistTopSongs(
