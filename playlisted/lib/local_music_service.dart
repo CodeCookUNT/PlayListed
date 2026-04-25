@@ -753,7 +753,6 @@ class LocalMusicService {
         noCoverCount++;
       }
       feed.add(track);
-      print('fetchSongs: Added "${track.name}" by ${track.artists} (id=${track.id})');
     }
 
     final validRec = recTracks.entries
@@ -954,7 +953,6 @@ Future<List<Track>> searchArtistTopSongs(
         );
         final score = (doc['score'] as num?)?.toDouble() ?? 0.0;
         recommendedTracks[track] = score;
-        print("fetchRecommendedSongs: Loaded recommendation: id=${track.id}, name=${track.name}, artists=${track.artists}, score=$score");
       }
 
       print(
