@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'local_music_service.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -33,7 +32,6 @@ import 'friend_likes_widget.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load();
   await SystemChrome.setPreferredOrientations(
     [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown],
   );
@@ -49,8 +47,6 @@ Future<void> main() async {
         const Settings(cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED);
   }
   print('Firebase initialized ✅');
-  //load environment variables (.env) for backwards compatibility with old setup
-  await dotenv.load(fileName: '.env');
 
   // Note: we no longer fetch a token or tracks here.  Instead the
   // application will request both after the user has successfully
