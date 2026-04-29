@@ -42,101 +42,133 @@ Future<void> getRec(List<String> likedOrRatedIDs) async {
   }
 
   final recTrackIds = <String, Map<String, dynamic>>{}; // trackId -> {track, sources}
+  final pendingFetches = <Future<void>>[]; // Track all pending track detail fetches
+  int newRecTrackLength = 0;
 
   try {
-    //for each liked or rated track, find co-liked tracks
+    //Parallelize queries for all liked tracks instead of processing sequentially
+    //Map each future to its corresponding likedId for robust tracking
+    final coLikedQueries = <(String likedId, Future<QuerySnapshot> query, String type)>[]; 
+    
     for (final likedId in likedOrRatedIDs) {
-      // Check if user is still logged in before processing each track
       if (!_isUserLoggedIn()) {
         print('User signed out during recommendation generation, aborting');
         return;
       }
 
       print('Processing liked/rated track ID: $likedId');
-
-      //2 CASES: songA is the likedId or songB is the likedId
-      //Cannot query songA OR songB in a single query, so we do two separate queries
       
-      //songA == likedId
-      final q1 = await FirebaseFirestore.instance
-          .collection('co_liked')
-          .where('songA', isEqualTo: likedId)
-          .orderBy('count', descending: true)
-          // grab a larger neighbourhood of co‑liked tracks so the
-          // recommendation pool can grow well past forty items
-          .limit(20)
-          .get();
-
-      // Check again after async operation
-      if (!_isUserLoggedIn()) {
-        print('User signed out during recommendation generation, aborting');
-        return;
-      }
-
-      //extract songB from each document
-      for (final doc in q1.docs) {
-        final data = doc.data();
-        final songB = data['songB'];
-        if(hasUserAlreadyLiked(likedOrRatedIDs, songB)){
-          continue; //skip if user has already liked/rated this track
-        }
-        if (songB != null) {
-          final track = await fetchTrackDetails(songB);
-          if (!recTrackIds.containsKey(songB)) {
-            recTrackIds[songB] = {
-              'track': track,
-              'sources': <String>{},
-              'colikeCount': 0.0,
-            };
+      // Queue both queries in parallel for this track, tracking which is which
+      coLikedQueries.add((
+        likedId,
+        FirebaseFirestore.instance
+            .collection('co_liked')
+            .where('songA', isEqualTo: likedId)
+            .orderBy('count', descending: true)
+            .limit(5)
+            .get(),
+        'songA'
+      ));
+      
+      coLikedQueries.add((
+        likedId,
+        FirebaseFirestore.instance
+            .collection('co_liked')
+            .where('songB', isEqualTo: likedId)
+            .orderBy('count', descending: true)
+            .limit(5)
+            .get(),
+        'songB'
+      ));
+    }
+    
+    if (coLikedQueries.isEmpty) {
+      print("No liked tracks to process, skipping recommendation generation.");
+      return;
+    }
+    
+    //map the list of futures to their corresponding liked track IDs and query types for robust processing later
+    final results = await Future.wait(
+      coLikedQueries.map((item) => item.$2)
+    );
+    
+    if (!_isUserLoggedIn()) {
+      print('User signed out during recommendation generation, aborting');
+      return;
+    }
+    
+    //process query results with explicit mapping to liked track IDs
+    for (int i = 0; i < results.length; i++) {
+      final (likedId, _, queryType) = coLikedQueries[i];
+      final snapshot = results[i];
+      
+      if (queryType == 'songA') {
+        // Extract songB from docs where songA == likedId
+        for (final doc in snapshot.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final songB = data['songB'];
+          //skip if already liked
+          if(hasUserAlreadyLiked(likedOrRatedIDs, songB)) continue;
+          if (songB != null) {
+            if (!recTrackIds.containsKey(songB)) {
+              recTrackIds[songB] = {
+                'track': null, // Will be filled in parallel
+                'sources': <String>{},
+                'colikeCount': 0.0,
+              };
+              // Parallelize track detail fetch
+              pendingFetches.add(
+                fetchTrackDetails(songB).then((track) {
+                  recTrackIds[songB]!['track'] = track;
+                }).catchError((e) {
+                  print('Error fetching track $songB: $e');
+                })
+              );
+            }
+            (recTrackIds[songB]!['sources'] as Set<String>).add(likedId);
+            final cnt = (data['count'] as num?)?.toDouble() ?? 0.0;
+            recTrackIds[songB]!['colikeCount'] = (recTrackIds[songB]!['colikeCount'] as double) + cnt;
+            newRecTrackLength++;
           }
-          (recTrackIds[songB]!['sources'] as Set<String>).add(likedId);
-          //track the colike count to compute score later
-          final cnt = (data['count'] as num?)?.toDouble() ?? 0.0;
-          recTrackIds[songB]!['colikeCount'] = (recTrackIds[songB]!['colikeCount'] as double) + cnt;
         }
-      }
-
-      //songB == likedId
-      final q2 = await FirebaseFirestore.instance
-          .collection('co_liked')
-          .where('songB', isEqualTo: likedId)
-          .orderBy('count', descending: true)
-          .limit(20)
-          .get();
-
-      // Check again after async operation
-      if (!_isUserLoggedIn()) {
-        print('User signed out during recommendation generation, aborting');
-        return;
-      }
-
-      //extract songA from each document
-      for (final doc in q2.docs) {
-        final data = doc.data();
-        final songA = data['songA'];
-        if(hasUserAlreadyLiked(likedOrRatedIDs, songA)){
-          continue; //skip if user has already liked/rated this track
-        }
-        if (songA != null) {
-          final track = await fetchTrackDetails(songA);
-          if (!recTrackIds.containsKey(songA)) {
-            recTrackIds[songA] = {
-              'track': track,
-              'sources': <String>{},
-              'colikeCount': 0.0,
-            };
+      } else {
+        // Extract songA from docs where songB == likedId
+        for (final doc in snapshot.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final songA = data['songA'];
+          if(hasUserAlreadyLiked(likedOrRatedIDs, songA)) continue;
+          if (songA != null) {
+            if (!recTrackIds.containsKey(songA)) {
+              recTrackIds[songA] = {
+                'track': null, // Will be filled in parallel
+                'sources': <String>{},
+                'colikeCount': 0.0,
+              };
+              // Parallelize track detail fetch
+              pendingFetches.add(
+                fetchTrackDetails(songA).then((track) {
+                  recTrackIds[songA]!['track'] = track;
+                }).catchError((e) {
+                  print('Error fetching track $songA: $e');
+                })
+              );
+            }
+            (recTrackIds[songA]!['sources'] as Set<String>).add(likedId);
+            final cnt = (data['count'] as num?)?.toDouble() ?? 0.0;
+            recTrackIds[songA]!['colikeCount'] = (recTrackIds[songA]!['colikeCount'] as double) + cnt;
+            newRecTrackLength++;
           }
-          (recTrackIds[songA]!['sources'] as Set<String>).add(likedId);
-          //track the colike count to compute score later
-          final cnt = (data['count'] as num?)?.toDouble() ?? 0.0;
-          recTrackIds[songA]!['colikeCount'] = (recTrackIds[songA]!['colikeCount'] as double) + cnt;
         }
       }
     }
-    print("Generated ${recTrackIds.length} new recommendations.");
+    
+    //wait for all track detail fetches to complete
+    await Future.wait(pendingFetches);
+    
+    print("Generated ${newRecTrackLength} new recommendations.");
   } catch (e) {
     print('Error fetching co-liked tracks: $e');
-    return;
+    rethrow; // Rethrow to see full stack trace for debugging
   }
   
   // Check if user is still logged in before scoring
@@ -166,66 +198,60 @@ Future<void> getRec(List<String> likedOrRatedIDs) async {
       .where('status', isEqualTo: 'accepted')
       .get();
 
-  // Check again after async operation
   if (!_isUserLoggedIn()) {
     print('User signed out during recommendation generation, aborting');
     return;
   }
 
   final friendUids = friendSnap.docs.map((d) => d.id).toList();
+  
+  // Fetch friend rating data in one batch instead of per-track
+  final friendRatingData = await _computeFriendRatingsForAllTracks(friendUids, recTrackIds.keys.toList());
 
+  // Batch all setRecommended calls to run in parallel
+  final setRecFutures = <Future<void>>[];
+  
   for (final entry in recTrackIds.entries) {
-    // Check if user is still logged in before saving each recommendation
     if (!_isUserLoggedIn()) {
       print('User signed out during recommendation saving, aborting');
       return;
     }
 
-    final track = entry.value['track'] as Track;
+    final track = entry.value['track'] as Track?;
+    if (track == null) continue; // Skip if track details failed to load
+    
     final sources = entry.value['sources'] as Set<String>;
     final colikeCount = (entry.value['colikeCount'] as double?) ?? 0.0;
 
-    //normalize co-like count
     final double colikeNorm = maxColike > 0 ? (colikeCount / maxColike) : 0.0;
-
-    //compute friend score: fraction of accepted friends who have rated/liked this track
-    int friendLikes = 0;
-    for (final f in friendUids) {
-      try {
-        final doc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(f)
-            .collection('ratings')
-            .doc(track.id)
-            .get();
-        if (doc.exists) {
-          final rating = (doc.data()?['rating'] as num?)?.toDouble() ?? 0.0;
-          if (rating > 0) friendLikes++;
-        }
-      } catch (e) {
-        //ignore per-friend lookup errors
-      }
-    }
-    final friendScore = friendUids.isEmpty ? 0.0 : (friendLikes / friendUids.length);
-
+    
+    // Get cached friend score instead of computing per-track
+    final friendScore = friendRatingData[track.id] ?? 0.0;
     final popularityNorm = track.score != null ? (track.score! / 100) : 0.0;
 
-    //final weighted score: 0.6 * colike + 0.2 * friend + 0.2 * popularity
+    //! Simple weighted scoring formula - can be tuned or made more complex later
+    //! 60% popularity, 20% friend score, 20% co-like score - can adjust weights as needed
     final double score = 0.6 * colikeNorm + 0.2 * friendScore + 0.2 * popularityNorm;
 
-    await setRecommended(
-      trackId: track.id!,
-      name: track.name,
-      artists: track.artists,
-      durationMs: track.durationMs,
-      explicit: track.explicit,
-      url: track.url,
-      albumImageUrl: track.albumImageUrl,
-      recommend: true,
-      sourceTrackIds: sources.toList(),
-      score: score,
+    //queue the write instead of awaiting immediately
+    setRecFutures.add(
+      setRecommended(
+        trackId: track.id!,
+        name: track.name,
+        artists: track.artists,
+        durationMs: track.durationMs,
+        explicit: track.explicit,
+        url: track.url,
+        albumImageUrl: track.albumImageUrl,
+        recommend: true,
+        sourceTrackIds: sources.toList(),
+        score: score,
+      )
     );
   }
+  
+  // Wait for all writes to complete in parallel
+  await Future.wait(setRecFutures);
 }
 
   //! Firestore functions to save recommended tracks for user
@@ -318,6 +344,60 @@ Future<void> getRec(List<String> likedOrRatedIDs) async {
 
   bool hasUserAlreadyLiked(List<String> likedOrRatedIDs, String trackId) {
     return likedOrRatedIDs.contains(trackId);
+  }
+  
+  /// Batch fetch all friend ratings for recommended tracks to avoid N+1 queries.
+  /// Returns a map of trackId -> friend score (0.0 to 1.0)
+  Future<Map<String, double>> _computeFriendRatingsForAllTracks(
+    List<String> friendUids,
+    List<String> trackIds,
+  ) async {
+    if (friendUids.isEmpty || trackIds.isEmpty) {
+      return {};
+    }
+    
+    final friendRatings = <String, Map<String, double>>{}; // trackId -> {friendUid -> rating}
+    
+    //batch fetch all friend ratings in parallel
+    final ratingFutures = <Future<void>>[]; 
+    
+    for (final friendUid in friendUids) {
+      ratingFutures.add(
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(friendUid)
+            .collection('ratings')
+            .get()
+            .then((snap) {
+              //process all ratings for this friend
+              for (final doc in snap.docs) {
+                final rating = (doc.data()['rating'] as num?)?.toDouble() ?? 0.0;
+                if (rating > 0) {
+                  final trackId = doc.id;
+                  if (!friendRatings.containsKey(trackId)) {
+                    friendRatings[trackId] = {};
+                  }
+                  friendRatings[trackId]![friendUid] = rating;
+                }
+              }
+            })
+            .catchError((e) {
+              print('Error fetching ratings for friend $friendUid: $e');
+            })
+      );
+    }
+    
+    //wait for all friend rating fetches to complete
+    await Future.wait(ratingFutures);
+    
+    // Compute normalized friend score for each track
+    final result = <String, double>{};
+    for (final trackId in trackIds) {
+      final trackFriendsWhoRated = friendRatings[trackId]?.length ?? 0;
+      result[trackId] = friendUids.isEmpty ? 0.0 : (trackFriendsWhoRated / friendUids.length);
+    }
+    
+    return result;
   }
 
   //Fetch the track details from Spotify API given only the track ID
