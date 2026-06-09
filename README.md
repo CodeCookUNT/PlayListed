@@ -1,4 +1,4 @@
-# PlayListed
+# Playlist'd
 
 ## What it does 
 The app will allow people to rate/review songs and albums from artists along with a social feature that allows you to see other peoples profiles and see their reviews, favorite songs, favorite albums and more.
